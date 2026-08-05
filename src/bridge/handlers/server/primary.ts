@@ -9,18 +9,26 @@ import {
 } from "../shared/communication.js";
 import { resetRegistry } from "../shared/registry.js";
 
-// Routes that must remain public (fetched via game:HttpGet without custom headers)
-const PUBLIC_ROUTES = new Set([
-  "/mobile-connector.luau",
-  "/mobile-probe.luau",
-  "/script.luau",
-  "/connector.luau",
-  "/",
+// Routes that require auth when MCP_AUTH_TOKEN is set.
+// Dashboard HTML, CSS, JS, SVG, and script loaders stay public.
+const PROTECTED_ROUTES = new Set([
+  "/mcp",
+  "/register",
+  "/poll",
+  "/respond",
+  "/decompile",
+  "/decompile-plan",
+  "/decompiler-observations",
+  "/mcp-relay",
+  "/script-source-cache",
+  "/script-sources",
 ]);
 
 function checkAuth(req: IncomingMessage, res: ServerResponse): boolean {
   if (!MCP_AUTH_TOKEN) return true; // auth disabled
-  if (PUBLIC_ROUTES.has(req.url?.split("?")[0] || "")) return true;
+  const pathname = req.url?.split("?")[0] || "";
+  // Protect /api/* and specific bridge routes; dashboard assets stay public
+  if (!PROTECTED_ROUTES.has(pathname) && !pathname.startsWith("/api/")) return true;
   const auth = req.headers["authorization"];
   if (auth === `Bearer ${MCP_AUTH_TOKEN}`) return true;
   res.writeHead(401, { "Content-Type": "application/json" });
