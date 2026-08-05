@@ -47,6 +47,16 @@ export const CUSTOM_AI_THINKING_ENABLED: boolean =
 export const CUSTOM_AI_THINKING_BUDGET: number =
   parseInt(process.env.CUSTOM_AI_THINKING_BUDGET || "10000", 10);
 
+// ── DeepSeek AI config (DeepSeek-compatible) ──
+export const DEEPSEEK_API_KEY: string | null =
+  process.env.DEEPSEEK_API_KEY || null;
+export const DEEPSEEK_BASE_URL: string =
+  process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
+export const DEEPSEEK_MODEL: string =
+  process.env.DEEPSEEK_MODEL || "deepseek-chat";
+export const DEEPSEEK_MAX_TOKENS: number =
+  parseInt(process.env.DEEPSEEK_MAX_TOKENS || "16000", 10);
+
 if (BASE_URL) {
   console.error(
     `[Config] --baseurl specified: ${BASE_URL} (will run as secondary relay to this host)`,

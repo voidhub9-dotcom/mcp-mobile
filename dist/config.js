@@ -27,6 +27,11 @@ export const CUSTOM_AI_MODEL = process.env.CUSTOM_AI_MODEL || "claude-sonnet-4-2
 export const CUSTOM_AI_MAX_TOKENS = parseInt(process.env.CUSTOM_AI_MAX_TOKENS || "16000", 10);
 export const CUSTOM_AI_THINKING_ENABLED = process.env.CUSTOM_AI_THINKING_ENABLED === "true" || process.env.CUSTOM_AI_THINKING_ENABLED === "1";
 export const CUSTOM_AI_THINKING_BUDGET = parseInt(process.env.CUSTOM_AI_THINKING_BUDGET || "10000", 10);
+// ── DeepSeek AI config (DeepSeek-compatible) ──
+export const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || null;
+export const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
+export const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+export const DEEPSEEK_MAX_TOKENS = parseInt(process.env.DEEPSEEK_MAX_TOKENS || "16000", 10);
 if (BASE_URL) {
     console.error(`[Config] --baseurl specified: ${BASE_URL} (will run as secondary relay to this host)`);
 }

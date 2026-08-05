@@ -17,3 +17,7 @@ export declare const CUSTOM_AI_MODEL: string;
 export declare const CUSTOM_AI_MAX_TOKENS: number;
 export declare const CUSTOM_AI_THINKING_ENABLED: boolean;
 export declare const CUSTOM_AI_THINKING_BUDGET: number;
+export declare const DEEPSEEK_API_KEY: string | null;
+export declare const DEEPSEEK_BASE_URL: string;
+export declare const DEEPSEEK_MODEL: string;
+export declare const DEEPSEEK_MAX_TOKENS: number;

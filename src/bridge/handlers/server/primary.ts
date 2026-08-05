@@ -2,7 +2,7 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import { WebSocketServer } from "ws";
 import { WS_PORT, MCP_AUTH_TOKEN, HTTP_MODE } from "../../../config.js";
 import { dispatchHttp, dispatchWs, loadRoutes } from "../../../http/router.js";
-import { getMcpTransport } from "../../mcp-transport.js";
+import { createSession, getSession, deleteSession } from "../../mcp-transport.js";
 import {
   resetPrimaryState,
   setInstanceRole,
@@ -74,13 +74,41 @@ export async function startAsPrimary(): Promise<void> {
       }
 
       // MCP Streamable HTTP endpoint (when --http mode is active)
-      if (HTTP_MODE && req.url === "/mcp") {
-        const transport = getMcpTransport();
-        if (transport) {
-          if (!checkAuth(req, res)) return;
-          void transport.handleRequest(req, res);
+      if (HTTP_MODE && req.url?.split("?")[0] === "/mcp") {
+        if (!checkAuth(req, res)) return;
+
+        const sessionId = req.headers["mcp-session-id"] as string | undefined;
+
+        // DELETE → close session
+        if (req.method === "DELETE") {
+          if (sessionId && deleteSession(sessionId)) {
+            res.writeHead(200);
+            res.end();
+          } else {
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Session not found" }, id: null }));
+          }
           return;
         }
+
+        // Existing session → delegate to that session's transport
+        if (sessionId) {
+          const session = getSession(sessionId);
+          if (session) {
+            void session.transport.handleRequest(req, res);
+          } else {
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Session not found" }, id: null }));
+          }
+          return;
+        }
+
+        // No session ID → create a new session for this request.
+        // The transport itself will validate that this is an initialize request;
+        // non-initialize requests without a session ID get a 400 from the SDK.
+        const session = createSession();
+        void session.transport.handleRequest(req, res);
+        return;
       }
 
       // Auth check for all other routes in cloud mode
