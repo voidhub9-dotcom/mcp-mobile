@@ -40,11 +40,29 @@ async function dashboardAdminToken() {
 
 async function dashboardApiFetch(input, init = {}, retryAuthorization = true) {
     const headers = new Headers(init.headers || {});
-    headers.set('X-Roblox-MCP-Admin-Token', await dashboardAdminToken());
+    // Try local admin token first (works for localhost access)
+    try {
+        headers.set('X-Roblox-MCP-Admin-Token', await dashboardAdminToken());
+    } catch {
+        // Local admin token unavailable (cloud/remote access)
+        // Fall back to Bearer token from localStorage if available
+        const bearerToken = localStorage.getItem('mcp_auth_token');
+        if (bearerToken) {
+            headers.set('Authorization', 'Bearer ' + bearerToken);
+        }
+    }
     const response = await fetch(input, { ...init, headers });
     if (response.status === 403 && retryAuthorization) {
         dashboardAdminTokenPromise = null;
         return dashboardApiFetch(input, init, false);
+    }
+    if (response.status === 401 && retryAuthorization) {
+        // Auth failed — prompt user for bridge auth token
+        const token = prompt('Bridge auth required. Enter your MCP_AUTH_TOKEN:');
+        if (token) {
+            localStorage.setItem('mcp_auth_token', token.trim());
+            return dashboardApiFetch(input, init, false);
+        }
     }
     return response;
 }

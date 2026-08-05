@@ -158,32 +158,29 @@ Tested (or expected to work) with:
 - **No authentication on port 16384** — never expose this port to the internet. Use Tailscale or SSH tunnels for cross-network access.
 - **Only use with your own experiences** — or experiences where you have permission to test.
 
-## DeepSeek AI Integration
+## Custom AI Integration
 
-This server includes a **built-in DeepSeek chat interface** at `/deepseek`. No separate AI client needed — DeepSeek's API powers the AI, and all MCP tools (execute, inspect, search, GUI, etc.) are automatically available.
+This server includes a **built-in AI chat interface** at `/ai`. It supports **any Anthropic-compatible API** — use Claude, DeepSeek, or your own custom endpoint.
 
 ### Quick Setup
 
-1. Get a DeepSeek API key from [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys)
-2. Set it as an env var (recommended) or paste it in the chat UI Settings:
-```bash
-export DEEPSEEK_API_KEY="sk-your-key-here"
+1. Open the chat page in your phone browser:
 ```
-3. Open the chat page in your phone browser:
+http://localhost:16384/ai        # Termux (Android)
+https://YOUR-APP.up.railway.app/ai  # Cloud (iOS/Android)
 ```
-http://localhost:16384/deepseek        # Termux (Android)
-https://YOUR-APP.up.railway.app/deepseek  # Cloud (iOS/Android)
-```
-4. If using cloud with auth, also set your bridge auth token in Settings.
+2. Tap **Settings** and configure your API key, base URL, API version, model, and thinking toggle.
+3. If using cloud with auth, also enter your bridge auth token in Settings.
 
-### Config
+### Config (env vars for cloud)
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `DEEPSEEK_API_KEY` | — | API key (starts with `sk-`) |
-| `DEEPSEEK_MODEL` | `deepseek-v4-flash` | Model name |
-| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | API base URL |
-| `DEEPSEEK_MAX_TOKENS` | `8192` | Max response tokens |
+| `CUSTOM_AI_API_KEY` | — | API key |
+| `CUSTOM_AI_BASE_URL` | `https://api.anthropic.com` | Base URL |
+| `CUSTOM_AI_API_VERSION` | `2023-06-01` | API version |
+| `CUSTOM_AI_MODEL` | `claude-sonnet-4-20250514` | Model name |
+| `CUSTOM_AI_THINKING_ENABLED` | `false` | Enable thinking display |
 
 ## Full Documentation
 

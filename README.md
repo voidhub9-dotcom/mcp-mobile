@@ -168,33 +168,36 @@ If you have a PC, see the [Mobile Setup Guide](docs/setup-mobile.md) and [Mobile
 loadstring(game:HttpGet("http://YOUR_PC_IP:16384/mobile-connector.luau"))("YOUR_PC_IP:16384")
 ```
 
-## DeepSeek AI Integration
+## Custom AI Integration
 
-This server includes a **built-in DeepSeek chat interface** — no separate AI client needed. DeepSeek's API (OpenAI-compatible) powers the AI, and the server's MCP tools are automatically available for the AI to use.
+This server includes a **built-in AI chat interface** — no separate AI client needed. It supports **any Anthropic-compatible API** with custom endpoints, so you can use Claude, DeepSeek, or any compatible provider.
 
 ### Setup
 
-1. Get a DeepSeek API key from [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys)
-2. Set it as an environment variable (recommended for cloud/Termux):
-```bash
-export DEEPSEEK_API_KEY="sk-your-key-here"
+1. Open the chat page in your browser:
 ```
-   Or paste it in the Settings panel of the chat UI.
-3. Open the chat page in your browser:
+http://localhost:16384/ai          # local
+https://YOUR-APP.up.railway.app/ai  # cloud
 ```
-http://localhost:16384/deepseek        # local
-https://YOUR-APP.up.railway.app/deepseek  # cloud
-```
-4. Start chatting — the AI can use all MCP tools (execute code, inspect scripts, search, GUI interaction, etc.)
+2. Tap **Settings** and configure:
+   - **API Key** — your API key
+   - **Base URL** — the Anthropic-compatible endpoint (e.g. `https://api.anthropic.com`, `https://gateway.olagon.site/anthropic`)
+   - **API Version** — e.g. `2023-06-01`
+   - **Default Model** — e.g. `claude-sonnet-4-20250514`
+   - **Extended Thinking** — toggle to show the AI's reasoning process
+3. Start chatting — the AI can use all MCP tools (execute code, inspect scripts, search, GUI interaction, etc.)
 
-### Config
+### Environment Variables (optional, for cloud deployment)
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `DEEPSEEK_API_KEY` | — | API key (starts with `sk-`) |
-| `DEEPSEEK_MODEL` | `deepseek-chat` | Model name |
-| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | API base URL |
-| `DEEPSEEK_MAX_TOKENS` | `8192` | Max response tokens |
+| `CUSTOM_AI_API_KEY` | — | API key |
+| `CUSTOM_AI_BASE_URL` | `https://api.anthropic.com` | Anthropic-compatible base URL |
+| `CUSTOM_AI_API_VERSION` | `2023-06-01` | API version header |
+| `CUSTOM_AI_MODEL` | `claude-sonnet-4-20250514` | Default model |
+| `CUSTOM_AI_MAX_TOKENS` | `16000` | Max response tokens |
+| `CUSTOM_AI_THINKING_ENABLED` | `false` | Enable extended thinking |
+| `CUSTOM_AI_THINKING_BUDGET` | `10000` | Thinking token budget |
 
 ## Community
 

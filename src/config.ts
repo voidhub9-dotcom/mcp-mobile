@@ -31,15 +31,21 @@ export const SERVER_NAME =
     ? args[serverNameIdx + 1]
     : process.env.ROBLOX_MCP_SERVER_NAME || "roblox-mcp";
 
-// ── DeepSeek config ──
-export const DEEPSEEK_API_KEY: string | null =
-  process.env.DEEPSEEK_API_KEY || null;
-export const DEEPSEEK_BASE_URL: string =
-  process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
-export const DEEPSEEK_MODEL: string =
-  process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
-export const DEEPSEEK_MAX_TOKENS: number =
-  parseInt(process.env.DEEPSEEK_MAX_TOKENS || "8192", 10);
+// ── Custom AI config (Anthropic-compatible) ──
+export const CUSTOM_AI_API_KEY: string | null =
+  process.env.CUSTOM_AI_API_KEY || null;
+export const CUSTOM_AI_BASE_URL: string =
+  process.env.CUSTOM_AI_BASE_URL || "https://api.anthropic.com";
+export const CUSTOM_AI_API_VERSION: string =
+  process.env.CUSTOM_AI_API_VERSION || "2023-06-01";
+export const CUSTOM_AI_MODEL: string =
+  process.env.CUSTOM_AI_MODEL || "claude-sonnet-4-20250514";
+export const CUSTOM_AI_MAX_TOKENS: number =
+  parseInt(process.env.CUSTOM_AI_MAX_TOKENS || "16000", 10);
+export const CUSTOM_AI_THINKING_ENABLED: boolean =
+  process.env.CUSTOM_AI_THINKING_ENABLED === "true" || process.env.CUSTOM_AI_THINKING_ENABLED === "1";
+export const CUSTOM_AI_THINKING_BUDGET: number =
+  parseInt(process.env.CUSTOM_AI_THINKING_BUDGET || "10000", 10);
 
 if (BASE_URL) {
   console.error(

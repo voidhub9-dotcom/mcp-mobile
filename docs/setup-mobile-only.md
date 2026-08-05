@@ -111,22 +111,22 @@ loadstring(game:HttpGet("http://localhost:16384/mobile-connector.luau"))("localh
 
 Since both the server and the executor are on the same phone, it connects via localhost.
 
-## Step 7: Use DeepSeek AI (Built-in, No External AI Client Needed)
+## Step 7: Use Custom AI AI (Built-in, No External AI Client Needed)
 
-This server includes a **built-in DeepSeek chat interface** — you don't need Claude, ChatGPT, or any external AI client. DeepSeek's API powers the AI, with full access to all MCP tools.
+This server includes a **built-in Custom AI chat interface** — you don't need Claude, ChatGPT, or any external AI client. Custom AI's API powers the AI, with full access to all MCP tools.
 
-### Setup DeepSeek
+### Setup Custom AI
 
-1. Get a DeepSeek API key from [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys)
+1. Get a Custom AI API key from [platform.ai.com/api_keys](https://platform.ai.com/api_keys)
 2. Set it as an env var before starting the server:
 ```bash
-export DEEPSEEK_API_KEY="sk-your-key-here"
+export CUSTOM_AI_API_KEY="sk-your-key-here"
 ```
    Or paste it later in the chat UI Settings.
 
 3. Open the chat page in your phone browser:
 ```
-http://localhost:16384/deepseek
+http://localhost:16384/ai
 ```
 
 4. Start chatting — the AI can execute Luau, inspect scripts, search instances, interact with GUI, and more.
@@ -173,7 +173,7 @@ Ask things like:
 | Start with cloudflare | `bash termux-start.sh --cf` |
 | Roblox loader | `loadstring(game:HttpGet("http://localhost:16384/mobile-connector.luau"))("localhost:16384")` |
 | Dashboard | `http://localhost:16384/` |
-| DeepSeek chat | `http://localhost:16384/deepseek` |
+| Custom AI chat | `http://localhost:16384/ai` |
 | MCP endpoint | `http://localhost:16384/mcp` |
 | Capability probe | `loadstring(game:HttpGet("http://localhost:16384/mobile-probe.luau"))()` |
 

@@ -8,7 +8,7 @@ import crypto from "crypto";
 import { boot } from "./bridge/boot.js";
 import { setMcpTransport } from "./bridge/mcp-transport.js";
 import { registerAllTools } from "./tools/index.js";
-import { initMcpClient } from "./deepseek/mcp-client.js";
+import { initMcpClient } from "./custom-ai/mcp-client.js";
 import { installServerLogCapture } from "./http/server-logs.js";
 import { registerLocalDecompilerLifetime } from "./decompiler/local-process-lifetime.js";
 
@@ -43,11 +43,11 @@ const server = new McpServer(
 
 registerAllTools(server);
 
-// DeepSeek integration: in-memory MCP client for tool listing/calling
+// Custom AI integration: in-memory MCP client for tool listing/calling
 // Creates a separate internal McpServer so the public server's transport is unaffected.
 if (HTTP_MODE) {
   void initMcpClient().catch((err) => {
-    console.error("[DeepSeek] Failed to init MCP client:", err);
+    console.error("[Custom AI] Failed to init MCP client:", err);
   });
 }
 

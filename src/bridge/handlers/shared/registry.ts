@@ -16,6 +16,8 @@ function isClientActive(entry: RobloxClient): boolean {
   if (entry.transport === "ws") {
     return Boolean(entry.ws && entry.ws.readyState === WebSocket.OPEN);
   }
+  // HTTP clients: active if recently polled OR currently long-polling
+  if (entry.pendingPollResolve) return true;
   return Date.now() - entry.lastHttpPoll < HTTP_POLL_TIMEOUT;
 }
 

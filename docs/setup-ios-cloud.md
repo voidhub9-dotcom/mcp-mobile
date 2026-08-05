@@ -92,19 +92,19 @@ The connector automatically:
 - Sends your auth token on every request
 - Falls back to HTTP polling if WebSocket is unavailable
 
-## Step 4: Use DeepSeek AI (Built-in, No External AI Client Needed)
+## Step 4: Use Custom AI AI (Built-in, No External AI Client Needed)
 
-This server includes a **built-in DeepSeek chat interface** at `/deepseek`. No need to connect Claude, ChatGPT, or any external AI client — DeepSeek's API powers the AI with full access to all MCP tools.
+This server includes a **built-in Custom AI chat interface** at `/ai`. No need to connect Claude, ChatGPT, or any external AI client — Custom AI's API powers the AI with full access to all MCP tools.
 
-### Setup DeepSeek
+### Setup Custom AI
 
-1. Get a DeepSeek API key from [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys)
+1. Get a Custom AI API key from [platform.ai.com/api_keys](https://platform.ai.com/api_keys)
 2. Add it as an environment variable in Railway/Render:
-   - Key: `DEEPSEEK_API_KEY`
+   - Key: `CUSTOM_AI_API_KEY`
    - Value: `sk-your-key-here`
 3. Open the chat page in Safari:
 ```
-https://YOUR-APP.up.railway.app/deepseek
+https://YOUR-APP.up.railway.app/ai
 ```
 4. If you set `MCP_AUTH_TOKEN`, go to Settings in the chat UI and enter your auth token there too.
 5. Start chatting — the AI can execute Luau, inspect scripts, search instances, interact with GUI, and more.
@@ -147,7 +147,7 @@ Now you can chat with your AI assistant and it can:
 | What | URL / Command |
 |------|---------------|
 | Cloud server | `https://YOUR-APP.up.railway.app` |
-| DeepSeek chat | `https://YOUR-APP.up.railway.app/deepseek` |
+| Custom AI chat | `https://YOUR-APP.up.railway.app/ai` |
 | MCP endpoint | `https://YOUR-APP.up.railway.app/mcp` |
 | Dashboard | `https://YOUR-APP.up.railway.app/` |
 | Roblox loader | `loadstring(game:HttpGet("https://YOUR-APP.up.railway.app/mobile-connector.luau"))()` |
