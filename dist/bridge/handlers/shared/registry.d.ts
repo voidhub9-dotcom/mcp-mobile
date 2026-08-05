@@ -1,0 +1,28 @@
+import { WebSocket } from "ws";
+import type { RobloxClient } from "../../types.js";
+export declare function cleanupInactiveHttpClients(now?: number): number;
+export declare function getActiveClientId(): string | undefined;
+export declare function setActiveClientId(clientId: string, options?: {
+    remote?: boolean;
+}): void;
+export declare function resetRegistry(): void;
+export declare function registerClient(info: {
+    username: string;
+    userId: number;
+    placeId: number;
+    jobId: string;
+    placeName: string;
+    sessionId?: string;
+    transport: "ws" | "http";
+    ws?: WebSocket;
+    mobile?: boolean;
+    executor?: string;
+    platform?: string;
+    capabilities?: Record<string, boolean>;
+}): string;
+export declare function unregisterClient(clientId: string): void;
+export declare function getClientById(clientId: string): RobloxClient | undefined;
+export declare function getClientIdByWs(ws: WebSocket): string | undefined;
+export declare function getActiveClients(): RobloxClient[];
+export declare function formatActiveClientListForTool(): string;
+export declare function resolveTargetClient(clientId?: string): RobloxClient | null;

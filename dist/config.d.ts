@@ -1,0 +1,16 @@
+export declare const serverStartTime: number;
+export declare const WS_PORT: number;
+export declare const MCP_HTTP_PORT = 3001;
+export declare const HTTP_POLL_TIMEOUT = 10000;
+export declare const PROMOTION_JITTER_MAX = 300;
+export declare const TOOL_RESPONSE_TIMEOUT = 15000;
+export declare const MCP_AUTH_TOKEN: string | null;
+export declare const BASE_URL: string | null;
+export declare const HTTP_MODE: boolean;
+export declare const MCP_HTTP_PORT_OVERRIDE: number | null;
+export declare const MCP_PORT: number;
+export declare const SERVER_NAME: string;
+export declare const DEEPSEEK_API_KEY: string | null;
+export declare const DEEPSEEK_BASE_URL: string;
+export declare const DEEPSEEK_MODEL: string;
+export declare const DEEPSEEK_MAX_TOKENS: number;

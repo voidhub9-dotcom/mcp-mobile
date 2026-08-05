@@ -31,6 +31,16 @@ export const SERVER_NAME =
     ? args[serverNameIdx + 1]
     : process.env.ROBLOX_MCP_SERVER_NAME || "roblox-mcp";
 
+// ── DeepSeek config ──
+export const DEEPSEEK_API_KEY: string | null =
+  process.env.DEEPSEEK_API_KEY || null;
+export const DEEPSEEK_BASE_URL: string =
+  process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
+export const DEEPSEEK_MODEL: string =
+  process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
+export const DEEPSEEK_MAX_TOKENS: number =
+  parseInt(process.env.DEEPSEEK_MAX_TOKENS || "8192", 10);
+
 if (BASE_URL) {
   console.error(
     `[Config] --baseurl specified: ${BASE_URL} (will run as secondary relay to this host)`,

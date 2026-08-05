@@ -1,0 +1,32 @@
+export const serverStartTime = Date.now();
+export const WS_PORT = parseInt(process.env.PORT || "16384", 10);
+export const MCP_HTTP_PORT = 3001;
+export const HTTP_POLL_TIMEOUT = 10000;
+export const PROMOTION_JITTER_MAX = 300;
+export const TOOL_RESPONSE_TIMEOUT = 15000;
+export const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN || null;
+const args = process.argv.slice(2);
+const baseUrlIdx = args.indexOf("--baseurl");
+export const BASE_URL = baseUrlIdx !== -1 ? (args[baseUrlIdx + 1] ?? null) : null;
+const httpModeIdx = args.indexOf("--http");
+export const HTTP_MODE = httpModeIdx !== -1;
+const mcpPortIdx = args.indexOf("--mcp-port");
+export const MCP_HTTP_PORT_OVERRIDE = mcpPortIdx !== -1 && args[mcpPortIdx + 1]
+    ? parseInt(args[mcpPortIdx + 1], 10) || null
+    : null;
+export const MCP_PORT = MCP_HTTP_PORT_OVERRIDE ?? MCP_HTTP_PORT;
+const serverNameIdx = args.indexOf("--server-name");
+export const SERVER_NAME = serverNameIdx !== -1 && args[serverNameIdx + 1]
+    ? args[serverNameIdx + 1]
+    : process.env.ROBLOX_MCP_SERVER_NAME || "roblox-mcp";
+// ── DeepSeek config ──
+export const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || null;
+export const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
+export const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
+export const DEEPSEEK_MAX_TOKENS = parseInt(process.env.DEEPSEEK_MAX_TOKENS || "8192", 10);
+if (BASE_URL) {
+    console.error(`[Config] --baseurl specified: ${BASE_URL} (will run as secondary relay to this host)`);
+}
+if (HTTP_MODE) {
+    console.error(`[Config] --http mode enabled. MCP Streamable HTTP transport on port ${MCP_PORT}.`);
+}

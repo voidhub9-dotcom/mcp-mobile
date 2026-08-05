@@ -92,7 +92,26 @@ The connector automatically:
 - Sends your auth token on every request
 - Falls back to HTTP polling if WebSocket is unavailable
 
-## Step 4: Connect Your AI Client
+## Step 4: Use DeepSeek AI (Built-in, No External AI Client Needed)
+
+This server includes a **built-in DeepSeek chat interface** at `/deepseek`. No need to connect Claude, ChatGPT, or any external AI client — DeepSeek's API powers the AI with full access to all MCP tools.
+
+### Setup DeepSeek
+
+1. Get a DeepSeek API key from [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys)
+2. Add it as an environment variable in Railway/Render:
+   - Key: `DEEPSEEK_API_KEY`
+   - Value: `sk-your-key-here`
+3. Open the chat page in Safari:
+```
+https://YOUR-APP.up.railway.app/deepseek
+```
+4. If you set `MCP_AUTH_TOKEN`, go to Settings in the chat UI and enter your auth token there too.
+5. Start chatting — the AI can execute Luau, inspect scripts, search instances, interact with GUI, and more.
+
+### Alternative: Use an External AI Client
+
+You can still use Claude, ChatGPT, or Cursor via the MCP endpoint if you prefer:
 
 ### Claude Desktop / Claude Mobile
 ```json
@@ -114,21 +133,6 @@ Add as a custom connector:
 - URL: `https://YOUR-APP.up.railway.app/mcp`
 - Headers: `Authorization: Bearer YOUR_TOKEN_HERE`
 
-### Cursor / VS Code
-```json
-{
-  "mcpServers": {
-    "roblox": {
-      "type": "http",
-      "url": "https://YOUR-APP.up.railway.app/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_TOKEN_HERE"
-      }
-    }
-  }
-}
-```
-
 ## Step 5: Use It
 
 Now you can chat with your AI assistant and it can:
@@ -143,6 +147,7 @@ Now you can chat with your AI assistant and it can:
 | What | URL / Command |
 |------|---------------|
 | Cloud server | `https://YOUR-APP.up.railway.app` |
+| DeepSeek chat | `https://YOUR-APP.up.railway.app/deepseek` |
 | MCP endpoint | `https://YOUR-APP.up.railway.app/mcp` |
 | Dashboard | `https://YOUR-APP.up.railway.app/` |
 | Roblox loader | `loadstring(game:HttpGet("https://YOUR-APP.up.railway.app/mobile-connector.luau"))()` |

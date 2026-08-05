@@ -111,9 +111,29 @@ loadstring(game:HttpGet("http://localhost:16384/mobile-connector.luau"))("localh
 
 Since both the server and the executor are on the same phone, it connects via localhost.
 
-## Step 7: Connect Your AI Client
+## Step 7: Use DeepSeek AI (Built-in, No External AI Client Needed)
 
-Add the MCP server to your AI client:
+This server includes a **built-in DeepSeek chat interface** — you don't need Claude, ChatGPT, or any external AI client. DeepSeek's API powers the AI, with full access to all MCP tools.
+
+### Setup DeepSeek
+
+1. Get a DeepSeek API key from [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys)
+2. Set it as an env var before starting the server:
+```bash
+export DEEPSEEK_API_KEY="sk-your-key-here"
+```
+   Or paste it later in the chat UI Settings.
+
+3. Open the chat page in your phone browser:
+```
+http://localhost:16384/deepseek
+```
+
+4. Start chatting — the AI can execute Luau, inspect scripts, search instances, interact with GUI, and more.
+
+### Alternative: Use an External AI Client
+
+You can still use Claude, ChatGPT, or Cursor via the tunnel URL if you prefer:
 
 ### Claude Desktop / Claude Mobile
 ```json
@@ -129,18 +149,6 @@ Add the MCP server to your AI client:
 
 ### ChatGPT (Developer Mode)
 Add as a custom connector using the tunnel URL.
-
-### Cursor / VS Code (if using remote)
-```json
-{
-  "mcpServers": {
-    "roblox": {
-      "type": "http",
-      "url": "https://YOUR_TUNNEL_URL/mcp"
-    }
-  }
-}
-```
 
 ## Step 8: Use It
 
@@ -165,7 +173,8 @@ Ask things like:
 | Start with cloudflare | `bash termux-start.sh --cf` |
 | Roblox loader | `loadstring(game:HttpGet("http://localhost:16384/mobile-connector.luau"))("localhost:16384")` |
 | Dashboard | `http://localhost:16384/` |
-| MCP endpoint | `http://localhost:3001/mcp` |
+| DeepSeek chat | `http://localhost:16384/deepseek` |
+| MCP endpoint | `http://localhost:16384/mcp` |
 | Capability probe | `loadstring(game:HttpGet("http://localhost:16384/mobile-probe.luau"))()` |
 
 ## Troubleshooting

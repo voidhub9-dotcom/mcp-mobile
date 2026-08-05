@@ -158,6 +158,33 @@ Tested (or expected to work) with:
 - **No authentication on port 16384** — never expose this port to the internet. Use Tailscale or SSH tunnels for cross-network access.
 - **Only use with your own experiences** — or experiences where you have permission to test.
 
+## DeepSeek AI Integration
+
+This server includes a **built-in DeepSeek chat interface** at `/deepseek`. No separate AI client needed — DeepSeek's API powers the AI, and all MCP tools (execute, inspect, search, GUI, etc.) are automatically available.
+
+### Quick Setup
+
+1. Get a DeepSeek API key from [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys)
+2. Set it as an env var (recommended) or paste it in the chat UI Settings:
+```bash
+export DEEPSEEK_API_KEY="sk-your-key-here"
+```
+3. Open the chat page in your phone browser:
+```
+http://localhost:16384/deepseek        # Termux (Android)
+https://YOUR-APP.up.railway.app/deepseek  # Cloud (iOS/Android)
+```
+4. If using cloud with auth, also set your bridge auth token in Settings.
+
+### Config
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `DEEPSEEK_API_KEY` | — | API key (starts with `sk-`) |
+| `DEEPSEEK_MODEL` | `deepseek-v4-flash` | Model name |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | API base URL |
+| `DEEPSEEK_MAX_TOKENS` | `8192` | Max response tokens |
+
 ## Full Documentation
 
 - [Main README](README.md)

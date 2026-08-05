@@ -168,6 +168,34 @@ If you have a PC, see the [Mobile Setup Guide](docs/setup-mobile.md) and [Mobile
 loadstring(game:HttpGet("http://YOUR_PC_IP:16384/mobile-connector.luau"))("YOUR_PC_IP:16384")
 ```
 
+## DeepSeek AI Integration
+
+This server includes a **built-in DeepSeek chat interface** — no separate AI client needed. DeepSeek's API (OpenAI-compatible) powers the AI, and the server's MCP tools are automatically available for the AI to use.
+
+### Setup
+
+1. Get a DeepSeek API key from [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys)
+2. Set it as an environment variable (recommended for cloud/Termux):
+```bash
+export DEEPSEEK_API_KEY="sk-your-key-here"
+```
+   Or paste it in the Settings panel of the chat UI.
+3. Open the chat page in your browser:
+```
+http://localhost:16384/deepseek        # local
+https://YOUR-APP.up.railway.app/deepseek  # cloud
+```
+4. Start chatting — the AI can use all MCP tools (execute code, inspect scripts, search, GUI interaction, etc.)
+
+### Config
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `DEEPSEEK_API_KEY` | — | API key (starts with `sk-`) |
+| `DEEPSEEK_MODEL` | `deepseek-chat` | Model name |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | API base URL |
+| `DEEPSEEK_MAX_TOKENS` | `8192` | Max response tokens |
+
 ## Community
 
 Have a suggestion or need help? Join the [Discord server](https://discord.gg/FJcJMuze7S).

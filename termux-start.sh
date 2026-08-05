@@ -115,6 +115,12 @@ echo "       'http://localhost:16384/mobile-connector.luau'"
 echo "     ))('localhost:16384')"
 echo ""
 echo "  📊 Dashboard: http://localhost:16384/"
+echo "  🤖 DeepSeek chat: http://localhost:16384/deepseek"
+if [ -n "$DEEPSEEK_API_KEY" ]; then
+    echo "  ✓ DeepSeek API key set (env)"
+else
+    echo "  ℹ Set DEEPSEEK_API_KEY env var or paste key in chat UI Settings"
+fi
 echo ""
 echo "  Press Ctrl+C to stop."
 echo ""
