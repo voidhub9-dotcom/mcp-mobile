@@ -126,3 +126,6 @@ function cleanupStaleSessions(): void {
     }
   }
 }
+
+// Periodic cleanup — runs every 5 minutes, doesn't keep the process alive.
+setInterval(cleanupStaleSessions, 5 * 60 * 1000).unref();

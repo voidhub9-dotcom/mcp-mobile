@@ -12,7 +12,7 @@ installServerLogCapture();
 registerLocalDecompilerLifetime();
 
 // Import config for CLI arg parsing and startup logging.
-import { SERVER_NAME, HTTP_MODE, MCP_PORT, MCP_AUTH_TOKEN, WS_PORT } from "./config.js";
+import { HTTP_MODE, MCP_AUTH_TOKEN, WS_PORT } from "./config.js";
 
 // Validate that the McpServer factory works at boot (registers all tools).
 // The actual server instances are created per-session by the session manager.
