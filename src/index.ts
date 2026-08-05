@@ -3,10 +3,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { createServer } from "http";
 import crypto from "crypto";
 
 import { boot } from "./bridge/boot.js";
+import { setMcpTransport } from "./bridge/mcp-transport.js";
 import { registerAllTools } from "./tools/index.js";
 import { installServerLogCapture } from "./http/server-logs.js";
 import { registerLocalDecompilerLifetime } from "./decompiler/local-process-lifetime.js";
@@ -16,7 +16,7 @@ installServerLogCapture();
 registerLocalDecompilerLifetime();
 
 // Import config for CLI arg parsing and startup logging.
-import { SERVER_NAME, HTTP_MODE, MCP_PORT } from "./config.js";
+import { SERVER_NAME, HTTP_MODE, MCP_PORT, MCP_AUTH_TOKEN, WS_PORT } from "./config.js";
 
 const server = new McpServer(
   {
@@ -44,46 +44,24 @@ registerAllTools(server);
 
 if (HTTP_MODE) {
   // ── Streamable HTTP transport mode (for mobile/cloud use) ──
-  // AI clients connect via POST http://localhost:PORT/mcp
+  // The MCP transport is mounted into the existing bridge HTTP server
+  // (see primary.ts) so both bridge routes and /mcp share one port.
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
   });
 
-  const httpServer = createServer(async (req, res) => {
-    // CORS headers for remote access
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, Mcp-Session-Id");
-
-    if (req.method === "OPTIONS") {
-      res.writeHead(204);
-      res.end();
-      return;
-    }
-
-    if (req.method === "GET" && req.url === "/") {
-      res.writeHead(200, { "Content-Type": "text/plain" });
-      res.end("Roblox MCP Server (HTTP mode). POST to /mcp for MCP protocol.");
-      return;
-    }
-
-    // Handle MCP requests at /mcp
-    if (req.url === "/mcp") {
-      await transport.handleRequest(req, res);
-      return;
-    }
-
-    res.writeHead(404, { "Content-Type": "text/plain" });
-    res.end("Not found. Use POST /mcp for MCP protocol.");
-  });
-
   server.connect(transport);
+  setMcpTransport(transport);
 
-  httpServer.listen(MCP_PORT, () => {
-    console.error(`MCP Server started in HTTP mode on port ${MCP_PORT}.`);
-    console.error(`  MCP endpoint: http://localhost:${MCP_PORT}/mcp`);
-    console.error(`  For remote access, use ngrok or cloudflare tunnel.`);
-  });
+  console.error(`MCP Server started in HTTP mode.`);
+  console.error(`  Bridge + MCP on port ${WS_PORT}.`);
+  console.error(`  MCP endpoint: http://localhost:${WS_PORT}/mcp`);
+  console.error(`  Roblox loader: http://localhost:${WS_PORT}/mobile-connector.luau`);
+  if (MCP_AUTH_TOKEN) {
+    console.error(`  Auth: enabled (MCP_AUTH_TOKEN set)`);
+  } else {
+    console.error(`  Auth: disabled (set MCP_AUTH_TOKEN env var for cloud use)`);
+  }
 } else {
   // ── Default stdio mode ──
   const transport = new StdioServerTransport();

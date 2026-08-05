@@ -138,8 +138,8 @@ Run everything from your phone using Termux. See the [Mobile-Only Setup Guide](d
 
 ```bash
 # In Termux:
-git clone https://github.com/dissering/roblox-executor-mcp.git
-cd roblox-executor-mcp
+git clone https://github.com/vonsalt/mcp-mobile.git
+cd mcp-mobile
 bash termux-setup.sh
 bash termux-start.sh --cf
 ```
@@ -147,6 +147,17 @@ bash termux-start.sh --cf
 Then in your Roblox executor:
 ```lua
 loadstring(game:HttpGet("http://localhost:16384/mobile-connector.luau"))("localhost:16384")
+```
+
+### Mobile-Only (No PC Needed) — iOS
+
+Deploy the MCP server to a free cloud service (Railway/Render). Your iPhone connects to it over HTTPS. See the [iOS Cloud Setup Guide](docs/setup-ios-cloud.md).
+
+```lua
+-- In your Roblox executor:
+getgenv().BridgeURL = "https://YOUR-APP.up.railway.app"
+getgenv().MCP_AUTH_TOKEN = "your-token"
+loadstring(game:HttpGet("https://YOUR-APP.up.railway.app/mobile-connector.luau"))()
 ```
 
 ### Mobile + PC Setup

@@ -1,10 +1,13 @@
 export const serverStartTime = Date.now();
-export const WS_PORT = 16384;
+export const WS_PORT = parseInt(process.env.PORT || "16384", 10);
 export const MCP_HTTP_PORT = 3001;
 
 export const HTTP_POLL_TIMEOUT = 10000;
 export const PROMOTION_JITTER_MAX = 300;
 export const TOOL_RESPONSE_TIMEOUT = 15000;
+
+export const MCP_AUTH_TOKEN: string | null =
+  process.env.MCP_AUTH_TOKEN || null;
 
 const args = process.argv.slice(2);
 const baseUrlIdx = args.indexOf("--baseurl");

@@ -42,8 +42,8 @@ if [ ! -f "dist/index.js" ]; then
 fi
 
 echo "→ Starting MCP Server in HTTP mode..."
-echo "  Bridge:     http://localhost:16384 (for Roblox executor)"
-echo "  MCP:        http://localhost:3001/mcp (for AI client)"
+echo "  Bridge + MCP: http://localhost:16384"
+echo "  MCP endpoint: http://localhost:16384/mcp"
 echo ""
 
 # ─── Start ngrok if requested ───
@@ -52,7 +52,7 @@ if $USE_TUNNEL; then
     if $USE_CLOUDFLARE; then
         echo "→ Starting Cloudflare Quick Tunnel..."
         echo "  (This creates a free public HTTPS URL)"
-        cloudflared tunnel --url http://localhost:3001 > /tmp/cf-tunnel.log 2>&1 &
+        cloudflared tunnel --url http://localhost:16384 > /tmp/cf-tunnel.log 2>&1 &
         CF_PID=$!
         echo "  Waiting for tunnel URL..."
         sleep 5
@@ -66,7 +66,7 @@ if $USE_TUNNEL; then
         fi
     elif command -v ngrok &> /dev/null; then
         echo "→ Starting ngrok tunnel..."
-        ngrok http 3001 > /tmp/ngrok-tunnel.log 2>&1 &
+        ngrok http 16384 > /tmp/ngrok-tunnel.log 2>&1 &
         NGROK_PID=$!
         echo "  Waiting for tunnel URL..."
         sleep 3

@@ -165,6 +165,28 @@ else
     end
 end
 
+--// Build full URL from BridgeURL (supports http://, https://, and bare host:port) \\
+local function BridgeBase()
+    local url = BridgeURL:gsub("/$", "")
+    if url:sub(1, 7) == "http://" or url:sub(1, 8) == "https://" then
+        return url
+    end
+    return "http://" .. url
+end
+
+--// Auth token (set via getgenv().MCP_AUTH_TOKEN for cloud deployments) \\
+local AuthToken = getgenv().MCP_AUTH_TOKEN or getgenv().mcp_auth_token
+
+--// Build auth headers for HTTP requests \\
+local function AuthHeaders(extra)
+    local headers = extra or {}
+    headers["Content-Type"] = headers["Content-Type"] or "application/json"
+    if AuthToken and AuthToken ~= "" then
+        headers["Authorization"] = "Bearer " .. AuthToken
+    end
+    return headers
+end
+
 --// Unified setthreadidentity with fallback \\\\
 local function SetThreadIdentity(level)
     if Capabilities.setthreadidentity then
@@ -759,7 +781,7 @@ local function IsAlive()
         local response
         local thread = task.spawn(function()
             local ok, data = pcall(HTTPRequest, {
-                Url = "http://" .. BridgeURL,
+                Url = BridgeBase(),
                 Method = "GET",
             })
             if ok then response = data end
@@ -797,9 +819,9 @@ local function Connect()
     local clientId = nil
     pcall(function()
         local regResponse = HTTPRequest({
-            Url = "http://" .. BridgeURL .. "/register",
+            Url = BridgeBase() .. "/register",
             Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
+            Headers = AuthHeaders(),
             Body = HttpService:JSONEncode(GetRegistrationInfo()),
         })
         if regResponse.StatusCode == 200 and regResponse.Body then
@@ -824,7 +846,7 @@ local function Connect()
     while connected do
         local gotCommands = false
         local success, _ = pcall(function()
-            local pollUrl = "http://" .. BridgeURL .. "/poll"
+            local pollUrl = BridgeBase() .. "/poll"
             if clientId then
                 pollUrl = pollUrl .. "?clientId=" .. clientId
             end
@@ -859,9 +881,9 @@ local function Connect()
                         if result == nil then return end
                         pcall(function()
                             HTTPRequest({
-                                Url = "http://" .. BridgeURL .. "/respond",
+                                Url = BridgeBase() .. "/respond",
                                 Method = "POST",
-                                Headers = { ["Content-Type"] = "application/json" },
+                                Headers = AuthHeaders(),
                                 Body = HttpService:JSONEncode(result),
                             })
                         end)

@@ -16,7 +16,10 @@
     "MOBILE-README.md",
     "docs",
     "termux-setup.sh",
-    "termux-start.sh"
+    "termux-start.sh",
+    "Dockerfile",
+    "railway.toml",
+    "render.yaml"
   ],
   "scripts": {
     "build:connector": "darklua process connector-src/init.luau connector.luau",

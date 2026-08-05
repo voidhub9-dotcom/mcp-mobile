@@ -25,7 +25,7 @@ This extends the [Roblox Executor MCP](README.md) to work with **mobile Roblox e
 
 The MCP server runs on your PC. The mobile executor on your phone loads the mobile connector script, which connects to the server over your local network.
 
-## Two Ways to Run on Mobile
+## Three Ways to Run on Mobile
 
 ### Option A: Mobile-Only (No PC) — Android
 
@@ -33,8 +33,8 @@ Run everything from your phone using Termux. The MCP server runs on your phone a
 
 ```bash
 # In Termux:
-git clone https://github.com/dissering/roblox-executor-mcp.git
-cd roblox-executor-mcp
+git clone https://github.com/vonsalt/mcp-mobile.git
+cd mcp-mobile
 bash termux-setup.sh
 bash termux-start.sh --cf
 ```
@@ -46,7 +46,19 @@ loadstring(game:HttpGet("http://localhost:16384/mobile-connector.luau"))("localh
 
 See the [Mobile-Only Setup Guide](docs/setup-mobile-only.md) for full details.
 
-### Option B: Mobile + PC
+### Option B: Mobile-Only (No PC) — iOS
+
+Deploy the MCP server to a free cloud service (Railway or Render). Your iPhone's Roblox executor and AI client both connect to it over HTTPS. No local server needed.
+
+```lua
+getgenv().BridgeURL = "https://YOUR-APP.up.railway.app"
+getgenv().MCP_AUTH_TOKEN = "your-token"
+loadstring(game:HttpGet("https://YOUR-APP.up.railway.app/mobile-connector.luau"))()
+```
+
+See the [iOS Cloud Setup Guide](docs/setup-ios-cloud.md) for full details.
+
+### Option C: Mobile + PC
 
 The MCP server runs on your PC, your phone's executor connects over WiFi.
 
