@@ -1,20 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import {
-  CUSTOM_AI_API_KEY,
-  CUSTOM_AI_BASE_URL,
-  CUSTOM_AI_API_VERSION,
-  CUSTOM_AI_MODEL,
-  CUSTOM_AI_THINKING_ENABLED,
-} from "../../../config.js";
-
+import { CUSTOM_AI_API_KEY, CUSTOM_AI_BASE_URL, CUSTOM_AI_API_VERSION, CUSTOM_AI_MODEL, CUSTOM_AI_THINKING_ENABLED, } from "../../../config.js";
 export function GET(_req: IncomingMessage, res: ServerResponse): void {
-  const hasEnvKey = !!CUSTOM_AI_API_KEY;
-  const defaultBaseUrl = CUSTOM_AI_BASE_URL;
-  const defaultApiVersion = CUSTOM_AI_API_VERSION;
-  const defaultModel = CUSTOM_AI_MODEL;
-  const thinkingDefault = CUSTOM_AI_THINKING_ENABLED;
-
-  const html = `<!DOCTYPE html>
+    const hasEnvKey = !!CUSTOM_AI_API_KEY;
+    const defaultBaseUrl = CUSTOM_AI_BASE_URL;
+    const defaultApiVersion = CUSTOM_AI_API_VERSION;
+    const defaultModel = CUSTOM_AI_MODEL;
+    const thinkingDefault = CUSTOM_AI_THINKING_ENABLED;
+    const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -634,7 +626,6 @@ document.getElementById('msg-input').focus();
 </script>
 </body>
 </html>`;
-
-  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-  res.end(html);
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(html);
 }

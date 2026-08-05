@@ -3,7 +3,6 @@ import { StreamableHTTPServerTransport, } from "@modelcontextprotocol/sdk/server
 import crypto from "crypto";
 import { SERVER_NAME } from "../config.js";
 import { registerAllTools } from "../tools/index.js";
-// ── Shared server config ──────────────────────────────────────────
 const SERVER_INFO = {
     name: SERVER_NAME,
     version: "2.0.0",
@@ -22,25 +21,18 @@ const SERVER_OPTIONS = {
         "8. For mobile clients, call get-client-capabilities to check which tools are supported on the connected executor.",
     ].join("\n"),
 };
-/** Create a fresh McpServer with all tools registered. */
 export function createMcpServer() {
     const server = new McpServer(SERVER_INFO, SERVER_OPTIONS);
     registerAllTools(server);
     return server;
 }
 const sessions = new Map();
-const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes idle → cleanup
-/**
- * Create a new MCP session: a fresh transport + server pair.
- *
- * The SDK's StreamableHTTPServerTransport only supports one session at a
- * time (single `_initialized` flag + single `sessionId`).  To allow
- * multiple AI clients to connect simultaneously we must create a new
- * transport/server pair per session.
- */
+const SESSION_TTL_MS = 30 * 60 * 1000;
 export function createSession() {
     const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => crypto.randomUUID(),
+        enableJsonResponse: true,
+        keepAliveMs: 5000,
         onsessioninitialized: (sessionId) => {
             session.createdAt = Date.now();
             sessions.set(sessionId, session);
@@ -67,7 +59,6 @@ export function createSession() {
     server.connect(transport);
     return session;
 }
-/** Look up an existing session by ID and update its last-used timestamp. */
 export function getSession(sessionId) {
     const session = sessions.get(sessionId);
     if (session) {
@@ -75,7 +66,6 @@ export function getSession(sessionId) {
     }
     return session;
 }
-/** Gracefully close and remove a session. */
 export function deleteSession(sessionId) {
     const session = sessions.get(sessionId);
     if (!session)
@@ -85,11 +75,9 @@ export function deleteSession(sessionId) {
     console.error(`[MCP] Session ${sessionId} deleted. Active: ${sessions.size}`);
     return true;
 }
-/** Number of active sessions. */
 export function activeSessionCount() {
     return sessions.size;
 }
-/** Remove sessions that have been idle longer than the TTL. */
 function cleanupStaleSessions() {
     const now = Date.now();
     for (const [id, session] of sessions) {
@@ -100,5 +88,4 @@ function cleanupStaleSessions() {
         }
     }
 }
-// Periodic cleanup — runs every 5 minutes, doesn't keep the process alive.
 setInterval(cleanupStaleSessions, 5 * 60 * 1000).unref();

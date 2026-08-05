@@ -16,9 +16,7 @@ export async function POST(req, res) {
         if (!message || typeof message !== "string") {
             return jsonErr(res, "Missing 'message' field.");
         }
-        // Build conversation messages in Anthropic format
         const messages = [];
-        // Add history
         if (history && Array.isArray(history)) {
             for (const msg of history) {
                 if (msg.role === "user" || msg.role === "assistant") {
@@ -26,9 +24,7 @@ export async function POST(req, res) {
                 }
             }
         }
-        // Add current message
         messages.push({ role: "user", content: message });
-        // Merge config: request overrides > env defaults
         const agentConfig = {
             apiKey: config?.apiKey || CUSTOM_AI_API_KEY || undefined,
             baseUrl: config?.baseUrl || CUSTOM_AI_BASE_URL,

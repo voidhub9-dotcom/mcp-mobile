@@ -33,13 +33,5 @@ export interface AgentConfig {
     thinkingEnabled?: boolean;
     thinkingBudget?: number;
 }
-/**
- * Run the Anthropic-compatible agent loop.
- *
- * 1. Get MCP tools in Anthropic format
- * 2. Call the Messages API with messages + tools
- * 3. If the model returns tool_use blocks, execute them and loop
- * 4. Return final text + any thinking blocks + tool call info
- */
 export declare function runAgentLoop(messages: AnthropicMessage[], config?: AgentConfig): Promise<ChatResult>;
 export {};

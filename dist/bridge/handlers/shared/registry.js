@@ -12,7 +12,6 @@ function isClientActive(entry) {
     if (entry.transport === "ws") {
         return Boolean(entry.ws && entry.ws.readyState === WebSocket.OPEN);
     }
-    // HTTP clients: active if recently polled OR currently long-polling
     if (entry.pendingPollResolve)
         return true;
     return Date.now() - entry.lastHttpPoll < HTTP_POLL_TIMEOUT;
@@ -93,7 +92,6 @@ export function registerClient(info) {
                 existing.ws.close();
             }
             catch {
-                // Best effort cleanup; the new transport below is authoritative.
             }
         }
         existing.pendingPollResolve?.([]);
@@ -166,7 +164,6 @@ export function formatActiveClientListForTool() {
     if (active.length === 0) {
         return "No Roblox clients are currently connected.";
     }
-    // Compact one-line-per-client format to minimize tokens vs pretty JSON.
     const selectedClientId = getActiveClientId();
     return active
         .map((c) => {

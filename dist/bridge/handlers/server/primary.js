@@ -5,8 +5,6 @@ import { dispatchHttp, dispatchWs, loadRoutes } from "../../../http/router.js";
 import { createSession, getSession, deleteSession } from "../../mcp-transport.js";
 import { resetPrimaryState, setInstanceRole, } from "../shared/communication.js";
 import { resetRegistry } from "../shared/registry.js";
-// Routes that require auth when MCP_AUTH_TOKEN is set.
-// Dashboard HTML, CSS, JS, SVG, and script loaders stay public.
 const PROTECTED_ROUTES = new Set([
     "/mcp",
     "/register",
@@ -21,25 +19,17 @@ const PROTECTED_ROUTES = new Set([
 ]);
 function checkAuth(req, res) {
     if (!MCP_AUTH_TOKEN)
-        return true; // auth disabled
+        return true;
     const pathname = req.url?.split("?")[0] || "";
-    // /api/admin-session is exempt: it has its own localhost origin check.
-    // This lets the dashboard bootstrap even when MCP_AUTH_TOKEN is set.
     if (pathname === "/api/admin-session")
         return true;
-    // Protect /api/* and specific bridge routes; dashboard assets stay public
     if (!PROTECTED_ROUTES.has(pathname) && !pathname.startsWith("/api/"))
         return true;
-    // Accept Bearer token (MCP_AUTH_TOKEN)
     const auth = req.headers["authorization"];
     if (auth === `Bearer ${MCP_AUTH_TOKEN}`)
         return true;
-    // Accept local admin token (for dashboard access from same machine)
     const adminToken = req.headers["x-roblox-mcp-admin-token"];
     if (typeof adminToken === "string" && adminToken.length > 0) {
-        // The local-admin module already validates origin + loopback;
-        // if the header is present, trust the requiresLocalAdminRequest check
-        // that the router applies separately for sensitive admin routes.
         return true;
     }
     res.writeHead(401, { "Content-Type": "application/json" });
@@ -53,7 +43,6 @@ export async function startAsPrimary() {
         resetRegistry();
         resetPrimaryState();
         const httpServer = createServer((req, res) => {
-            // CORS for remote/cloud access
             res.setHeader("Access-Control-Allow-Origin", "*");
             res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
             res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization, Mcp-Session-Id");
@@ -62,12 +51,10 @@ export async function startAsPrimary() {
                 res.end();
                 return;
             }
-            // MCP Streamable HTTP endpoint (when --http mode is active)
             if (HTTP_MODE && req.url?.split("?")[0] === "/mcp") {
                 if (!checkAuth(req, res))
                     return;
                 const sessionId = req.headers["mcp-session-id"];
-                // DELETE → close session
                 if (req.method === "DELETE") {
                     if (sessionId && deleteSession(sessionId)) {
                         res.writeHead(200);
@@ -79,7 +66,6 @@ export async function startAsPrimary() {
                     }
                     return;
                 }
-                // Existing session → delegate to that session's transport
                 if (sessionId) {
                     const session = getSession(sessionId);
                     if (session) {
@@ -91,14 +77,10 @@ export async function startAsPrimary() {
                     }
                     return;
                 }
-                // No session ID → create a new session for this request.
-                // The transport itself will validate that this is an initialize request;
-                // non-initialize requests without a session ID get a 400 from the SDK.
                 const session = createSession();
                 void session.transport.handleRequest(req, res);
                 return;
             }
-            // Auth check for all other routes in cloud mode
             if (MCP_AUTH_TOKEN && !checkAuth(req, res))
                 return;
             void dispatchHttp(req, res);

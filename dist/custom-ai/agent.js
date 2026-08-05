@@ -1,9 +1,6 @@
 import { getMcpClient } from "./mcp-client.js";
 import { CUSTOM_AI_API_KEY, CUSTOM_AI_BASE_URL, CUSTOM_AI_API_VERSION, CUSTOM_AI_MODEL, CUSTOM_AI_MAX_TOKENS, CUSTOM_AI_THINKING_ENABLED, CUSTOM_AI_THINKING_BUDGET, } from "../config.js";
 const MAX_TOOL_ROUNDS = 10;
-/**
- * Fetch tool definitions from the MCP server and convert to Anthropic format.
- */
 async function getTools() {
     const client = getMcpClient();
     if (!client)
@@ -18,9 +15,6 @@ async function getTools() {
         },
     }));
 }
-/**
- * Execute a single tool call via the MCP client.
- */
 async function executeTool(name, input) {
     const client = getMcpClient();
     if (!client)
@@ -42,10 +36,6 @@ async function executeTool(name, input) {
         return `Tool execution failed: ${err.message || err}`;
     }
 }
-/**
- * Build the messages endpoint URL from a base URL.
- * Handles bases that already include /v1 or not.
- */
 function buildMessagesUrl(baseUrl) {
     const base = baseUrl.replace(/\/+$/, "");
     if (base.endsWith("/v1")) {
@@ -56,14 +46,6 @@ function buildMessagesUrl(baseUrl) {
     }
     return base + "/v1/messages";
 }
-/**
- * Run the Anthropic-compatible agent loop.
- *
- * 1. Get MCP tools in Anthropic format
- * 2. Call the Messages API with messages + tools
- * 3. If the model returns tool_use blocks, execute them and loop
- * 4. Return final text + any thinking blocks + tool call info
- */
 export async function runAgentLoop(messages, config = {}) {
     const apiKey = config.apiKey || CUSTOM_AI_API_KEY;
     if (!apiKey) {
@@ -86,7 +68,6 @@ export async function runAgentLoop(messages, config = {}) {
     const workingMessages = [...messages];
     const messagesUrl = buildMessagesUrl(baseUrl);
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-        // Build request body
         const requestBody = {
             model,
             max_tokens: maxTokens,
@@ -95,7 +76,6 @@ export async function runAgentLoop(messages, config = {}) {
         if (tools.length > 0) {
             requestBody.tools = tools;
         }
-        // Extended thinking support
         if (thinkingEnabled) {
             requestBody.thinking = {
                 type: "enabled",
@@ -133,21 +113,17 @@ export async function runAgentLoop(messages, config = {}) {
             };
         }
         const contentBlocks = data.content || [];
-        // Extract thinking blocks
         for (const block of contentBlocks) {
             if (block.type === "thinking" && block.thinking) {
                 allThinking.push({ text: block.thinking });
             }
         }
-        // Check for tool_use blocks
         const toolUseBlocks = contentBlocks.filter((b) => b.type === "tool_use");
         if (toolUseBlocks.length > 0) {
-            // Add assistant message with all content blocks
             workingMessages.push({
                 role: "assistant",
                 content: contentBlocks,
             });
-            // Execute each tool call and build tool_result blocks
             const toolResults = [];
             for (const tu of toolUseBlocks) {
                 const toolName = tu.name || "";
@@ -156,11 +132,9 @@ export async function runAgentLoop(messages, config = {}) {
                 const result = await executeTool(toolName, toolInput);
                 toolCallsMade.push({ name: toolName, input: inputStr, result });
                 toolResults.push({
-                    type: "tool_use", // will be converted below
-                    // We need to build a tool_result block
+                    type: "tool_use",
                 });
             }
-            // Build proper tool_result content for the user message
             const toolResultBlocks = toolUseBlocks.map((tu) => {
                 const tc = toolCallsMade.find((c) => c.name === tu.name && c.input === JSON.stringify(tu.input));
                 return {
@@ -175,7 +149,6 @@ export async function runAgentLoop(messages, config = {}) {
             });
             continue;
         }
-        // No tool calls — extract final text
         const textBlocks = contentBlocks.filter((b) => b.type === "text");
         const finalText = textBlocks.map((b) => b.text || "").join("\n");
         return {

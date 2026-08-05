@@ -40,11 +40,6 @@ async function walk(dir) {
     return out;
 }
 const GROUP_SEGMENT = /^\(.+\)$/;
-/**
- * Derive a URL pathname from the file's location under routesDir.
- * Directory segments wrapped in parens — e.g. `(auth)` — are groups and
- * are dropped from the URL, matching Next.js behavior.
- */
 function fileToUrlPath(file) {
     const rel = path.relative(routesDir, file);
     const parsed = path.parse(rel);

@@ -18,7 +18,6 @@ export default function register(server) {
                 .default(1280),
         }),
     }, async ({ pid, maxWidth }) => {
-        // Secondary mode: relay to primary via HTTP — works even if this machine isn't Windows.
         if (getInstanceRole() === "secondary") {
             try {
                 const primaryBase = BASE_URL ? BASE_URL.replace(/\/$/, "") : `http://localhost:${WS_PORT}`;
