@@ -25,6 +25,44 @@ This extends the [Roblox Executor MCP](README.md) to work with **mobile Roblox e
 
 The MCP server runs on your PC. The mobile executor on your phone loads the mobile connector script, which connects to the server over your local network.
 
+## Remote MCP Setup (Cloud Deployment)
+
+When deployed to Railway, Render, or any cloud host, the MCP server exposes a Streamable HTTP endpoint at `/mcp`. Here's how to connect your AI client:
+
+### MCP Client Config
+
+Use this JSON config in any AI client that supports the MCP Streamable HTTP transport (Perplexity Computer, Claude Desktop with HTTP, Cursor, etc.):
+
+```json
+{
+  "mcpServers": {
+    "roblox-mcp": {
+      "url": "https://YOUR-APP.up.railway.app/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN"
+      }
+    }
+  }
+}
+```
+
+### Important Notes
+
+- **Do NOT include `Mcp-Session-Id` in your config.** The session ID is a temporary runtime header returned by the server after `initialize`. It expires after 30 minutes of inactivity. Your MCP client manages session IDs automatically — never hardcode them.
+- **Auth token**: Set the `MCP_AUTH_TOKEN` environment variable on Railway/Render. The same value goes in the `Authorization: Bearer` header.
+- **Setup page**: Visit `https://YOUR-APP.up.railway.app/mcp-info` for a copy-paste ready config and troubleshooting guide.
+- **Health check**: `https://YOUR-APP.up.railway.app/` returns server status.
+
+### Connecting Your Roblox Client
+
+After deploying, load the connector in your Roblox executor:
+
+```lua
+getgenv().BridgeURL = "https://YOUR-APP.up.railway.app"
+getgenv().MCP_AUTH_TOKEN = "your-token"
+loadstring(game:HttpGet("https://YOUR-APP.up.railway.app/mobile-connector.luau"))()
+```
+
 ## Three Ways to Run on Mobile
 
 ### Option A: Mobile-Only (No PC) — Android
