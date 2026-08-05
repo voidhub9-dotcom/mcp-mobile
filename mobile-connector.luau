@@ -842,10 +842,11 @@ local function Connect()
     local connected = true
     local pollInterval = 0.15 -- Slightly slower for mobile
     local consecutiveFailures = 0
+    local maxConsecutiveFailures = 5
 
     while connected do
         local gotCommands = false
-        local success, _ = pcall(function()
+        local success, err = pcall(function()
             local pollUrl = BridgeBase() .. "/poll"
             if clientId then
                 pollUrl = pollUrl .. "?clientId=" .. clientId
@@ -853,11 +854,13 @@ local function Connect()
             local response = HTTPRequest({
                 Url = pollUrl,
                 Method = "GET",
+                Headers = AuthHeaders(),
             })
 
             if response.StatusCode ~= 204 and response.StatusCode ~= 200 then
                 consecutiveFailures = consecutiveFailures + 1
-                if consecutiveFailures >= 3 then
+                if consecutiveFailures >= maxConsecutiveFailures then
+                    print("[Mobile MCP] Too many poll failures (last status: " .. tostring(response.StatusCode) .. "), disconnecting")
                     connected = false
                 end
                 return
@@ -894,7 +897,8 @@ local function Connect()
 
         if not success then
             consecutiveFailures = consecutiveFailures + 1
-            if consecutiveFailures >= 3 then
+            if consecutiveFailures >= maxConsecutiveFailures then
+                print("[Mobile MCP] Too many poll errors, disconnecting: " .. tostring(err))
                 connected = false
             end
         end
