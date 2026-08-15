@@ -12,6 +12,9 @@ This extends the [Roblox Executor MCP](README.md) to work with **mobile Roblox e
 - **Forces HTTP polling** — mobile executors often don't support WebSocket, so the connector falls back to HTTP polling automatically
 - **Gracefully degrades** — tools that require unsupported APIs return clear error messages instead of crashing
 - **Reports capabilities to the server** — the MCP server knows exactly what each mobile client can do, and AI agents can query this with `get-client-capabilities`
+- **Mobile tool fallbacks** — click-button (firesignal -> Activate -> VirtualInputManager), get-script-content (decompile -> Source -> bytecode), remote-spy (Cobalt -> basic inventory), screenshot (Windows -> client-side)
+- **Game understanding tools** — player state, game GUIs, activity tracing, game system discovery, anti-cheat scanning
+- **Screenshot vision** — screenshots are returned as image content blocks the AI can actually see and analyze
 
 ## Architecture
 
@@ -149,9 +152,37 @@ Tool Availability:
   [OK] get-script-content (with fallbacks)
   [OK] script-grep (with fallbacks)
   [OK] click-button (with fallbacks)
-  [OK] screenshot (client-side fallback)
+  [OK] screenshot (client-side fallback, AI sees image)
   [OK] remote-spy (basic mode fallback)
+  [OK] get-player-state
+  [OK] get-game-guis
+  [OK] trace-game-activity
+  [OK] find-game-systems
+  [OK] scan-anticheat
+  [OK] anticheat-bypass
 ```
+
+## Game Understanding Tools
+
+The AI can deeply understand how a game works to write automation scripts:
+
+- **`get-player-state`** — Returns position, health, leaderstats, backpack, equipped tool, player data folders, visible GUIs, and nearby NPCs/parts
+- **`get-game-guis`** — Lists visible ScreenGuis with buttons (and their positions), labels, text boxes
+- **`trace-game-activity`** — Observes state changes over a time window. Have the player do one manual step to capture what the game does
+- **`find-game-systems`** — Scans for quest, shop, collection, submit, teleport, NPC, currency, inventory, upgrade, pet, trading, and leaderboard systems
+- **`scan-anticheat`** — Detects anti-cheat by scanning instance names, script sources (35+ patterns), and report remotes
+- **`anticheat-bypass`** — Auto-detects anti-cheat and generates a tailored bypass script (kick prevention, speed spoofing, executor hiding, remote blocking)
+
+### Game Flow Discovery Workflow
+
+The AI follows this workflow before writing automation scripts:
+1. `get-game-info` — identify the game
+2. `get-player-state` — see current state
+3. `find-game-systems` — discover what mechanics exist
+4. `get-game-guis` — find submit/claim/sell/quest buttons
+5. `trace-game-activity` — observe what happens during one manual step
+6. Inspect related scripts/remotes
+7. Write automation scripts that replicate the game flow
 
 ## Mobile Compatibility Shims
 
@@ -187,11 +218,13 @@ Tested (or expected to work) with:
 
 ## Limitations
 
-- **Screenshots** — Windows uses OS-level capture; mobile uses client-side screenshot fallback (requires executor `screenshot`/`takescreenshot` function)
+- **Screenshots** — Windows uses OS-level capture; mobile uses client-side screenshot fallback (requires executor `screenshot`/`takescreenshot` function). Screenshots are returned as image content blocks the AI can visually analyze.
 - **Script inspection** — uses `decompile` if available, falls back to `script.Source` or `getscriptbytecode`; some mobile executors may not support any
 - **Semantic search** — works when script sources are available via any method; requires embedding service configured
 - **Slower than WebSocket** — HTTP polling has slightly higher latency
 - **Remote spy** — full call logging with Cobalt (requires `hookmetamethod`/`newcclosure`); basic remote inventory mode as fallback
+- **Anti-cheat bypass** — hook-based mode requires `hookmetamethod`/`hookfunction`/`newcclosure` (not all mobile executors support these); aggressive mode (disable scripts) works more broadly
+- **Reconnection** — connector uses `OnClose`/`OnError` handlers with automatic reconnection; no manual ping required
 
 ## Security
 

@@ -21,11 +21,15 @@ Use it to see connected Roblox clients, inspect scripts, run tools, view server 
 - **Code Execution** — Run Lua code and fetch data from the game client.
 - **Script Inspection** — Decompile scripts and search across all sources.
 - **Instance Search** — CSS-like selectors and hierarchy trees.
-- **Remote Spy** — Intercept, log, block, and ignore Remotes/Bindables via [Cobalt](https://github.com/notpoiu/cobalt).
+- **Remote Spy** — Intercept, log, block, and ignore Remotes/Bindables via [Cobalt](https://github.com/notpoiu/cobalt). Basic remote inventory mode as fallback.
 - **GUI Interaction** — Click buttons and type into text boxes.
-- **Screenshot** — Capture Roblox window screenshots (Windows only).
+- **Screenshot** — Capture screenshots on Windows (OS-level) or any platform (client-side viewport capture). The AI receives actual images it can visually analyze.
 - **Multi-Client** — Connect multiple Roblox clients at once.
 - **Primary / Secondary** — Multiple MCP instances auto-coordinate with automatic promotion. Supports remote relaying via `--baseurl`. See [Advanced](docs/advanced.md).
+- **Game Understanding** — Player state snapshot, game GUI inspection, activity tracing, and game system discovery for writing automation scripts.
+- **Anti-Cheat Tools** — Scan games for anti-cheat systems and generate tailored bypass scripts.
+- **Custom AI Chat** — Built-in chat interface at `/ai` supporting any Anthropic-compatible API with api-key, bearer token, or custom header auth. Screenshot images are passed to the AI as vision content.
+- **Mobile Support** — Works with mobile executors (Delta, CodeX, VegaX, etc.) with fallbacks for missing APIs. See [Mobile README](MOBILE-README.md).
 
 ## Tutorial
 
@@ -170,7 +174,7 @@ loadstring(game:HttpGet("http://YOUR_PC_IP:16384/mobile-connector.luau"))("YOUR_
 
 ## Custom AI Integration
 
-This server includes a **built-in AI chat interface** — no separate AI client needed. It supports **any Anthropic-compatible API** with custom endpoints, so you can use Claude, DeepSeek, or any compatible provider.
+This server includes a **built-in AI chat interface** — no separate AI client needed. It supports **any Anthropic-compatible API** with flexible auth modes (api-key, bearer token, or custom header), so you can use Claude, DeepSeek, or any compatible provider. Screenshots taken in-game are passed to the AI as vision content — the AI can actually see the game screen.
 
 ### Setup
 
@@ -180,12 +184,13 @@ http://localhost:16384/ai          # local
 https://YOUR-APP.up.railway.app/ai  # cloud
 ```
 2. Tap **Settings** and configure:
-   - **API Key** — your API key
-   - **Base URL** — the Anthropic-compatible endpoint (e.g. `https://api.anthropic.com`, `https://gateway.olagon.site/anthropic`)
+   - **API Key** — your API key or bearer token
+   - **Auth Type** — `api-key` (x-api-key header), `bearer` (Authorization: Bearer), or custom header
+   - **Base URL** — the Anthropic-compatible endpoint (e.g. `https://api.anthropic.com`)
    - **API Version** — e.g. `2023-06-01`
    - **Default Model** — e.g. `claude-sonnet-4-20250514`
    - **Extended Thinking** — toggle to show the AI's reasoning process
-3. Start chatting — the AI can use all MCP tools (execute code, inspect scripts, search, GUI interaction, etc.)
+3. Start chatting — the AI can use all MCP tools (execute code, inspect scripts, search, GUI interaction, take screenshots and see them, etc.)
 
 ### Environment Variables (optional, for cloud deployment)
 
@@ -198,6 +203,9 @@ https://YOUR-APP.up.railway.app/ai  # cloud
 | `CUSTOM_AI_MAX_TOKENS` | `16000` | Max response tokens |
 | `CUSTOM_AI_THINKING_ENABLED` | `false` | Enable extended thinking |
 | `CUSTOM_AI_THINKING_BUDGET` | `10000` | Thinking token budget |
+| `CUSTOM_AI_AUTH_TYPE` | `api-key` | Auth mode: `api-key` (x-api-key header) or `bearer` (Authorization: Bearer) |
+| `CUSTOM_AI_BEARER_TOKEN` | — | Bearer token for OAuth/proxy auth |
+| `CUSTOM_AI_AUTH_HEADER` | — | Custom auth header name override |
 
 ## Community
 

@@ -145,13 +145,19 @@ Most MCP tools work on mobile with fallbacks when executor-specific functions ar
 | `search-instances` | Yes | `loadstring` |
 | `get-descendants-tree` | Yes | `loadstring` |
 | `type-text-box` | Yes | — |
-| `click-button` | Yes | Uses `firesignal` if available, falls back to `Activate()` or `VirtualInputManager` |
-| `get-script-content` | Yes | Uses `decompile` if available, falls back to `script.Source` or `getscriptbytecode` |
-| `script-grep` | Yes | Works when script sources are available via decompile, `Source`, or bytecode |
-| `screenshot-window` | Yes | Uses Windows capture on desktop, falls back to client-side screenshot on mobile |
-| `client-screenshot` | Yes | Cross-platform in-game viewport capture (requires executor screenshot support) |
-| `semantic-search-scripts` | Yes | Works when script sources are available; requires embedding service configured |
-| `remote-spy` | Yes | Full call logging with Cobalt; basic remote inventory mode as fallback |
+| `click-button` | Yes | `firesignal` → `Activate()` → `VirtualInputManager` |
+| `get-script-content` | Yes | `decompile` → `script.Source` → `getscriptbytecode` |
+| `script-grep` | Yes | Works when script sources are available |
+| `screenshot-window` | Yes | Windows capture on desktop, client-side on mobile |
+| `client-screenshot` | Yes | Cross-platform viewport capture, AI sees the image |
+| `semantic-search-scripts` | Yes | Requires script sources + embedding service |
+| `remote-spy` | Yes | Cobalt full mode; basic inventory fallback |
+| `get-player-state` | Yes | Position, stats, inventory, nearby NPCs |
+| `get-game-guis` | Yes | Visible GUIs with buttons, labels, text boxes |
+| `trace-game-activity` | Yes | Observes state changes over a time window |
+| `find-game-systems` | Yes | Quest, shop, collection, submit, teleport, etc. |
+| `scan-anticheat` | Yes | Detects anti-cheat patterns in scripts and instances |
+| `anticheat-bypass` | Yes | Generates bypass code (requires hookmetamethod for hook-based mode) |
 
 ## Remote Access (Advanced)
 
