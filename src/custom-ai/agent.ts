@@ -1,5 +1,5 @@
 import { getMcpClient } from "./mcp-client.js";
-import { CUSTOM_AI_API_KEY, CUSTOM_AI_BASE_URL, CUSTOM_AI_API_VERSION, CUSTOM_AI_MODEL, CUSTOM_AI_MAX_TOKENS, CUSTOM_AI_THINKING_ENABLED, CUSTOM_AI_THINKING_BUDGET, } from "../config.js";
+import { CUSTOM_AI_API_KEY, CUSTOM_AI_BASE_URL, CUSTOM_AI_API_VERSION, CUSTOM_AI_MODEL, CUSTOM_AI_MAX_TOKENS, CUSTOM_AI_THINKING_ENABLED, CUSTOM_AI_THINKING_BUDGET, CUSTOM_AI_AUTH_TYPE, CUSTOM_AI_AUTH_HEADER, CUSTOM_AI_BEARER_TOKEN, type CustomAiAuthType, } from "../config.js";
 const MAX_TOOL_ROUNDS = 10;
 interface AnthropicTool {
     name: string;
@@ -40,6 +40,9 @@ export interface AgentConfig {
     maxTokens?: number;
     thinkingEnabled?: boolean;
     thinkingBudget?: number;
+    authType?: CustomAiAuthType;
+    bearerToken?: string;
+    authHeader?: string;
 }
 async function getTools(): Promise<AnthropicTool[]> {
     const client = getMcpClient();
@@ -86,9 +89,36 @@ function buildMessagesUrl(baseUrl: string): string {
     }
     return base + "/v1/messages";
 }
+function buildAuthHeaders(config: AgentConfig): Record<string, string> {
+    const authType = config.authType || CUSTOM_AI_AUTH_TYPE;
+    const authHeader = config.authHeader || CUSTOM_AI_AUTH_HEADER;
+    const bearerToken = config.bearerToken || CUSTOM_AI_BEARER_TOKEN;
+    const apiKey = config.apiKey || CUSTOM_AI_API_KEY;
+    const headers: Record<string, string> = {};
+    if (authHeader) {
+        const token = bearerToken || apiKey;
+        if (token)
+            headers[authHeader] = token;
+        return headers;
+    }
+    if (authType === "bearer") {
+        const token = bearerToken || apiKey;
+        if (token)
+            headers["Authorization"] = `Bearer ${token}`;
+        return headers;
+    }
+    if (apiKey) {
+        headers["x-api-key"] = apiKey;
+        headers["anthropic-version"] = config.apiVersion || CUSTOM_AI_API_VERSION;
+    }
+    return headers;
+}
 export async function runAgentLoop(messages: AnthropicMessage[], config: AgentConfig = {}): Promise<ChatResult> {
     const apiKey = config.apiKey || CUSTOM_AI_API_KEY;
-    if (!apiKey) {
+    const bearerToken = config.bearerToken || CUSTOM_AI_BEARER_TOKEN;
+    const authType = config.authType || CUSTOM_AI_AUTH_TYPE;
+    const hasBearer = authType === "bearer" && (bearerToken || apiKey);
+    if (!apiKey && !hasBearer) {
         return {
             content: "",
             thinking: [],
@@ -122,14 +152,14 @@ export async function runAgentLoop(messages: AnthropicMessage[], config: AgentCo
                 budget_tokens: Math.min(thinkingBudget, maxTokens - 1000),
             };
         }
+        const authHeaders = buildAuthHeaders(config);
         let data: any;
         try {
             const resp = await fetch(messagesUrl, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "x-api-key": apiKey,
-                    "anthropic-version": apiVersion,
+                    ...authHeaders,
                 },
                 body: JSON.stringify(requestBody),
             });

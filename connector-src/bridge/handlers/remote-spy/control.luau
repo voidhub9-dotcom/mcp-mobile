@@ -1,6 +1,12 @@
 return function(_context, Bridge)
     Bridge:BindToType("clear-remote-spy-logs", function(data)
         local Cobalt = getgenv().Cobalt
+        if not Cobalt and getgenv().MCP_BasicRemoteSpy then
+            return {
+                status = "no_op",
+                message = "Running in basic remote inventory mode. No call logs to clear."
+            }
+        end
         assert(Cobalt and Cobalt.shared and Cobalt.shared.ClearLogs, "Cobalt remote spy is not loaded. Call ensure-remote-spy first.")
 
         Cobalt.shared.ClearLogs()
@@ -13,6 +19,12 @@ return function(_context, Bridge)
 
     Bridge:BindToType("block-remote", function(data)
         local Cobalt = getgenv().Cobalt
+        if not Cobalt and getgenv().MCP_BasicRemoteSpy then
+            return {
+                status = "unsupported",
+                message = "Remote blocking is not available in basic remote inventory mode. Requires Cobalt (hookmetamethod support)."
+            }
+        end
         assert(Cobalt and Cobalt.shared and Cobalt.shared.Logs, "Cobalt remote spy is not loaded. Call ensure-remote-spy first.")
 
         local remoteName = data.remoteName
@@ -48,6 +60,12 @@ return function(_context, Bridge)
 
     Bridge:BindToType("ignore-remote", function(data)
         local Cobalt = getgenv().Cobalt
+        if not Cobalt and getgenv().MCP_BasicRemoteSpy then
+            return {
+                status = "unsupported",
+                message = "Remote ignoring is not available in basic remote inventory mode. Requires Cobalt (hookmetamethod support)."
+            }
+        end
         assert(Cobalt and Cobalt.shared and Cobalt.shared.Logs, "Cobalt remote spy is not loaded. Call ensure-remote-spy first.")
 
         local remoteName = data.remoteName

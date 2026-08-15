@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { readJsonBody } from "../../body.js";
-import { CUSTOM_AI_API_KEY, CUSTOM_AI_BASE_URL, CUSTOM_AI_API_VERSION, CUSTOM_AI_MODEL, CUSTOM_AI_MAX_TOKENS, CUSTOM_AI_THINKING_ENABLED, CUSTOM_AI_THINKING_BUDGET, } from "../../../config.js";
+import { CUSTOM_AI_API_KEY, CUSTOM_AI_BASE_URL, CUSTOM_AI_API_VERSION, CUSTOM_AI_MODEL, CUSTOM_AI_MAX_TOKENS, CUSTOM_AI_THINKING_ENABLED, CUSTOM_AI_THINKING_BUDGET, CUSTOM_AI_AUTH_TYPE, CUSTOM_AI_AUTH_HEADER, CUSTOM_AI_BEARER_TOKEN, } from "../../../config.js";
 import { runAgentLoop, type AgentConfig } from "../../../custom-ai/agent.js";
 interface CustomAIChatRequest {
     message: string;
@@ -48,6 +48,9 @@ export async function POST(req: IncomingMessage, res: ServerResponse): Promise<v
             maxTokens: config?.maxTokens || CUSTOM_AI_MAX_TOKENS,
             thinkingEnabled: config?.thinkingEnabled ?? CUSTOM_AI_THINKING_ENABLED,
             thinkingBudget: config?.thinkingBudget || CUSTOM_AI_THINKING_BUDGET,
+            authType: config?.authType || CUSTOM_AI_AUTH_TYPE,
+            bearerToken: config?.bearerToken || CUSTOM_AI_BEARER_TOKEN || undefined,
+            authHeader: config?.authHeader || CUSTOM_AI_AUTH_HEADER || undefined,
         };
         const result = await runAgentLoop(messages, agentConfig);
         return jsonOk(res, {

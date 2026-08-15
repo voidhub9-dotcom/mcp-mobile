@@ -23,6 +23,12 @@ export const CUSTOM_AI_API_KEY = process.env.CUSTOM_AI_API_KEY || null;
 export const CUSTOM_AI_BASE_URL = process.env.CUSTOM_AI_BASE_URL || "https://api.anthropic.com";
 export const CUSTOM_AI_API_VERSION = process.env.CUSTOM_AI_API_VERSION || "2023-06-01";
 export const CUSTOM_AI_MODEL = process.env.CUSTOM_AI_MODEL || "claude-sonnet-4-20250514";
+export const CUSTOM_AI_AUTH_TYPE = (() => {
+    const raw = (process.env.CUSTOM_AI_AUTH_TYPE || "").toLowerCase().trim();
+    return raw === "bearer" ? "bearer" : "api-key";
+})();
+export const CUSTOM_AI_AUTH_HEADER = process.env.CUSTOM_AI_AUTH_HEADER || null;
+export const CUSTOM_AI_BEARER_TOKEN = process.env.CUSTOM_AI_BEARER_TOKEN || null;
 export const CUSTOM_AI_MAX_TOKENS = parseInt(process.env.CUSTOM_AI_MAX_TOKENS || "16000", 10);
 export const CUSTOM_AI_THINKING_ENABLED = process.env.CUSTOM_AI_THINKING_ENABLED === "true" || process.env.CUSTOM_AI_THINKING_ENABLED === "1";
 export const CUSTOM_AI_THINKING_BUDGET = parseInt(process.env.CUSTOM_AI_THINKING_BUDGET || "10000", 10);

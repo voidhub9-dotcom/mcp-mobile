@@ -181,10 +181,12 @@
                         <div class="overview-meta">
                             <h1 class="overview-username" id="overviewUsername">—</h1>
                             <p class="overview-place" id="overviewPlace">—</p>
+                            <a class="overview-profile-link" id="overviewProfileLink" href="#" target="_blank" rel="noopener">View Roblox Profile →</a>
                         </div>
                     </div>
                     <div class="overview-hero-right">
                         <div class="overview-transport" id="overviewTransport">WS</div>
+                        <div class="overview-executor" id="overviewExecutor" style="display:none"></div>
                     </div>
                 </div>
 
@@ -230,6 +232,40 @@
                             <div class="status-tile-stat">
                                 <span class="status-tile-stat-label">Scripts Synced</span>
                                 <span class="status-tile-stat-value" id="overviewScriptsSynced">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="status-tile">
+                        <div class="status-tile-header">
+                            <span class="status-tile-title">Script Sync Progress</span>
+                        </div>
+                        <div class="status-tile-body">
+                            <div class="sync-progress-container">
+                                <div class="sync-progress-bar">
+                                    <div class="sync-progress-fill" id="syncProgressFill" style="width:0%"></div>
+                                </div>
+                                <span class="sync-progress-text" id="scriptsSyncPerc">0%</span>
+                            </div>
+                            <div class="status-tile-stat" style="margin-top:6px">
+                                <span class="status-tile-stat-label">Scripts</span>
+                                <span class="status-tile-stat-value" id="scriptsSyncCount">0/0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="status-tile">
+                        <div class="status-tile-header">
+                            <span class="status-tile-title">Semantic Index</span>
+                        </div>
+                        <div class="status-tile-body">
+                            <div class="sync-progress-container">
+                                <div class="sync-progress-bar">
+                                    <div class="sync-progress-fill" id="indexProgressFill" style="width:0%"></div>
+                                </div>
+                                <span class="sync-progress-text" id="scriptsIndexPerc">0%</span>
+                            </div>
+                            <div class="status-tile-stat" style="margin-top:6px">
+                                <span class="status-tile-stat-label">Chunks</span>
+                                <span class="status-tile-stat-value" id="scriptsChunkCount">0/0</span>
                             </div>
                         </div>
                     </div>

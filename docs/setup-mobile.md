@@ -132,10 +132,10 @@ Most mobile executors support an auto-execute feature. Add the loader script to 
 
 ## Tool Availability on Mobile
 
-Not all MCP tools work on mobile due to executor API limitations:
+Most MCP tools work on mobile with fallbacks when executor-specific functions are unavailable:
 
-| Tool | Works on Mobile? | Requirement |
-|------|-----------------|-------------|
+| Tool | Works on Mobile? | Notes |
+|------|-----------------|-------|
 | `list-clients` | Yes | — |
 | `get-client-capabilities` | Yes | — |
 | `execute` | Yes | `loadstring` + `setthreadidentity` |
@@ -145,12 +145,13 @@ Not all MCP tools work on mobile due to executor API limitations:
 | `search-instances` | Yes | `loadstring` |
 | `get-descendants-tree` | Yes | `loadstring` |
 | `type-text-box` | Yes | — |
-| `click-button` | Maybe | `firesignal` or `VirtualInputManager` |
-| `get-script-content` | Maybe | `decompile` or `getscriptbytecode` |
-| `script-grep` | Maybe | `getscripts` + `decompile` |
-| `screenshot-window` | No | Desktop only |
-| `semantic-search-scripts` | No | Requires decompilation |
-| `remote-spy` | Maybe | Depends on executor |
+| `click-button` | Yes | Uses `firesignal` if available, falls back to `Activate()` or `VirtualInputManager` |
+| `get-script-content` | Yes | Uses `decompile` if available, falls back to `script.Source` or `getscriptbytecode` |
+| `script-grep` | Yes | Works when script sources are available via decompile, `Source`, or bytecode |
+| `screenshot-window` | Yes | Uses Windows capture on desktop, falls back to client-side screenshot on mobile |
+| `client-screenshot` | Yes | Cross-platform in-game viewport capture (requires executor screenshot support) |
+| `semantic-search-scripts` | Yes | Works when script sources are available; requires embedding service configured |
+| `remote-spy` | Yes | Full call logging with Cobalt; basic remote inventory mode as fallback |
 
 ## Remote Access (Advanced)
 

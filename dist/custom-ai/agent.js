@@ -1,5 +1,5 @@
 import { getMcpClient } from "./mcp-client.js";
-import { CUSTOM_AI_API_KEY, CUSTOM_AI_BASE_URL, CUSTOM_AI_API_VERSION, CUSTOM_AI_MODEL, CUSTOM_AI_MAX_TOKENS, CUSTOM_AI_THINKING_ENABLED, CUSTOM_AI_THINKING_BUDGET, } from "../config.js";
+import { CUSTOM_AI_API_KEY, CUSTOM_AI_BASE_URL, CUSTOM_AI_API_VERSION, CUSTOM_AI_MODEL, CUSTOM_AI_MAX_TOKENS, CUSTOM_AI_THINKING_ENABLED, CUSTOM_AI_THINKING_BUDGET, CUSTOM_AI_AUTH_TYPE, CUSTOM_AI_AUTH_HEADER, CUSTOM_AI_BEARER_TOKEN, } from "../config.js";
 const MAX_TOOL_ROUNDS = 10;
 async function getTools() {
     const client = getMcpClient();
@@ -46,9 +46,36 @@ function buildMessagesUrl(baseUrl) {
     }
     return base + "/v1/messages";
 }
+function buildAuthHeaders(config) {
+    const authType = config.authType || CUSTOM_AI_AUTH_TYPE;
+    const authHeader = config.authHeader || CUSTOM_AI_AUTH_HEADER;
+    const bearerToken = config.bearerToken || CUSTOM_AI_BEARER_TOKEN;
+    const apiKey = config.apiKey || CUSTOM_AI_API_KEY;
+    const headers = {};
+    if (authHeader) {
+        const token = bearerToken || apiKey;
+        if (token)
+            headers[authHeader] = token;
+        return headers;
+    }
+    if (authType === "bearer") {
+        const token = bearerToken || apiKey;
+        if (token)
+            headers["Authorization"] = `Bearer ${token}`;
+        return headers;
+    }
+    if (apiKey) {
+        headers["x-api-key"] = apiKey;
+        headers["anthropic-version"] = config.apiVersion || CUSTOM_AI_API_VERSION;
+    }
+    return headers;
+}
 export async function runAgentLoop(messages, config = {}) {
     const apiKey = config.apiKey || CUSTOM_AI_API_KEY;
-    if (!apiKey) {
+    const bearerToken = config.bearerToken || CUSTOM_AI_BEARER_TOKEN;
+    const authType = config.authType || CUSTOM_AI_AUTH_TYPE;
+    const hasBearer = authType === "bearer" && (bearerToken || apiKey);
+    if (!apiKey && !hasBearer) {
         return {
             content: "",
             thinking: [],
@@ -82,14 +109,14 @@ export async function runAgentLoop(messages, config = {}) {
                 budget_tokens: Math.min(thinkingBudget, maxTokens - 1000),
             };
         }
+        const authHeaders = buildAuthHeaders(config);
         let data;
         try {
             const resp = await fetch(messagesUrl, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "x-api-key": apiKey,
-                    "anthropic-version": apiVersion,
+                    ...authHeaders,
                 },
                 body: JSON.stringify(requestBody),
             });

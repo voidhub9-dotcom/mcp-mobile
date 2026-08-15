@@ -44,16 +44,65 @@ export default function register(server: McpServer): void {
             }
         }
         if (!isSupported()) {
-            return {
-                content: [
-                    {
-                        type: "text" as const,
-                        text: "Error: The screenshot-window tool is only available on Windows. The current platform is: " +
-                            process.platform,
-                    },
-                ],
-                isError: true,
-            };
+            // Fall back to client-side screenshot for non-Windows platforms
+            try {
+                const { sendAndWait } = await import("../../factory.js");
+                const result = await sendAndWait({
+                    type: "client-screenshot",
+                    data: { maxWidth, quality: 80 },
+                    stampClient: true,
+                    maxOutputChars: 32000,
+                    failureMessage: () => "Client-side screenshot is not supported by this executor. The screenshot-window tool requires Windows, and the connected executor does not support in-game screenshot capture.",
+                });
+                if (result.isError) {
+                    return result;
+                }
+                const text = (result.content as any[])
+                    ?.filter((c: any) => c.type === "text")
+                    .map((c: any) => c.text)
+                    .join("");
+                if (text) {
+                    const match = text.match(/data:image\/([a-z]+);base64,([A-Za-z0-9+/=]+)/);
+                    if (match) {
+                        return {
+                            content: [
+                                {
+                                    type: "image" as const,
+                                    data: match[2],
+                                    mimeType: `image/${match[1]}`,
+                                },
+                            ],
+                        };
+                    }
+                    const match2 = text.match(/"imageBase64":\s*"data:image\/([a-z]+);base64,([A-Za-z0-9+/=]+)/);
+                    if (match2) {
+                        return {
+                            content: [
+                                {
+                                    type: "image" as const,
+                                    data: match2[2],
+                                    mimeType: `image/${match2[1]}`,
+                                },
+                            ],
+                        };
+                    }
+                }
+                return result;
+            }
+            catch (fallbackErr) {
+                return {
+                    content: [
+                        {
+                            type: "text" as const,
+                            text: "Error: The screenshot-window tool is only available on Windows. The current platform is: " +
+                                process.platform +
+                                ". Client-side screenshot fallback also failed: " +
+                                ((fallbackErr as Error).message || fallbackErr),
+                        },
+                    ],
+                    isError: true,
+                };
+            }
         }
         try {
             return renderScreenshotResult(performScreenshot(pid, maxWidth));

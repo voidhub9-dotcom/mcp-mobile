@@ -146,8 +146,11 @@ Tool Availability:
   [OK] get-data-by-code
   [OK] get-console-output
   [OK] get-game-info
-  [NA] get-script-content
-  [NA] script-grep
+  [OK] get-script-content (with fallbacks)
+  [OK] script-grep (with fallbacks)
+  [OK] click-button (with fallbacks)
+  [OK] screenshot (client-side fallback)
+  [OK] remote-spy (basic mode fallback)
 ```
 
 ## Mobile Compatibility Shims
@@ -167,7 +170,7 @@ Tries LuaEncode (from GitHub) → falls back to a built-in simple JSON encoder
 Tries `firesignal` → falls back to `VirtualInputManager` touch simulation
 
 ### Script Inspection
-Tries `decompile` → `getscriptbytecode` → returns clear error if neither is available
+Tries `decompile` → `script.Source` property → `getscriptbytecode` → returns clear error if none available
 
 ## Supported Executors
 
@@ -184,11 +187,11 @@ Tested (or expected to work) with:
 
 ## Limitations
 
-- **No screenshots** — screenshot capture is Windows desktop only
-- **Limited script inspection** — many mobile executors don't support `decompile` or `getscriptbytecode`
-- **No semantic search** — requires decompilation which is often unavailable on mobile
+- **Screenshots** — Windows uses OS-level capture; mobile uses client-side screenshot fallback (requires executor `screenshot`/`takescreenshot` function)
+- **Script inspection** — uses `decompile` if available, falls back to `script.Source` or `getscriptbytecode`; some mobile executors may not support any
+- **Semantic search** — works when script sources are available via any method; requires embedding service configured
 - **Slower than WebSocket** — HTTP polling has slightly higher latency
-- **No remote spy (limited)** — depends on executor API support
+- **Remote spy** — full call logging with Cobalt (requires `hookmetamethod`/`newcclosure`); basic remote inventory mode as fallback
 
 ## Security
 
@@ -219,6 +222,9 @@ https://YOUR-APP.up.railway.app/ai  # Cloud (iOS/Android)
 | `CUSTOM_AI_API_VERSION` | `2023-06-01` | API version |
 | `CUSTOM_AI_MODEL` | `claude-sonnet-4-20250514` | Model name |
 | `CUSTOM_AI_THINKING_ENABLED` | `false` | Enable thinking display |
+| `CUSTOM_AI_AUTH_TYPE` | `api-key` | Auth mode: `api-key` (x-api-key header) or `bearer` (Authorization: Bearer) |
+| `CUSTOM_AI_BEARER_TOKEN` | — | Bearer token for OAuth/proxy auth |
+| `CUSTOM_AI_AUTH_HEADER` | — | Custom auth header name override |
 
 ## Full Documentation
 

@@ -510,6 +510,29 @@ function updateOverview() {
     $('overviewUserId').textContent = c.userId || '—';
     $('overviewJobId').textContent = c.jobId || '—';
 
+    // Set Roblox profile link
+    const profileLink = $('overviewProfileLink');
+    if (profileLink) {
+        if (c.userId && c.userId > 0) {
+            profileLink.href = 'https://www.roblox.com/users/' + c.userId + '/profile';
+            profileLink.style.display = '';
+        } else {
+            profileLink.style.display = 'none';
+        }
+    }
+
+    // Show executor name if available
+    const executorEl = $('overviewExecutor');
+    if (executorEl) {
+        const executorName = c.executorName || c.executor || c.capabilities?.executor;
+        if (executorName) {
+            executorEl.textContent = executorName;
+            executorEl.style.display = '';
+        } else {
+            executorEl.style.display = 'none';
+        }
+    }
+
     const oa = $('overviewAvatar');
     oa.innerHTML = avatarHtml(c.userId, c.username, 56);
 

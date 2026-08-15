@@ -11,6 +11,7 @@ import registerScriptGrep from "./impl/inspection/script-grep.js";
 import registerSemanticSearchScripts from "./impl/inspection/semantic-search-scripts.js";
 import registerGetGameInfo from "./impl/inspection/get-game-info.js";
 import registerGetDescendantsTree from "./impl/inspection/get-descendants-tree.js";
+import registerClientScreenshot from "./impl/inspection/client-screenshot.js";
 import registerDecryptRemote from "./impl/inspection/decrypt-remote.js";
 import registerRemoteSpy from "./impl/remote-spy/remote-spy.js";
 import registerTypeTextBox from "./impl/gui/type-text-box.js";
@@ -31,6 +32,7 @@ export function registerAllTools(server) {
     registerSemanticSearchScripts(server);
     registerGetGameInfo(server);
     registerGetDescendantsTree(server);
+    registerClientScreenshot(server);
     registerDecryptRemote(server);
     registerRemoteSpy(server);
     registerTypeTextBox(server);

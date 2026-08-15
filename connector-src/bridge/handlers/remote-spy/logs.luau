@@ -7,31 +7,101 @@ return function(_context, Bridge)
             }
         end
 
-        -- Load Cobalt
+        -- Try loading Cobalt (full remote spy with hooks)
         local success, err = pcall(function()
             loadstring(game:HttpGet("https://github.com/notpoiu/cobalt/releases/latest/download/Cobalt.luau"))()
         end)
 
-        if not success then
-            error("Failed to load Cobalt: " .. tostring(err))
+        if success then
+            -- Wait for Cobalt to initialize
+            local waitStart = os.clock()
+            while not getgenv().Cobalt and os.clock() - waitStart < 10 do
+                task.wait(0.1)
+            end
+
+            if getgenv().Cobalt then
+                return {
+                    status = "loaded",
+                    message = "Cobalt remote spy loaded successfully."
+                }
+            end
         end
 
-        -- Wait for Cobalt to initialize
-        local waitStart = os.clock()
-        while not getgenv().Cobalt and os.clock() - waitStart < 10 do
-            task.wait(0.1)
-        end
-
-        assert(getgenv().Cobalt, "Cobalt loaded but failed to initialize within 10 seconds.")
-        
+        -- Fallback: basic remote inventory mode (no call logging)
+        -- This doesn't require hookmetamethod/newcclosure but can only list remotes,
+        -- not log their calls. Still useful for finding and inspecting remotes.
+        getgenv().MCP_BasicRemoteSpy = true
         return {
-            status = "loaded",
-            message = "Cobalt remote spy loaded successfully."
+            status = "basic_mode",
+            message = "Cobalt remote spy could not be loaded (" .. tostring(err or "timeout") .. "). " ..
+                "Falling back to basic remote inventory mode: can list and search RemoteEvents/RemoteFunctions " ..
+                "but cannot log remote calls. Full remote spying requires hookmetamethod/newcclosure support."
         }
     end)
 
     Bridge:BindToType("get-remote-spy-logs", function(data)
         local Cobalt = getgenv().Cobalt
+
+        --// Basic mode fallback: list remotes without call logging \\--
+        if not Cobalt and getgenv().MCP_BasicRemoteSpy then
+            local nameFilter = data.remoteNameFilter or ""
+            local limit = math.max(1, math.min(tonumber(data.limit) or 10, 100))
+            local hasNameFilter = nameFilter ~= ""
+
+            local results = {}
+            local function scanRemotes(parent, depth)
+                if #results >= limit * 3 then return end
+                if depth > 5 then return end
+                for _, child in parent:GetChildren() do
+                    if #results >= limit * 3 then break end
+                    if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") or child:IsA("UnreliableRemoteEvent") then
+                        local name = child.Name
+                        if not hasNameFilter or string.find(string.lower(name), string.lower(nameFilter), 1, true) then
+                            local fullName = ""
+                            pcall(function() fullName = child:GetFullName() end)
+                            table.insert(results, {
+                                RemoteName = name,
+                                RemoteClass = child.ClassName,
+                                Direction = "unknown",
+                                Method = "basic_mode",
+                                TotalCalls = 0,
+                                Ignored = false,
+                                Blocked = false,
+                                RecentCalls = nil,
+                                Path = fullName,
+                            })
+                        end
+                    end
+                    scanRemotes(child, depth + 1)
+                end
+            end
+
+            -- Scan common service containers
+            local services = {"ReplicatedStorage", "Workspace", "Players"}
+            for _, serviceName in services do
+                pcall(function()
+                    local service = game:GetService(serviceName)
+                    scanRemotes(service, 0)
+                end)
+            end
+
+            -- Trim to limit
+            if #results > limit then
+                local trimmed = {}
+                for i = 1, limit do
+                    trimmed[i] = results[i]
+                end
+                results = trimmed
+            end
+
+            return {
+                count = #results,
+                results = results,
+                mode = "basic",
+                message = "Running in basic remote inventory mode. Remote call logging requires Cobalt (hookmetamethod/newcclosure support)."
+            }
+        end
+
         assert(Cobalt and Cobalt.shared and Cobalt.shared.Logs, "Cobalt remote spy is not loaded. Call ensure-remote-spy first.")
 
         local direction = data.direction or "Both"

@@ -1,5 +1,5 @@
 import { createServer, IncomingMessage, ServerResponse } from "http";
-import { WebSocketServer } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import { WS_PORT, MCP_AUTH_TOKEN, HTTP_MODE } from "../../../config.js";
 import { dispatchHttp, dispatchWs, loadRoutes } from "../../../http/router.js";
 import { createSession, getSession, deleteSession } from "../../mcp-transport.js";
@@ -98,6 +98,21 @@ export async function startAsPrimary(): Promise<void> {
             console.error(`[Primary] MCP Bridge listening on port ${WS_PORT} (WebSocket + HTTP)`);
             const wss = new WebSocketServer({ server: httpServer });
             wss.on("connection", (ws, req) => dispatchWs(ws, req));
+            // Periodic ping to keep WS connections alive and detect dead connections
+            const pingInterval = setInterval(() => {
+                for (const client of wss.clients) {
+                    if (client.readyState === WebSocket.OPEN) {
+                        try {
+                            client.ping();
+                        }
+                        catch {
+                            // ignore ping failures
+                        }
+                    }
+                }
+            }, 30000);
+            pingInterval.unref();
+            wss.on("close", () => clearInterval(pingInterval));
             resolve();
         });
     });

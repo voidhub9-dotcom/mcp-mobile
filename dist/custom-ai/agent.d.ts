@@ -1,3 +1,4 @@
+import { type CustomAiAuthType } from "../config.js";
 interface ContentBlock {
     type: "text" | "tool_use" | "thinking";
     text?: string;
@@ -32,6 +33,9 @@ export interface AgentConfig {
     maxTokens?: number;
     thinkingEnabled?: boolean;
     thinkingBudget?: number;
+    authType?: CustomAiAuthType;
+    bearerToken?: string;
+    authHeader?: string;
 }
 export declare function runAgentLoop(messages: AnthropicMessage[], config?: AgentConfig): Promise<ChatResult>;
 export {};

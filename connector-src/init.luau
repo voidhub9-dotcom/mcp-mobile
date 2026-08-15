@@ -304,4 +304,6 @@ require("./bridge/runtime")({
     RobloxReplicatedStorage = RobloxReplicatedStorage,
     VirtualInputManager = VirtualInputManager,
     LuaEncode = LuaEncode,
+    HttpService = HttpService,
+    base64_encode = base64_encode,
 })
