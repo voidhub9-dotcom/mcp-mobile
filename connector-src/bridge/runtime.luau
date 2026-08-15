@@ -53,6 +53,7 @@ while true do
         require("./handlers/remote-spy/control"),
         require("./handlers/input"),
         require("./handlers/screenshot"),
+        require("./handlers/game-state"),
     }
     for _, registerHandlers in registrars do
         registerHandlers(context, Bridge)

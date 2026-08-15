@@ -13,6 +13,10 @@ import registerSemanticSearchScripts from "./impl/inspection/semantic-search-scr
 import registerGetGameInfo from "./impl/inspection/get-game-info.js";
 import registerGetDescendantsTree from "./impl/inspection/get-descendants-tree.js";
 import registerClientScreenshot from "./impl/inspection/client-screenshot.js";
+import registerGetPlayerState from "./impl/inspection/get-player-state.js";
+import registerGetGameGuis from "./impl/inspection/get-game-guis.js";
+import registerTraceGameActivity from "./impl/inspection/trace-game-activity.js";
+import registerFindGameSystems from "./impl/inspection/find-game-systems.js";
 import registerDecryptRemote from "./impl/inspection/decrypt-remote.js";
 import registerRemoteSpy from "./impl/remote-spy/remote-spy.js";
 import registerTypeTextBox from "./impl/gui/type-text-box.js";
@@ -34,6 +38,10 @@ export function registerAllTools(server: McpServer): void {
     registerGetGameInfo(server);
     registerGetDescendantsTree(server);
     registerClientScreenshot(server);
+    registerGetPlayerState(server);
+    registerGetGameGuis(server);
+    registerTraceGameActivity(server);
+    registerFindGameSystems(server);
     registerDecryptRemote(server);
     registerRemoteSpy(server);
     registerTypeTextBox(server);
