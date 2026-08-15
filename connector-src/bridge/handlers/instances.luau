@@ -34,7 +34,6 @@ local RobloxReplicatedStorage = context.RobloxReplicatedStorage
         local productInfo = MarketplaceService:GetProductInfo(game.PlaceId)
         local player = game.Players.LocalPlayer
 
-        -- ServerType may not exist in all games, wrap in pcall
         local serverType = nil
         pcall(function()
             serverType = RobloxReplicatedStorage.GetServerType:InvokeServer()
@@ -50,7 +49,6 @@ local RobloxReplicatedStorage = context.RobloxReplicatedStorage
             CreatorId = productInfo.Creator.CreatorTargetId,
             JobId = game.JobId,
             ServerType = serverType,
-            -- Additional context for better AI understanding
             LocalPlayer = player and {
                 Name = player.Name,
                 UserId = player.UserId,
@@ -67,8 +65,6 @@ local RobloxReplicatedStorage = context.RobloxReplicatedStorage
             IsStudio = game:GetService("RunService"):IsStudio(),
         }
 
-        -- The marketplace description can be multi-kB of marketing text that is
-        -- pure noise for debugging, so omit it unless explicitly requested.
         if data.includeDescription == true then
             info.PlaceDescription = productInfo.Description
         end

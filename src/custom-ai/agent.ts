@@ -7,12 +7,14 @@ interface AnthropicTool {
     input_schema: Record<string, unknown>;
 }
 interface ContentBlock {
-    type: "text" | "tool_use" | "thinking";
+    type: "text" | "tool_use" | "thinking" | "image";
     text?: string;
     id?: string;
     name?: string;
     input?: Record<string, unknown>;
     thinking?: string;
+    data?: string;
+    mimeType?: string;
 }
 interface AnthropicMessage {
     role: "user" | "assistant";
@@ -58,25 +60,36 @@ async function getTools(): Promise<AnthropicTool[]> {
         },
     }));
 }
-async function executeTool(name: string, input: Record<string, unknown>): Promise<string> {
+interface ToolExecResult {
+    textParts: string[];
+    imageBlocks: { data: string; mimeType: string }[];
+    isError: boolean;
+}
+async function executeTool(name: string, input: Record<string, unknown>): Promise<ToolExecResult> {
     const client = getMcpClient();
     if (!client)
-        return "Error: MCP client not connected.";
+        return { textParts: ["Error: MCP client not connected."], imageBlocks: [], isError: true };
     try {
         const result = await client.callTool({ name, arguments: input });
-        if (result.isError) {
-            const texts = ((result.content || []) as any[])
-                .filter((c) => c.type === "text")
-                .map((c) => c.text);
-            return `Tool error: ${texts.join("\n") || "Unknown error"}`;
+        const textParts: string[] = [];
+        const imageBlocks: { data: string; mimeType: string }[] = [];
+        for (const block of (result.content || []) as any[]) {
+            if (block.type === "text" && block.text) {
+                textParts.push(block.text);
+            } else if (block.type === "image" && block.data) {
+                imageBlocks.push({ data: block.data, mimeType: block.mimeType || "image/png" });
+            }
         }
-        const texts = ((result.content || []) as any[])
-            .filter((c) => c.type === "text")
-            .map((c) => c.text);
-        return texts.join("\n") || "(no output)";
+        if (result.isError) {
+            return { textParts, imageBlocks, isError: true };
+        }
+        if (textParts.length === 0 && imageBlocks.length === 0) {
+            textParts.push("(no output)");
+        }
+        return { textParts, imageBlocks, isError: false };
     }
     catch (err) {
-        return `Tool execution failed: ${(err as Error).message || err}`;
+        return { textParts: [`Tool execution failed: ${(err as Error).message || err}`], imageBlocks: [], isError: true };
     }
 }
 function buildMessagesUrl(baseUrl: string): string {
@@ -194,28 +207,35 @@ export async function runAgentLoop(messages: AnthropicMessage[], config: AgentCo
                 role: "assistant",
                 content: contentBlocks,
             });
-            const toolResults: ContentBlock[] = [];
+            const toolResultBlocks: any[] = [];
             for (const tu of toolUseBlocks) {
                 const toolName = tu.name || "";
                 const toolInput = tu.input || {};
                 const inputStr = JSON.stringify(toolInput);
-                const result = await executeTool(toolName, toolInput);
-                toolCallsMade.push({ name: toolName, input: inputStr, result });
-                toolResults.push({
-                    type: "tool_use" as any,
-                } as any);
-            }
-            const toolResultBlocks = toolUseBlocks.map((tu) => {
-                const tc = toolCallsMade.find((c) => c.name === tu.name && c.input === JSON.stringify(tu.input));
-                return {
+                const execResult = await executeTool(toolName, toolInput);
+                const resultText = execResult.textParts.join("\n");
+                toolCallsMade.push({ name: toolName, input: inputStr, result: resultText });
+                const resultContent: any[] = [{ type: "text", text: resultText }];
+                for (const img of execResult.imageBlocks) {
+                    resultContent.push({
+                        type: "image",
+                        source: {
+                            type: "base64",
+                            media_type: img.mimeType,
+                            data: img.data,
+                        },
+                    });
+                }
+                toolResultBlocks.push({
                     type: "tool_result",
                     tool_use_id: tu.id,
-                    content: tc?.result || "(no output)",
-                };
-            });
+                    content: resultContent,
+                    is_error: execResult.isError || undefined,
+                });
+            }
             workingMessages.push({
                 role: "user",
-                content: toolResultBlocks as any,
+                content: toolResultBlocks,
             });
             continue;
         }

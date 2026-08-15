@@ -1,11 +1,6 @@
--- Game state analysis handlers: get-player-state, get-game-guis, trace-game-activity, find-game-systems
--- These give the AI deep game understanding so it can write automation scripts.
-
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
 
--- Keywords for find-game-systems
 local SYSTEM_KEYWORDS = {
     quest = {"quest", "mission", "objective", "task", "daily", "challenge"},
     shop = {"shop", "store", "market", "buy", "purchase", "merchant", "vendor"},
@@ -27,33 +22,8 @@ local function safeGetFullName(inst)
     return ok and name or tostring(inst)
 end
 
-local function serializeInstance(inst, depth, maxDepth)
-    depth = depth or 0
-    maxDepth = maxDepth or 2
-    if depth >= maxDepth then return nil end
-
-    local children = {}
-    local count = 0
-    for _, child in inst:GetChildren() do
-        if count >= 20 then break end
-        count += 1
-        local serialized = serializeInstance(child, depth + 1, maxDepth)
-        if serialized then
-            table.insert(children, serialized)
-        end
-    end
-
-    return {
-        Name = inst.Name,
-        ClassName = inst.ClassName,
-        Path = safeGetFullName(inst),
-        Children = #children > 0 and children or nil,
-    }
-end
-
 return function(_context, Bridge)
 
-    --// get-player-state: comprehensive snapshot of the local player's state //--
     Bridge:BindToType("get-player-state", function(data)
         local player = Players.LocalPlayer
         if not player then
@@ -64,7 +34,6 @@ return function(_context, Bridge)
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         local rootPart = character and character:FindFirstChild("HumanoidRootPart")
 
-        -- Leaderstats
         local leaderstats = nil
         local lsFolder = player:FindFirstChild("leaderstats")
         if lsFolder then
@@ -72,14 +41,10 @@ return function(_context, Bridge)
             for _, stat in lsFolder:GetChildren() do
                 local val = nil
                 pcall(function() val = stat.Value end)
-                leaderstats[stat.Name] = {
-                    value = val,
-                    className = stat.ClassName,
-                }
+                leaderstats[stat.Name] = { value = val, className = stat.ClassName }
             end
         end
 
-        -- Player attributes (new attribute system)
         local attributes = nil
         pcall(function()
             local attrNames = player:GetAttributes()
@@ -91,44 +56,28 @@ return function(_context, Bridge)
             end
         end)
 
-        -- Backpack / tools
         local backpack = nil
         if player.Backpack then
             backpack = {}
             for _, item in player.Backpack:GetChildren() do
-                table.insert(backpack, {
-                    name = item.Name,
-                    className = item.ClassName,
-                })
+                table.insert(backpack, { name = item.Name, className = item.ClassName })
             end
         end
 
-        -- Equipped tool
         local equippedTool = nil
         if character then
             local tool = character:FindFirstChildOfClass("Tool")
-            if tool then
-                equippedTool = tool.Name
-            end
+            if tool then equippedTool = tool.Name end
         end
 
-        -- Replicated player data folders (common in many games)
         local playerDataFolders = {}
         for _, child in player:GetChildren() do
             if child:IsA("Folder") or child:IsA("Configuration") then
-                local folderData = {
-                    name = child.Name,
-                    className = child.ClassName,
-                    children = {},
-                }
+                local folderData = { name = child.Name, className = child.ClassName, children = {} }
                 for _, subChild in child:GetChildren() do
                     local val = nil
                     pcall(function() val = subChild.Value end)
-                    table.insert(folderData.children, {
-                        name = subChild.Name,
-                        className = subChild.ClassName,
-                        value = val,
-                    })
+                    table.insert(folderData.children, { name = subChild.Name, className = subChild.ClassName, value = val })
                 end
                 if #folderData.children > 0 then
                     table.insert(playerDataFolders, folderData)
@@ -136,7 +85,6 @@ return function(_context, Bridge)
             end
         end
 
-        -- Visible ScreenGuis (quick summary)
         local visibleGuis = {}
         local playerGui = player:FindFirstChildOfClass("PlayerGui")
         if playerGui then
@@ -145,17 +93,12 @@ return function(_context, Bridge)
                     local isVisible = false
                     pcall(function() isVisible = gui.Enabled end)
                     if isVisible then
-                        table.insert(visibleGuis, {
-                            name = gui.Name,
-                            path = safeGetFullName(gui),
-                            childCount = #gui:GetChildren(),
-                        })
+                        table.insert(visibleGuis, { name = gui.Name, path = safeGetFullName(gui), childCount = #gui:GetChildren() })
                     end
                 end
             end
         end
 
-        -- Nearby parts/NPCs (within 50 studs)
         local nearby = {}
         if rootPart then
             local pos = rootPart.Position
@@ -174,28 +117,21 @@ return function(_context, Bridge)
                         local dist = (pos - partPos).Magnitude
                         if dist <= 50 then
                             local name = descendant.Name:lower()
-                            -- Filter for interesting things
                             local interesting = false
-                            for keyword, _ in pairs(SYSTEM_KEYWORDS) do
-                                for _, kw in ipairs(SYSTEM_KEYWORDS[keyword]) do
-                                    if string.find(name, kw, 1, true) then
-                                        interesting = true
-                                        break
-                                    end
+                            for _, keywords in pairs(SYSTEM_KEYWORDS) do
+                                for _, kw in ipairs(keywords) do
+                                    if string.find(name, kw, 1, true) then interesting = true break end
                                 end
                                 if interesting then break end
                             end
-                            -- Also include Humanoids (NPCs)
                             local hasHumanoid = false
                             if descendant:IsA("Model") then
                                 pcall(function() hasHumanoid = descendant:FindFirstChildOfClass("Humanoid") ~= nil end)
                             end
                             if interesting or hasHumanoid then
                                 table.insert(nearby, {
-                                    name = descendant.Name,
-                                    className = descendant.ClassName,
-                                    path = safeGetFullName(descendant),
-                                    distance = math.floor(dist),
+                                    name = descendant.Name, className = descendant.ClassName,
+                                    path = safeGetFullName(descendant), distance = math.floor(dist),
                                     hasHumanoid = hasHumanoid,
                                 })
                             end
@@ -205,28 +141,20 @@ return function(_context, Bridge)
             end
         end
 
-        -- Camera info
         local camera = Workspace.CurrentCamera
         local cameraInfo = nil
         if camera then
-            cameraInfo = {
-                subject = nil,
-                cameraType = nil,
-            }
+            cameraInfo = { subject = nil, cameraType = nil }
             pcall(function()
-                if camera.CameraSubject then
-                    cameraInfo.subject = tostring(camera.CameraSubject)
-                end
+                if camera.CameraSubject then cameraInfo.subject = tostring(camera.CameraSubject) end
                 cameraInfo.cameraType = tostring(camera.CameraType)
             end)
         end
 
         return {
             player = {
-                name = player.Name,
-                userId = player.UserId,
-                displayName = player.DisplayName,
-                accountAge = player.AccountAge,
+                name = player.Name, userId = player.UserId,
+                displayName = player.DisplayName, accountAge = player.AccountAge,
                 team = player.Team and player.Team.Name or nil,
             },
             character = character and {
@@ -241,7 +169,6 @@ return function(_context, Bridge)
                     y = math.floor(rootPart.Position.Y * 10) / 10,
                     z = math.floor(rootPart.Position.Z * 10) / 10,
                 } or nil,
-                cframe = rootPart and tostring(rootPart.CFrame) or nil,
             } or nil,
             leaderstats = leaderstats,
             attributes = attributes,
@@ -254,12 +181,9 @@ return function(_context, Bridge)
         }
     end)
 
-    --// get-game-guis: list visible ScreenGuis with their structure //--
     Bridge:BindToType("get-game-guis", function(data)
         local player = Players.LocalPlayer
-        if not player then
-            return { error = "No local player found." }
-        end
+        if not player then return { error = "No local player found." } end
 
         local includeHidden = data.includeHidden == true
         local maxDepth = math.max(1, math.min(tonumber(data.maxDepth) or 3, 6))
@@ -267,9 +191,7 @@ return function(_context, Bridge)
         local guiFilter = data.guiFilter or ""
 
         local playerGui = player:FindFirstChildOfClass("PlayerGui")
-        if not playerGui then
-            return { error = "No PlayerGui found." }
-        end
+        if not playerGui then return { error = "No PlayerGui found." } end
 
         local results = {}
 
@@ -278,83 +200,41 @@ return function(_context, Bridge)
             if gui:IsA("ScreenGui") then
                 local isVisible = false
                 pcall(function() isVisible = gui.Enabled end)
-
                 if isVisible or includeHidden then
-                    -- Apply filter
                     if guiFilter ~= "" and not string.find(string.lower(gui.Name), string.lower(guiFilter), 1, true) then
                         continue
                     end
 
-                    local buttons = {}
-                    local labels = {}
-                    local textBoxes = {}
-                    local images = {}
+                    local buttons, labels, textBoxes, images = {}, {}, {}, {}
 
                     local function scanChildren(parent, depth)
                         if depth > maxDepth then return end
                         for _, child in parent:GetChildren() do
                             if #buttons >= 20 and #labels >= 20 and #textBoxes >= 10 then break end
-
                             if child:IsA("TextButton") or child:IsA("ImageButton") then
                                 local absPos, absSize = nil, nil
-                                pcall(function()
-                                    absPos = child.AbsolutePosition
-                                    absSize = child.AbsoluteSize
-                                end)
+                                pcall(function() absPos = child.AbsolutePosition; absSize = child.AbsoluteSize end)
                                 table.insert(buttons, {
                                     name = child.Name,
                                     text = child:IsA("TextButton") and child.Text or nil,
-                                    path = safeGetFullName(child),
-                                    visible = child.Visible,
-                                    position = absPos and {
-                                        x = math.floor(absPos.X),
-                                        y = math.floor(absPos.Y),
-                                    } or nil,
-                                    size = absSize and {
-                                        w = math.floor(absSize.X),
-                                        h = math.floor(absSize.Y),
-                                    } or nil,
+                                    path = safeGetFullName(child), visible = child.Visible,
+                                    position = absPos and { x = math.floor(absPos.X), y = math.floor(absPos.Y) } or nil,
+                                    size = absSize and { w = math.floor(absSize.X), h = math.floor(absSize.Y) } or nil,
                                 })
-                            elseif child:IsA("TextLabel") then
-                                if #labels < 20 then
-                                    table.insert(labels, {
-                                        name = child.Name,
-                                        text = child.Text,
-                                        path = safeGetFullName(child),
-                                        visible = child.Visible,
-                                    })
-                                end
-                            elseif child:IsA("TextBox") then
-                                if #textBoxes < 10 then
-                                    table.insert(textBoxes, {
-                                        name = child.Name,
-                                        text = child.Text,
-                                        placeholderText = child.PlaceholderText,
-                                        path = safeGetFullName(child),
-                                        visible = child.Visible,
-                                    })
-                                end
-                            elseif child:IsA("ImageLabel") then
-                                if #images < 10 then
-                                    table.insert(images, {
-                                        name = child.Name,
-                                        path = safeGetFullName(child),
-                                        visible = child.Visible,
-                                    })
-                                end
+                            elseif child:IsA("TextLabel") and #labels < 20 then
+                                table.insert(labels, { name = child.Name, text = child.Text, path = safeGetFullName(child), visible = child.Visible })
+                            elseif child:IsA("TextBox") and #textBoxes < 10 then
+                                table.insert(textBoxes, { name = child.Name, text = child.Text, placeholderText = child.PlaceholderText, path = safeGetFullName(child), visible = child.Visible })
+                            elseif child:IsA("ImageLabel") and #images < 10 then
+                                table.insert(images, { name = child.Name, path = safeGetFullName(child), visible = child.Visible })
                             end
-
                             scanChildren(child, depth + 1)
                         end
                     end
-
                     scanChildren(gui, 0)
 
                     table.insert(results, {
-                        name = gui.Name,
-                        path = safeGetFullName(gui),
-                        enabled = isVisible,
-                        childCount = #gui:GetChildren(),
+                        name = gui.Name, path = safeGetFullName(gui), enabled = isVisible, childCount = #gui:GetChildren(),
                         buttons = #buttons > 0 and buttons or nil,
                         labels = #labels > 0 and labels or nil,
                         textBoxes = #textBoxes > 0 and textBoxes or nil,
@@ -364,29 +244,20 @@ return function(_context, Bridge)
             end
         end
 
-        return {
-            count = #results,
-            results = results,
-        }
+        return { count = #results, results = results }
     end)
 
-    --// trace-game-activity: observe game state changes over a time window //--
     Bridge:BindToType("trace-game-activity", function(data)
         local duration = math.max(1, math.min(tonumber(data.duration) or 5, 30))
         local player = Players.LocalPlayer
+        if not player then return { error = "No local player found." } end
 
-        if not player then
-            return { error = "No local player found." }
-        end
-
-        -- Snapshot function
         local function snapshot()
             local char = player.Character
             local humanoid = char and char:FindFirstChildOfClass("Humanoid")
             local rootPart = char and char:FindFirstChild("HumanoidRootPart")
 
-            -- Leaderstats
-            local stats = {}
+            local stats, attrs, tools = {}, {}, {}
             local ls = player:FindFirstChild("leaderstats")
             if ls then
                 for _, stat in ls:GetChildren() do
@@ -395,31 +266,19 @@ return function(_context, Bridge)
                     stats[stat.Name] = val
                 end
             end
-
-            -- Player attributes
-            local attrs = {}
             pcall(function()
-                for name, value in player:GetAttributes() do
-                    attrs[name] = value
-                end
+                for name, value in player:GetAttributes() do attrs[name] = value end
             end)
-
-            -- Backpack tools
-            local tools = {}
             if player.Backpack then
-                for _, item in player.Backpack:GetChildren() do
-                    table.insert(tools, item.Name)
-                end
+                for _, item in player.Backpack:GetChildren() do table.insert(tools, item.Name) end
             end
 
-            -- Equipped tool
             local equipped = nil
             if char then
                 local tool = char:FindFirstChildOfClass("Tool")
                 if tool then equipped = tool.Name end
             end
 
-            -- Visible GUIs
             local guis = {}
             local playerGui = player:FindFirstChildOfClass("PlayerGui")
             if playerGui then
@@ -427,14 +286,11 @@ return function(_context, Bridge)
                     if gui:IsA("ScreenGui") then
                         local enabled = false
                         pcall(function() enabled = gui.Enabled end)
-                        if enabled then
-                            table.insert(guis, gui.Name)
-                        end
+                        if enabled then table.insert(guis, gui.Name) end
                     end
                 end
             end
 
-            -- Player data folder values
             local folderValues = {}
             for _, child in player:GetChildren() do
                 if child:IsA("Folder") then
@@ -448,228 +304,114 @@ return function(_context, Bridge)
                 end
             end
 
-            -- Position
             local pos = nil
             if rootPart then
-                pos = {
-                    x = math.floor(rootPart.Position.X * 10) / 10,
-                    y = math.floor(rootPart.Position.Y * 10) / 10,
-                    z = math.floor(rootPart.Position.Z * 10) / 10,
-                }
+                pos = { x = math.floor(rootPart.Position.X * 10) / 10, y = math.floor(rootPart.Position.Y * 10) / 10, z = math.floor(rootPart.Position.Z * 10) / 10 }
             end
 
             return {
-                stats = stats,
-                attributes = attrs,
-                tools = tools,
-                equipped = equipped,
-                visibleGuis = guis,
-                folderValues = folderValues,
-                position = pos,
+                stats = stats, attributes = attrs, tools = tools, equipped = equipped,
+                visibleGuis = guis, folderValues = folderValues, position = pos,
                 health = humanoid and humanoid.Health or nil,
             }
         end
 
-        -- Take before snapshot
         local before = snapshot()
-
-        -- Wait for the duration
         task.wait(duration)
-
-        -- Take after snapshot
         local after = snapshot()
-
-        -- Compute deltas
         local changes = {}
 
-        -- Leaderstat changes
         for statName, beforeVal in before.stats do
             local afterVal = after.stats[statName]
             if beforeVal ~= afterVal then
-                table.insert(changes, {
-                    type = "leaderstat",
-                    name = statName,
-                    before = beforeVal,
-                    after = afterVal,
-                })
+                table.insert(changes, { type = "leaderstat", name = statName, before = beforeVal, after = afterVal })
             end
         end
         for statName, afterVal in after.stats do
             if before.stats[statName] == nil then
-                table.insert(changes, {
-                    type = "leaderstat",
-                    name = statName,
-                    before = nil,
-                    after = afterVal,
-                })
+                table.insert(changes, { type = "leaderstat", name = statName, before = nil, after = afterVal })
             end
         end
 
-        -- Attribute changes
         for attrName, beforeVal in before.attributes do
-            local afterVal = after.attributes[attrName]
-            if beforeVal ~= afterVal then
-                table.insert(changes, {
-                    type = "attribute",
-                    name = attrName,
-                    before = beforeVal,
-                    after = afterVal,
-                })
+            if beforeVal ~= after.attributes[attrName] then
+                table.insert(changes, { type = "attribute", name = attrName, before = beforeVal, after = after.attributes[attrName] })
             end
         end
 
-        -- Backpack/tool changes
-        local beforeTools = {}
+        local beforeTools, afterTools = {}, {}
         for _, t in before.tools do beforeTools[t] = true end
-        local afterTools = {}
         for _, t in after.tools do afterTools[t] = true end
-        for _, t in before.tools do
-            if not afterTools[t] then
-                table.insert(changes, { type = "tool_removed", name = t })
-            end
-        end
-        for _, t in after.tools do
-            if not beforeTools[t] then
-                table.insert(changes, { type = "tool_added", name = t })
-            end
-        end
+        for _, t in before.tools do if not afterTools[t] then table.insert(changes, { type = "tool_removed", name = t }) end end
+        for _, t in after.tools do if not beforeTools[t] then table.insert(changes, { type = "tool_added", name = t }) end end
 
-        -- Equipped tool change
         if before.equipped ~= after.equipped then
-            table.insert(changes, {
-                type = "equipped",
-                before = before.equipped,
-                after = after.equipped,
-            })
+            table.insert(changes, { type = "equipped", before = before.equipped, after = after.equipped })
         end
 
-        -- GUI visibility changes
-        local beforeGuis = {}
+        local beforeGuis, afterGuis = {}, {}
         for _, g in before.visibleGuis do beforeGuis[g] = true end
-        local afterGuis = {}
         for _, g in after.visibleGuis do afterGuis[g] = true end
-        for _, g in before.visibleGuis do
-            if not afterGuis[g] then
-                table.insert(changes, { type = "gui_hidden", name = g })
-            end
-        end
-        for _, g in after.visibleGuis do
-            if not beforeGuis[g] then
-                table.insert(changes, { type = "gui_shown", name = g })
-            end
-        end
+        for _, g in before.visibleGuis do if not afterGuis[g] then table.insert(changes, { type = "gui_hidden", name = g }) end end
+        for _, g in after.visibleGuis do if not beforeGuis[g] then table.insert(changes, { type = "gui_shown", name = g }) end end
 
-        -- Folder value changes
         for path, beforeVal in before.folderValues do
-            local afterVal = after.folderValues[path]
-            if beforeVal ~= afterVal then
-                table.insert(changes, {
-                    type = "data_changed",
-                    path = path,
-                    before = beforeVal,
-                    after = afterVal,
-                })
+            if beforeVal ~= after.folderValues[path] then
+                table.insert(changes, { type = "data_changed", path = path, before = beforeVal, after = after.folderValues[path] })
             end
         end
         for path, afterVal in after.folderValues do
             if before.folderValues[path] == nil then
-                table.insert(changes, {
-                    type = "data_added",
-                    path = path,
-                    after = afterVal,
-                })
+                table.insert(changes, { type = "data_added", path = path, after = afterVal })
             end
         end
 
-        -- Position change
         if before.position and after.position then
-            local dx = after.position.x - before.position.x
-            local dy = after.position.y - before.position.y
-            local dz = after.position.z - before.position.z
+            local dx, dy, dz = after.position.x - before.position.x, after.position.y - before.position.y, after.position.z - before.position.z
             local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
             if dist > 1 then
-                table.insert(changes, {
-                    type = "position_change",
-                    distance = math.floor(dist * 10) / 10,
-                    before = before.position,
-                    after = after.position,
-                })
+                table.insert(changes, { type = "position_change", distance = math.floor(dist * 10) / 10, before = before.position, after = after.position })
             end
         end
 
-        -- Health change
         if before.health ~= after.health then
-            table.insert(changes, {
-                type = "health",
-                before = before.health,
-                after = after.health,
-            })
+            table.insert(changes, { type = "health", before = before.health, after = after.health })
         end
 
-        -- Remote spy logs if available (basic mode)
         local remoteSummary = nil
         local Cobalt = getgenv().Cobalt
         if Cobalt and Cobalt.shared and Cobalt.shared.Logs then
-            remoteSummary = {
-                mode = "cobalt",
-                outgoing = 0,
-                incoming = 0,
-            }
+            remoteSummary = { mode = "cobalt", outgoing = 0, incoming = 0 }
             pcall(function()
                 for instance, log in Cobalt.shared.Logs.Outgoing do
-                    if typeof(instance) == "Instance" then
-                        remoteSummary.outgoing += #log.Calls
-                    end
+                    if typeof(instance) == "Instance" then remoteSummary.outgoing += #log.Calls end
                 end
                 for instance, log in Cobalt.shared.Logs.Incoming do
-                    if typeof(instance) == "Instance" then
-                        remoteSummary.incoming += #log.Calls
-                    end
+                    if typeof(instance) == "Instance" then remoteSummary.incoming += #log.Calls end
                 end
             end)
         elseif getgenv().MCP_BasicRemoteSpy then
-            remoteSummary = {
-                mode = "basic",
-                message = "Basic remote inventory mode active. Remote call logging requires Cobalt."
-            }
+            remoteSummary = { mode = "basic", message = "Basic remote inventory mode active." }
         end
 
-        return {
-            duration = duration,
-            changes = changes,
-            changeCount = #changes,
-            remoteActivity = remoteSummary,
-            before = before,
-            after = after,
-        }
+        return { duration = duration, changes = changes, changeCount = #changes, remoteActivity = remoteSummary, before = before, after = after }
     end)
 
-    --// find-game-systems: search for common game system patterns //--
     Bridge:BindToType("find-game-systems", function(data)
         local searchKeywords = data.keywords or {}
         local limit = math.max(1, math.min(tonumber(data.limit) or 20, 100))
         local maxDepth = math.max(1, math.min(tonumber(data.maxDepth) or 8, 20))
 
-        -- Determine which keyword categories to search
         local categoriesToSearch = {}
         if #searchKeywords == 0 then
-            -- Search all categories
-            for category, _ in pairs(SYSTEM_KEYWORDS) do
-                categoriesToSearch[category] = SYSTEM_KEYWORDS[category]
-            end
+            for category, _ in pairs(SYSTEM_KEYWORDS) do categoriesToSearch[category] = SYSTEM_KEYWORDS[category] end
         else
-            -- Filter by requested categories
             for _, requestedCategory in searchKeywords do
                 local cat = string.lower(requestedCategory)
-                if SYSTEM_KEYWORDS[cat] then
-                    categoriesToSearch[cat] = SYSTEM_KEYWORDS[cat]
-                end
+                if SYSTEM_KEYWORDS[cat] then categoriesToSearch[cat] = SYSTEM_KEYWORDS[cat] end
             end
-            -- If no valid categories matched, search all
             if next(categoriesToSearch) == nil then
-                for category, _ in pairs(SYSTEM_KEYWORDS) do
-                    categoriesToSearch[category] = SYSTEM_KEYWORDS[category]
-                end
+                for category, _ in pairs(SYSTEM_KEYWORDS) do categoriesToSearch[category] = SYSTEM_KEYWORDS[category] end
             end
         end
 
@@ -680,116 +422,74 @@ return function(_context, Bridge)
             if depth > maxDepth then return end
             if #results >= limit * 2 then return end
 
-            local name = inst.Name
-            local nameLower = string.lower(name)
-            local className = inst.ClassName
-
+            local nameLower = string.lower(inst.Name)
             for category, keywords in categoriesToSearch do
                 for _, keyword in keywords do
                     if string.find(nameLower, keyword, 1, true) then
                         local key = inst:GetDebugId()
                         if not seen[key] then
                             seen[key] = true
-                            -- Get extra context
                             local extraInfo = {}
                             pcall(function()
-                                if inst:IsA("ValueBase") then
-                                    extraInfo.value = inst.Value
-                                elseif inst:IsA("RemoteEvent") or inst:IsA("RemoteFunction") then
-                                    extraInfo.remoteType = inst.ClassName
+                                if inst:IsA("ValueBase") then extraInfo.value = inst.Value
+                                elseif inst:IsA("RemoteEvent") or inst:IsA("RemoteFunction") then extraInfo.remoteType = inst.ClassName
                                 elseif inst:IsA("BasePart") or inst:IsA("Model") then
-                                    -- Try to get position
                                     local partPos = nil
-                                    if inst:IsA("BasePart") then
-                                        partPos = inst.Position
-                                    elseif inst:IsA("Model") and inst.PrimaryPart then
-                                        partPos = inst.PrimaryPart.Position
-                                    end
+                                    if inst:IsA("BasePart") then partPos = inst.Position
+                                    elseif inst.PrimaryPart then partPos = inst.PrimaryPart.Position end
                                     if partPos then
-                                        extraInfo.position = {
-                                            x = math.floor(partPos.X * 10) / 10,
-                                            y = math.floor(partPos.Y * 10) / 10,
-                                            z = math.floor(partPos.Z * 10) / 10,
-                                        }
+                                        extraInfo.position = { x = math.floor(partPos.X * 10) / 10, y = math.floor(partPos.Y * 10) / 10, z = math.floor(partPos.Z * 10) / 10 }
                                     end
-                                    -- Check for Humanoid (NPC)
                                     local hum = inst:FindFirstChildOfClass("Humanoid")
-                                    if hum then
-                                        extraInfo.isNPC = true
-                                        extraInfo.health = hum.Health
-                                    end
+                                    if hum then extraInfo.isNPC = true; extraInfo.health = hum.Health end
                                 elseif inst:IsA("ScreenGui") then
-                                    extraInfo.enabled = inst.Enabled
-                                    extraInfo.childCount = #inst:GetChildren()
+                                    extraInfo.enabled = inst.Enabled; extraInfo.childCount = #inst:GetChildren()
                                 end
                             end)
-
                             table.insert(results, {
-                                name = name,
-                                className = className,
-                                path = safeGetFullName(inst),
-                                category = category,
-                                matchedKeyword = keyword,
+                                name = inst.Name, className = inst.ClassName, path = safeGetFullName(inst),
+                                category = category, matchedKeyword = keyword,
                                 extraInfo = next(extraInfo) ~= nil and extraInfo or nil,
                             })
                         end
-                        break -- Don't match same instance for multiple keywords in same category
+                        break
                     end
                 end
             end
 
-            -- Recurse into children
             for _, child in inst:GetChildren() do
                 if #results >= limit * 2 then break end
                 checkInstance(child, depth + 1)
             end
         end
 
-        -- Search common service roots
         local searchRoots = {
-            { service = game:GetService("ReplicatedStorage"), name = "ReplicatedStorage" },
-            { service = Workspace, name = "Workspace" },
+            game:GetService("ReplicatedStorage"), Workspace,
         }
-
-        -- Also search Player if available
         local player = Players.LocalPlayer
-        if player then
-            table.insert(searchRoots, { service = player, name = "Player" })
-        end
+        if player then table.insert(searchRoots, player) end
 
         for _, root in searchRoots do
-            pcall(function()
-                checkInstance(root.service, 0)
-            end)
+            pcall(function() checkInstance(root, 0) end)
         end
 
-        -- Trim to limit
         if #results > limit then
             local trimmed = {}
-            for i = 1, limit do
-                trimmed[i] = results[i]
-            end
+            for i = 1, limit do trimmed[i] = results[i] end
             results = trimmed
         end
 
-        -- Group by category
         local byCategory = {}
         for _, result in results do
-            if not byCategory[result.category] then
-                byCategory[result.category] = {}
-            end
+            if not byCategory[result.category] then byCategory[result.category] = {} end
             table.insert(byCategory[result.category], result)
         end
 
         return {
-            count = #results,
-            categories = byCategory,
-            results = results,
+            count = #results, categories = byCategory, results = results,
             availableCategories = (function()
                 local cats = {}
-                for category, _ in pairs(SYSTEM_KEYWORDS) do
-                    table.insert(cats, category)
-                end
+                for category, _ in pairs(SYSTEM_KEYWORDS) do table.insert(cats, category) end
                 table.sort(cats)
                 return cats
             end)(),

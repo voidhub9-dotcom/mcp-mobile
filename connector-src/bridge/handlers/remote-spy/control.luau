@@ -22,7 +22,7 @@ return function(_context, Bridge)
         if not Cobalt and getgenv().MCP_BasicRemoteSpy then
             return {
                 status = "unsupported",
-                message = "Remote blocking is not available in basic remote inventory mode. Requires Cobalt (hookmetamethod support)."
+                message = "Not available in basic mode."
             }
         end
         assert(Cobalt and Cobalt.shared and Cobalt.shared.Logs, "Cobalt remote spy is not loaded. Call ensure-remote-spy first.")
@@ -63,7 +63,7 @@ return function(_context, Bridge)
         if not Cobalt and getgenv().MCP_BasicRemoteSpy then
             return {
                 status = "unsupported",
-                message = "Remote ignoring is not available in basic remote inventory mode. Requires Cobalt (hookmetamethod support)."
+                message = "Not available in basic mode."
             }
         end
         assert(Cobalt and Cobalt.shared and Cobalt.shared.Logs, "Cobalt remote spy is not loaded. Call ensure-remote-spy first.")

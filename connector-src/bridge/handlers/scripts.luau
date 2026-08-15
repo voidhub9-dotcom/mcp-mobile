@@ -30,27 +30,18 @@ local QueueMappedScriptSource = context.QueueMappedScriptSource
             ScriptMappingPipeline.clientId
         )
 
-        --// Fallback: try script.Source property directly \\--
-        -- Some executors allow reading the Source property even without decompile.
-        -- This works for scripts that were created with source available (e.g., user scripts).
         if not source and scriptInstance then
-            local ok, src = pcall(function()
-                return scriptInstance.Source
-            end)
+            local ok, src = pcall(function() return scriptInstance.Source end)
             if ok and type(src) == "string" and src ~= "" then
                 source = src
                 decompileError = nil
             end
         end
 
-        --// Fallback: try getscriptbytecode as raw bytecode (not decompiled) \\--
-        -- This is not human-readable source but can be useful for debugging.
         if not source and scriptInstance and type(getscriptbytecode) == "function" then
-            local ok, bytecode = pcall(function()
-                return getscriptbytecode(scriptInstance)
-            end)
+            local ok, bytecode = pcall(function() return getscriptbytecode(scriptInstance) end)
             if ok and type(bytecode) == "string" and #bytecode > 0 then
-                source = "-- Note: Showing raw bytecode (decompile not available on this executor).\n-- Bytecode length: " .. #bytecode .. " bytes\n" .. bytecode
+                source = "-- Bytecode (decompile unavailable). Length: " .. #bytecode .. " bytes\n" .. bytecode
                 decompileError = nil
             end
         end

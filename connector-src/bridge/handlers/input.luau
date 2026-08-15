@@ -93,7 +93,6 @@ local VirtualInputManager = context.VirtualInputManager
             assert(table.find(Signals, action), "Invalid action provided. Valid actions are: " .. table.concat(Signals, ", "))
         end
 
-        -- Method 1: firesignal (preferred, most reliable)
         if type(firesignal) == "function" then
             method = "firesignal"
             if action then
@@ -103,11 +102,9 @@ local VirtualInputManager = context.VirtualInputManager
                     pcall(function() firesignal(button[signalName]) end)
                 end
             end
-        -- Method 2: button:Activate() (works on most executors)
         elseif button.Activate and type(button.Activate) == "function" then
             method = "Activate"
             pcall(function() button:Activate() end)
-        -- Method 3: VirtualInputManager mouse click at button center
         else
             method = "VirtualInputManager"
             local success, err = pcall(function()
@@ -116,13 +113,11 @@ local VirtualInputManager = context.VirtualInputManager
                 if absPos and absSize then
                     local centerX = absPos.X + absSize.X / 2
                     local centerY = absPos.Y + absSize.Y / 2
-                    -- Try mouse events
                     pcall(function()
                         VirtualInputManager:SendMouseButton(true, Enum.UserInputType.MouseButton1, Vector2.new(centerX, centerY), 0, game)
                         task.wait(0.05)
                         VirtualInputManager:SendMouseButton(false, Enum.UserInputType.MouseButton1, Vector2.new(centerX, centerY), 0, game)
                     end)
-                    -- Also try touch events for mobile
                     pcall(function()
                         VirtualInputManager:SendTouchEvent(true, Vector2.new(centerX, centerY), 0, game)
                         task.wait(0.05)
@@ -131,7 +126,7 @@ local VirtualInputManager = context.VirtualInputManager
                 end
             end)
             if not success then
-                error("Failed to click button. No supported method available (firesignal, Activate, or VirtualInputManager). Error: " .. tostring(err))
+                error("Failed to click button: " .. tostring(err))
             end
         end
 

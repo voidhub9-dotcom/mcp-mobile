@@ -1,11 +1,13 @@
 import { type CustomAiAuthType } from "../config.js";
 interface ContentBlock {
-    type: "text" | "tool_use" | "thinking";
+    type: "text" | "tool_use" | "thinking" | "image";
     text?: string;
     id?: string;
     name?: string;
     input?: Record<string, unknown>;
     thinking?: string;
+    data?: string;
+    mimeType?: string;
 }
 interface AnthropicMessage {
     role: "user" | "assistant";

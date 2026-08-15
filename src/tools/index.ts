@@ -17,6 +17,8 @@ import registerGetPlayerState from "./impl/inspection/get-player-state.js";
 import registerGetGameGuis from "./impl/inspection/get-game-guis.js";
 import registerTraceGameActivity from "./impl/inspection/trace-game-activity.js";
 import registerFindGameSystems from "./impl/inspection/find-game-systems.js";
+import registerScanAnticheat from "./impl/inspection/scan-anticheat.js";
+import registerAnticheatBypass from "./impl/inspection/anticheat-bypass.js";
 import registerDecryptRemote from "./impl/inspection/decrypt-remote.js";
 import registerRemoteSpy from "./impl/remote-spy/remote-spy.js";
 import registerTypeTextBox from "./impl/gui/type-text-box.js";
@@ -42,6 +44,8 @@ export function registerAllTools(server: McpServer): void {
     registerGetGameGuis(server);
     registerTraceGameActivity(server);
     registerFindGameSystems(server);
+    registerScanAnticheat(server);
+    registerAnticheatBypass(server);
     registerDecryptRemote(server);
     registerRemoteSpy(server);
     registerTypeTextBox(server);

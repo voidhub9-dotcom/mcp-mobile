@@ -7,42 +7,31 @@ return function(_context, Bridge)
             }
         end
 
-        -- Try loading Cobalt (full remote spy with hooks)
         local success, err = pcall(function()
             loadstring(game:HttpGet("https://github.com/notpoiu/cobalt/releases/latest/download/Cobalt.luau"))()
         end)
 
         if success then
-            -- Wait for Cobalt to initialize
             local waitStart = os.clock()
             while not getgenv().Cobalt and os.clock() - waitStart < 10 do
                 task.wait(0.1)
             end
 
             if getgenv().Cobalt then
-                return {
-                    status = "loaded",
-                    message = "Cobalt remote spy loaded successfully."
-                }
+                return { status = "loaded", message = "Cobalt remote spy loaded successfully." }
             end
         end
 
-        -- Fallback: basic remote inventory mode (no call logging)
-        -- This doesn't require hookmetamethod/newcclosure but can only list remotes,
-        -- not log their calls. Still useful for finding and inspecting remotes.
         getgenv().MCP_BasicRemoteSpy = true
         return {
             status = "basic_mode",
-            message = "Cobalt remote spy could not be loaded (" .. tostring(err or "timeout") .. "). " ..
-                "Falling back to basic remote inventory mode: can list and search RemoteEvents/RemoteFunctions " ..
-                "but cannot log remote calls. Full remote spying requires hookmetamethod/newcclosure support."
+            message = "Cobalt not available. Using basic remote inventory mode."
         }
     end)
 
     Bridge:BindToType("get-remote-spy-logs", function(data)
         local Cobalt = getgenv().Cobalt
 
-        --// Basic mode fallback: list remotes without call logging \\--
         if not Cobalt and getgenv().MCP_BasicRemoteSpy then
             local nameFilter = data.remoteNameFilter or ""
             local limit = math.max(1, math.min(tonumber(data.limit) or 10, 100))
@@ -98,7 +87,7 @@ return function(_context, Bridge)
                 count = #results,
                 results = results,
                 mode = "basic",
-                message = "Running in basic remote inventory mode. Remote call logging requires Cobalt (hookmetamethod/newcclosure support)."
+                message = "Running in basic remote inventory mode."
             }
         end
 

@@ -18,22 +18,29 @@ async function getTools() {
 async function executeTool(name, input) {
     const client = getMcpClient();
     if (!client)
-        return "Error: MCP client not connected.";
+        return { textParts: ["Error: MCP client not connected."], imageBlocks: [], isError: true };
     try {
         const result = await client.callTool({ name, arguments: input });
-        if (result.isError) {
-            const texts = (result.content || [])
-                .filter((c) => c.type === "text")
-                .map((c) => c.text);
-            return `Tool error: ${texts.join("\n") || "Unknown error"}`;
+        const textParts = [];
+        const imageBlocks = [];
+        for (const block of (result.content || [])) {
+            if (block.type === "text" && block.text) {
+                textParts.push(block.text);
+            }
+            else if (block.type === "image" && block.data) {
+                imageBlocks.push({ data: block.data, mimeType: block.mimeType || "image/png" });
+            }
         }
-        const texts = (result.content || [])
-            .filter((c) => c.type === "text")
-            .map((c) => c.text);
-        return texts.join("\n") || "(no output)";
+        if (result.isError) {
+            return { textParts, imageBlocks, isError: true };
+        }
+        if (textParts.length === 0 && imageBlocks.length === 0) {
+            textParts.push("(no output)");
+        }
+        return { textParts, imageBlocks, isError: false };
     }
     catch (err) {
-        return `Tool execution failed: ${err.message || err}`;
+        return { textParts: [`Tool execution failed: ${err.message || err}`], imageBlocks: [], isError: true };
     }
 }
 function buildMessagesUrl(baseUrl) {
@@ -151,25 +158,32 @@ export async function runAgentLoop(messages, config = {}) {
                 role: "assistant",
                 content: contentBlocks,
             });
-            const toolResults = [];
+            const toolResultBlocks = [];
             for (const tu of toolUseBlocks) {
                 const toolName = tu.name || "";
                 const toolInput = tu.input || {};
                 const inputStr = JSON.stringify(toolInput);
-                const result = await executeTool(toolName, toolInput);
-                toolCallsMade.push({ name: toolName, input: inputStr, result });
-                toolResults.push({
-                    type: "tool_use",
-                });
-            }
-            const toolResultBlocks = toolUseBlocks.map((tu) => {
-                const tc = toolCallsMade.find((c) => c.name === tu.name && c.input === JSON.stringify(tu.input));
-                return {
+                const execResult = await executeTool(toolName, toolInput);
+                const resultText = execResult.textParts.join("\n");
+                toolCallsMade.push({ name: toolName, input: inputStr, result: resultText });
+                const resultContent = [{ type: "text", text: resultText }];
+                for (const img of execResult.imageBlocks) {
+                    resultContent.push({
+                        type: "image",
+                        source: {
+                            type: "base64",
+                            media_type: img.mimeType,
+                            data: img.data,
+                        },
+                    });
+                }
+                toolResultBlocks.push({
                     type: "tool_result",
                     tool_use_id: tu.id,
-                    content: tc?.result || "(no output)",
-                };
-            });
+                    content: resultContent,
+                    is_error: execResult.isError || undefined,
+                });
+            }
             workingMessages.push({
                 role: "user",
                 content: toolResultBlocks,

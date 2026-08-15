@@ -54,6 +54,7 @@ while true do
         require("./handlers/input"),
         require("./handlers/screenshot"),
         require("./handlers/game-state"),
+        require("./handlers/anticheat"),
     }
     for _, registerHandlers in registrars do
         registerHandlers(context, Bridge)
