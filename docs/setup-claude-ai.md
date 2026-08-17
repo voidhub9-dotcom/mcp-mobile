@@ -82,7 +82,7 @@ Cloud platforms set the `PORT` env var automatically; the server reads it and li
 
 ## Step 2: Set the auth token (required for security)
 
-Set `MCP_AUTH_TOKEN` to a long random string. The server checks every request for the token via `Authorization: Bearer <token>` header OR `?token=<token>` query parameter.
+Set `MCP_AUTH_TOKEN` to a long random string. The server uses it as the administrator-held secret that approves OAuth sign-ins and issues short-lived OAuth access tokens for Claude. Existing Bearer-token and `?token=` connections remain supported for backward compatibility.
 
 - **Local:** start the server with the env var:
 
@@ -92,9 +92,11 @@ Set `MCP_AUTH_TOKEN` to a long random string. The server checks every request fo
   npm run start:http
   ```
 
-- **Cloud (Railway/Render):** add an environment variable in the dashboard:
+- **Cloud (Railway/Render):** add these environment variables in the dashboard:
   - Key: `MCP_AUTH_TOKEN`
   - Value: any random string (e.g. 32+ characters)
+  - Key: `PUBLIC_BASE_URL` *(recommended)*
+  - Value: your public HTTPS origin, such as `https://mcp-mobile-production.up.railway.app` (without a trailing slash)
 
 > Without `MCP_AUTH_TOKEN`, anyone who knows your URL can execute Luau in your Roblox client. Never deploy to the cloud without it.
 
@@ -105,17 +107,16 @@ Set `MCP_AUTH_TOKEN` to a long random string. The server checks every request fo
    - On **Team/Enterprise** plans this lives under **Organization settings → Connectors → Add → Custom → Web** (done by an Owner), and members then go to **Customize → Connectors** to click **Connect**.
 3. Fill in:
    - **Name:** `Roblox MCP` (or anything you like)
-   - **Remote MCP server URL:** your HTTPS `/mcp` endpoint **with the token as a query parameter**, e.g.
-     - `https://random-words-xxxx.trycloudflare.com/mcp?token=YOUR_TOKEN_HERE` (tunnel)
-     - `https://mcp-mobile-production.up.railway.app/mcp?token=YOUR_TOKEN_HERE` (cloud)
-   - Expand **Advanced settings**
-   - **OAuth Client ID:** leave blank
-   - **OAuth Client Secret:** leave blank
-4. Click **Add**, then **Connect**.
+   - **Remote MCP server URL:** your public HTTPS `/mcp` endpoint **without a token in the URL**, e.g.
+     - `https://random-words-xxxx.trycloudflare.com/mcp` (tunnel)
+     - `https://mcp-mobile-production.up.railway.app/mcp` (cloud)
+   - Leave **Advanced settings** blank unless you deliberately use your own pre-registered OAuth client.
+4. Click **Add**, then **Connect**. Claude discovers the server’s OAuth metadata and registers a connector client automatically.
+5. On the **Roblox MCP** sign-in page, enter the `MCP_AUTH_TOKEN` value configured on your server, then choose **Authorize Roblox MCP**.
 
-Claude will call the endpoint and list the available tools. You should see a green "Connected" status.
+Claude exchanges the temporary authorization code for a short-lived OAuth token and then lists the available tools. You should see a green "Connected" status.
 
-> **Important:** Claude's custom connector dialog does not have a "Request headers" section. It only supports Name, URL, and OAuth fields. To pass your auth token, append `?token=YOUR_TOKEN_HERE` to the URL. The server accepts both the `Authorization: Bearer` header (for other MCP clients) and the `?token=` query parameter (for Claude.ai).
+> **Important:** Do not put `MCP_AUTH_TOKEN` in the Claude connector URL. URLs can be retained in settings, logs, browser history, and analytics. The server's OAuth flow keeps the administrator token out of the connector configuration and gives Claude a short-lived token instead.
 
 ## Step 4: Connect the Roblox client
 
@@ -184,14 +185,15 @@ Once connected, Claude sees these tools (all require an active Roblox client unl
 
 ## Troubleshooting
 
-### 401 Unauthorized
+### OAuth sign-in fails or reports “Couldn’t register”
 
-The token in the URL doesn't match `MCP_AUTH_TOKEN` on the server.
+Claude could not complete OAuth discovery, dynamic client registration, or the authorization-code exchange.
 
-- Confirm your connector URL includes `?token=YOUR_TOKEN_HERE` (Claude can't send headers, so the token must be in the query parameter).
-- Confirm `MCP_AUTH_TOKEN` is set on the **server process that's actually running** (restart it after changing the env var).
-- On cloud deployments, re-check the variable in the Railway/Render dashboard — a typo or trailing space will break it.
-- If you skipped Step 2 and ran without a token, either set one and add `?token=` to the URL, or (local testing only) leave `MCP_AUTH_TOKEN` unset so the server accepts all requests.
+- Deploy the version that includes the OAuth routes, then set both `MCP_AUTH_TOKEN` and `PUBLIC_BASE_URL` in Railway/Render and restart the service.
+- Confirm the connector URL is exactly `https://YOUR_HOST/mcp`, with no `?token=` parameter.
+- Open `https://YOUR_HOST/.well-known/oauth-protected-resource/mcp` in a browser. It must return JSON metadata, not `MCP Server Running`.
+- When the sign-in page opens, enter the exact `MCP_AUTH_TOKEN` configured on the running server. A typo or trailing space will fail authorization.
+- If you previously added the connector using a query token, remove it and add it again so Claude starts the OAuth flow from a clean configuration.
 
 ### 404 / "Session not found"
 
@@ -236,7 +238,7 @@ Render's free tier sleeps after 15 minutes of inactivity. Wake it by opening the
 ## Security notes
 
 - **Always set `MCP_AUTH_TOKEN`** for anything reachable from the internet. Without it, anyone with the URL can run arbitrary Luau in your Roblox client.
-- The `/mobile-connector.luau` route is public (no auth) so executors can fetch the loader; every other route requires the Bearer token.
+- The `/mobile-connector.luau` route is public (no auth) so executors can fetch the loader. `/mcp` uses OAuth Bearer tokens for Claude and continues to accept the legacy static token only for existing non-OAuth clients.
 - The tunnel/cloud URL is public — only share it with AI clients you trust.
 - This grants arbitrary code execution in your Roblox client. Only use it with experiences you own or have permission to test.
-- Rotate the token periodically, and revoke it by changing `MCP_AUTH_TOKEN` and restarting the server.
+- Rotate `MCP_AUTH_TOKEN` periodically. Restarting after rotation invalidates every OAuth token, refresh token, authorization code, and dynamically registered client for the current process.

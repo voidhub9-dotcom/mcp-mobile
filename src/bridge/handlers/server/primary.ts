@@ -3,6 +3,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { WS_PORT, MCP_AUTH_TOKEN, HTTP_MODE } from "../../../config.js";
 import { dispatchHttp, dispatchWs, loadRoutes } from "../../../http/router.js";
 import { createSession, getSession, deleteSession } from "../../mcp-transport.js";
+import { isValidMcpAccessToken, staticTokenMatches, writeMcpUnauthorized } from "../../../oauth/mcp-oauth.js";
 import { resetPrimaryState, setInstanceRole, } from "../shared/communication.js";
 import { resetRegistry } from "../shared/registry.js";
 const PROTECTED_ROUTES = new Set([
@@ -17,6 +18,21 @@ const PROTECTED_ROUTES = new Set([
     "/script-source-cache",
     "/script-sources",
 ]);
+function hasLegacyAuth(req: IncomingMessage): boolean {
+    if (!MCP_AUTH_TOKEN)
+        return true;
+    const authorization = req.headers["authorization"];
+    if (typeof authorization === "string" && authorization.startsWith("Bearer ") && staticTokenMatches(authorization.slice("Bearer ".length)))
+        return true;
+    const adminToken = req.headers["x-roblox-mcp-admin-token"];
+    if (typeof adminToken === "string" && adminToken.length > 0)
+        return true;
+    // Preserve the existing URL-token connection method for previously configured clients.
+    const url = new URL(req.url || "", "http://localhost");
+    const queryToken = url.searchParams.get("token");
+    return typeof queryToken === "string" && staticTokenMatches(queryToken);
+}
+
 function checkAuth(req: IncomingMessage, res: ServerResponse): boolean {
     if (!MCP_AUTH_TOKEN)
         return true;
@@ -25,22 +41,17 @@ function checkAuth(req: IncomingMessage, res: ServerResponse): boolean {
         return true;
     if (!PROTECTED_ROUTES.has(pathname) && !pathname.startsWith("/api/"))
         return true;
-    const auth = req.headers["authorization"];
-    if (auth === `Bearer ${MCP_AUTH_TOKEN}`)
+    if (hasLegacyAuth(req))
         return true;
-    const adminToken = req.headers["x-roblox-mcp-admin-token"];
-    if (typeof adminToken === "string" && adminToken.length > 0) {
-        return true;
-    }
-    // Support token via query parameter (for clients like Claude.ai that
-    // can't send custom headers — e.g. ?token=YOUR_TOKEN)
-    const url = new URL(req.url || "", "http://localhost");
-    const queryToken = url.searchParams.get("token");
-    if (typeof queryToken === "string" && queryToken === MCP_AUTH_TOKEN) {
-        return true;
-    }
-    res.writeHead(401, { "Content-Type": "application/json" });
+    res.writeHead(401, { "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify({ error: "Unauthorized" }));
+    return false;
+}
+
+function checkMcpAuth(req: IncomingMessage, res: ServerResponse): boolean {
+    if (!MCP_AUTH_TOKEN || hasLegacyAuth(req) || isValidMcpAccessToken(req, req.headers["authorization"]))
+        return true;
+    writeMcpUnauthorized(req, res);
     return false;
 }
 export async function startAsPrimary(): Promise<void> {
@@ -59,7 +70,7 @@ export async function startAsPrimary(): Promise<void> {
                 return;
             }
             if (HTTP_MODE && req.url?.split("?")[0] === "/mcp") {
-                if (!checkAuth(req, res))
+                if (!checkMcpAuth(req, res))
                     return;
                 const sessionId = req.headers["mcp-session-id"] as string | undefined;
                 if (req.method === "DELETE") {

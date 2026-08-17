@@ -204,11 +204,12 @@ MCP_AUTH_TOKEN=your-secret-token node dist/index.js --http
 4. **Add the connector in Claude:**
    - Go to **Settings > Connectors > Add custom connector**
    - **Name:** `Roblox MCP`
-   - **URL:** `https://YOUR-TUNNEL-URL/mcp?token=YOUR_TOKEN_HERE`
-   - Leave OAuth fields blank
-   - Click **Add**
+   - **URL:** `https://YOUR-TUNNEL-URL/mcp` (do **not** append `?token=`)
+   - Leave OAuth fields blank unless you deliberately use a pre-registered client
+   - Click **Add**, then **Connect**
+   - On the Roblox MCP sign-in page, enter the `MCP_AUTH_TOKEN` configured on the server and choose **Authorize Roblox MCP**
 
-   > Claude's connector dialog doesn't support custom headers. Pass your auth token as `?token=` in the URL instead.
+   > Claude discovers OAuth metadata, registers a connector client, and receives a short-lived OAuth token. Do not store the long-lived server token in the connector URL.
 
 5. **Connect your Roblox client** using the connector script:
 ```lua
@@ -258,7 +259,7 @@ Have a suggestion or need help? Join the [Discord server](https://discord.gg/FJc
 
 ## Security
 
-> **This server allows arbitrary code execution.** Only use with AI clients you trust. Port `16384` has no authentication — **never expose it to the internet.** For cross-machine setups, use a local network, VPN, or SSH tunnel. See [Advanced](docs/advanced.md) for details.
+> **This server allows arbitrary code execution.** Only use with AI clients you trust. For any publicly reachable deployment, set a strong `MCP_AUTH_TOKEN` and a matching `PUBLIC_BASE_URL`; Claude then uses short-lived OAuth tokens. Never expose an unauthenticated deployment to the internet. See [Advanced](docs/advanced.md) for details.
 
 ## License
 

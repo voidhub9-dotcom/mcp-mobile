@@ -55,11 +55,13 @@ Railway gives you a free public HTTPS URL for your server.
 
 ### Set the auth token (important for security)
 
-1. In Railway, go to your project > **Variables**
-2. Add a variable:
+1. In Railway, go to your project > **Variables**.
+2. Add these variables:
    - Key: `MCP_AUTH_TOKEN`
-   - Value: any random string (e.g., type 20 random characters)
-3. The server auto-restarts with the new token
+   - Value: any random string (use at least 32 random characters)
+   - Key: `PUBLIC_BASE_URL`
+   - Value: the Railway HTTPS URL you generated, for example `https://mcp-mobile-production.up.railway.app` (without a trailing slash)
+3. The server auto-restarts with the new configuration.
 
 ## Alternative: Deploy to Render (Free)
 
@@ -68,9 +70,10 @@ Railway gives you a free public HTTPS URL for your server.
 3. Tap **New +** > **Web Service**
 4. Connect your GitHub repo: `YOUR_USERNAME/mcp-mobile`
 5. Render auto-detects `render.yaml` — just confirm the settings
-6. Add environment variable `MCP_AUTH_TOKEN` with a random string
-7. Tap **Create Web Service**
-8. Wait for deployment — you get a URL like `https://mcp-mobile.onrender.com`
+6. Add environment variable `MCP_AUTH_TOKEN` with a random string.
+7. After Render assigns the HTTPS URL, add `PUBLIC_BASE_URL` with that exact origin (without a trailing slash).
+8. Tap **Create Web Service** or redeploy after adding the URL.
+9. Wait for deployment — you get a URL like `https://mcp-mobile.onrender.com`.
 
 ## Step 3: Connect Your iPhone's Roblox Executor
 
@@ -104,14 +107,13 @@ This is the recommended way to use the server — Claude's web interface connect
 4. Click **Add custom connector**
 5. Fill in the fields:
    - **Name:** `Roblox MCP`
-   - **Remote MCP server URL:** `https://YOUR-APP.up.railway.app/mcp?token=YOUR_TOKEN_HERE`
-   - Expand **Advanced settings**
-   - **OAuth Client ID:** leave blank
-   - **OAuth Client Secret:** leave blank
-6. Click **Add**
-7. The connector should now show as **Connected**
+   - **Remote MCP server URL:** `https://YOUR-APP.up.railway.app/mcp`
+   - Leave **Advanced settings** blank unless you use your own pre-registered OAuth client.
+6. Click **Add**, then select **Connect**.
+7. Claude opens the Roblox MCP sign-in page. Enter the `MCP_AUTH_TOKEN` value configured in Railway/Render, then choose **Authorize Roblox MCP**.
+8. The connector should now show as **Connected**.
 
-> **Important:** Claude's custom connector dialog does not support custom headers (like `Authorization: Bearer ...`). Instead, pass your auth token as a `?token=` query parameter in the URL. The server accepts both methods.
+> **Important:** Do not add `?token=YOUR_TOKEN_HERE` to the Claude connector URL. Claude discovers the server’s OAuth metadata, registers a client, and receives a short-lived OAuth token after you authorize it. This avoids keeping the long-lived server token in the connector URL.
 >
 > **Note:** Custom connectors require a **Claude Pro or Max** plan, or an Owner/Primary Owner role on a Team/Enterprise plan. Free tier does not support custom connectors.
 
@@ -158,17 +160,19 @@ Now you can chat with Claude.ai and it can:
 | What | URL / Command |
 |------|---------------|
 | Cloud server | `https://YOUR-APP.up.railway.app` |
-| Claude connector URL | `https://YOUR-APP.up.railway.app/mcp` |
+| Claude connector URL | `https://YOUR-APP.up.railway.app/mcp` (no `?token=`) |
 | Built-in AI chat | `https://YOUR-APP.up.railway.app/ai` |
 | Dashboard | `https://YOUR-APP.up.railway.app/` |
 | Roblox loader | `loadstring(game:HttpGet("https://YOUR-APP.up.railway.app/mobile-connector.luau"))()` |
 
 ## Troubleshooting
 
-### Claude says "Connector failed" or "Unauthorized"
-- Make sure you included `?token=YOUR_TOKEN_HERE` in the connector URL — Claude can't send custom headers, so the token must be in the query parameter
-- The token must match the `MCP_AUTH_TOKEN` env var on your server exactly
-- Remove any `Mcp-Session-Id` header — it's managed automatically by Claude
+### Claude says “Couldn’t register” or the sign-in flow fails
+- Confirm this OAuth-enabled version is deployed; the server must expose `/.well-known/oauth-protected-resource/mcp` as JSON.
+- Set `PUBLIC_BASE_URL` to the exact public HTTPS origin and restart the service after updating variables.
+- Add the connector as `https://YOUR-APP.up.railway.app/mcp` without `?token=` and leave Advanced settings blank.
+- On the Roblox MCP sign-in page, enter the `MCP_AUTH_TOKEN` value exactly as it appears in Railway/Render.
+- If an old query-token connector already exists, remove it and add it again to start a clean OAuth flow.
 
 ### Claude says "No Roblox client connected"
 - Load the connector script in your Roblox executor first (Step 3)
@@ -188,7 +192,7 @@ Now you can chat with Claude.ai and it can:
 ### "Unauthorized" errors
 - The auth token on the server and in `getgenv().MCP_AUTH_TOKEN` must match exactly
 - The `/mobile-connector.luau` route is public (no auth needed to fetch the script)
-- All other routes (register, poll, respond, /mcp) require the Bearer token
+- Roblox bridge routes still use the token configured in `getgenv().MCP_AUTH_TOKEN`; `/mcp` uses an OAuth Bearer token for Claude after you authorize the connector.
 
 ### Server goes to sleep (Render free tier)
 Render's free tier sleeps after 15 minutes of inactivity. To wake it:

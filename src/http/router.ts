@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from "http";
 import type { WebSocket } from "ws";
 import { HTTP_METHODS, type HttpMethod, type RouteHandler, type WsRouteHandler, } from "./types.js";
 import { isAuthorizedLocalAdminRequest } from "./local-admin.js";
+import { writeAuthorizationServerMetadata, writeProtectedResourceMetadata } from "../oauth/mcp-oauth.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const routesDir = path.join(__dirname, "routes");
 interface RegisteredHttpRoute {
@@ -116,6 +117,16 @@ export async function dispatchHttp(req: IncomingMessage, res: ServerResponse): P
         !isAuthorizedLocalAdminRequest(req)) {
         res.writeHead(403, { "Content-Type": "application/json", "Cache-Control": "no-store" });
         res.end(JSON.stringify({ error: "Authorized local dashboard access required." }));
+        return;
+    }
+    // Dot-prefixed route directories are not emitted by TypeScript's include glob,
+    // so keep standards-mandated well-known endpoints explicit in the router.
+    if (req.method === "GET" && url.pathname === "/.well-known/oauth-protected-resource/mcp") {
+        writeProtectedResourceMetadata(req, res);
+        return;
+    }
+    if (req.method === "GET" && url.pathname === "/.well-known/oauth-authorization-server") {
+        writeAuthorizationServerMetadata(req, res);
         return;
     }
     for (const route of httpRoutes) {
