@@ -11,7 +11,7 @@ Cloud (Railway/Render):
   │  Port 16384                              │
   │  ┌─────────────┐  ┌──────────────────┐  │
   │  │ /mcp         │  │ /register        │  │
-  │  │ (AI client)  │  │ /poll /respond   │  │
+  │  │ (Claude.ai)  │  │ /poll /respond   │  │
   │  │              │  │ (Roblox)         │  │
   │  └─────────────┘  └──────────────────┘  │
   │  ┌─────────────────────────────────────┐  │
@@ -21,21 +21,21 @@ Cloud (Railway/Render):
         ▲                          ▲
         │ HTTPS                    │ HTTPS
    ┌────┴────┐              ┌──────┴──────┐
-   │ Claude /│              │  iPhone     │
-   │ ChatGPT │              │  Delta/CodeX│
+   │ Claude  │              │  iPhone     │
+   │ .ai     │              │  Delta/CodeX│
    └─────────┘              └─────────────┘
 ```
 
 ## Prerequisites
 
-- An **iPhone** with a mobile Roblox executor (Delta, CodeX, etc.)
+- An **iPhone** (or any device) with a mobile Roblox executor (Delta, CodeX, etc.)
 - A **GitHub account** (to fork the repo and deploy)
-- An **AI client** that supports MCP over HTTP (Claude, ChatGPT, Cursor)
+- A **Claude Pro or Max plan** (required for custom connectors on claude.ai)
 
 ## Step 1: Fork the Repository
 
 1. Open Safari on your iPhone
-2. Go to [github.com/vonsalt/mcp-mobile](https://github.com/vonsalt/mcp-mobile)
+2. Go to [github.com/voidhub9-dotcom/mcp-mobile](https://github.com/voidhub9-dotcom/mcp-mobile)
 3. Tap **Fork** in the top right
 4. You now have your own copy at `github.com/YOUR_USERNAME/mcp-mobile`
 
@@ -92,50 +92,62 @@ The connector automatically:
 - Sends your auth token on every request
 - Falls back to HTTP polling if WebSocket is unavailable
 
-## Step 4: Use Custom AI AI (Built-in, No External AI Client Needed)
+## Step 4: Connect Claude (claude.ai) as a Custom Connector
 
-This server includes a **built-in Custom AI chat interface** at `/ai`. No need to connect Claude, ChatGPT, or any external AI client — Custom AI's API powers the AI with full access to all MCP tools.
+This is the recommended way to use the server — Claude's web interface connects directly to your cloud MCP endpoint over HTTPS. No JSON config files needed.
 
-### Setup Custom AI
+### Add the connector in Claude
 
-1. Get a Custom AI API key from [platform.ai.com/api_keys](https://platform.ai.com/api_keys)
-2. Add it as an environment variable in Railway/Render:
-   - Key: `CUSTOM_AI_API_KEY`
-   - Value: `sk-your-key-here`
-3. Open the chat page in Safari:
-```
-https://YOUR-APP.up.railway.app/ai
-```
-4. If you set `MCP_AUTH_TOKEN`, go to Settings in the chat UI and enter your auth token there too.
-5. Start chatting — the AI can execute Luau, inspect scripts, search instances, interact with GUI, and more.
+1. Go to [claude.ai](https://claude.ai) in your browser
+2. Click your profile picture (bottom left) > **Settings**
+3. Go to the **Connectors** tab
+4. Click **Add custom connector**
+5. Fill in the fields:
+   - **Name:** `Roblox MCP`
+   - **Remote MCP server URL:** `https://YOUR-APP.up.railway.app/mcp`
+   - Expand **Advanced settings**
+   - **OAuth Client ID:** leave blank
+   - **OAuth Client Secret:** leave blank
+6. Click **Add**
+7. If you set `MCP_AUTH_TOKEN` on your server, Claude will ask for authorization. In the **Request headers** section that appears, add:
+   - Header name: `Authorization`
+   - Header value: `Bearer YOUR_TOKEN_HERE`
+8. The connector should now show as **Connected**
 
-### Alternative: Use an External AI Client
+> **Note:** Custom connectors require a **Claude Pro or Max** plan, or an Owner/Primary Owner role on a Team/Enterprise plan. Free tier does not support custom connectors.
 
-You can still use Claude, ChatGPT, or Cursor via the MCP endpoint if you prefer:
+### Verify the connection
 
-### Claude Desktop / Claude Mobile
-```json
-{
-  "mcpServers": {
-    "roblox": {
-      "type": "http",
-      "url": "https://YOUR-APP.up.railway.app/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_TOKEN_HERE"
-      }
-    }
-  }
-}
-```
+1. Start a new chat in Claude
+2. You should see a **Roblox MCP** tool icon in the chat toolbar
+3. Try asking: "List my connected Roblox clients" — Claude will call the `list-clients` tool
+4. If you get a response with your client info, everything is working
 
-### ChatGPT (Developer Mode)
-Add as a custom connector:
-- URL: `https://YOUR-APP.up.railway.app/mcp`
-- Headers: `Authorization: Bearer YOUR_TOKEN_HERE`
+### What Claude can do
+
+Once connected, Claude can:
+- Execute Luau code in your Roblox game
+- Inspect and decompile scripts
+- Search instances and game hierarchy
+- Take screenshots and visually analyze them
+- Scan for anti-cheat systems
+- Get player state, game GUIs, and game systems
+- Click buttons and type into text boxes
+- Spy on remote events
+- Keep you in the game (anti-AFK is enabled by default)
+
+### Alternative: Use the Built-in Custom AI Chat
+
+The server also includes a built-in AI chat at `/ai` that supports any Anthropic-compatible API:
+
+1. Add `CUSTOM_AI_API_KEY` as an environment variable in Railway/Render
+2. Open `https://YOUR-APP.up.railway.app/ai` in your browser
+3. Configure your API key and model in Settings
+4. Start chatting — same tool access as Claude
 
 ## Step 5: Use It
 
-Now you can chat with your AI assistant and it can:
+Now you can chat with Claude.ai and it can:
 - Execute Luau code in your Roblox game
 - Inspect game state (instances, scripts, console output)
 - Search for instances and UI elements
@@ -147,12 +159,22 @@ Now you can chat with your AI assistant and it can:
 | What | URL / Command |
 |------|---------------|
 | Cloud server | `https://YOUR-APP.up.railway.app` |
-| Custom AI chat | `https://YOUR-APP.up.railway.app/ai` |
-| MCP endpoint | `https://YOUR-APP.up.railway.app/mcp` |
+| Claude connector URL | `https://YOUR-APP.up.railway.app/mcp` |
+| Built-in AI chat | `https://YOUR-APP.up.railway.app/ai` |
 | Dashboard | `https://YOUR-APP.up.railway.app/` |
 | Roblox loader | `loadstring(game:HttpGet("https://YOUR-APP.up.railway.app/mobile-connector.luau"))()` |
 
 ## Troubleshooting
+
+### Claude says "Connector failed" or "Unauthorized"
+- Make sure you added the `Authorization` header with value `Bearer YOUR_TOKEN_HERE` in the connector's Request headers section
+- The token must match the `MCP_AUTH_TOKEN` env var on your server exactly
+- Remove any `Mcp-Session-Id` header — it's managed automatically by Claude
+
+### Claude says "No Roblox client connected"
+- Load the connector script in your Roblox executor first (Step 3)
+- Check the dashboard at `https://YOUR-APP.up.railway.app/` to see if your client shows up
+- Make sure `getgenv().BridgeURL` and `getgenv().MCP_AUTH_TOKEN` are set correctly before loading the connector
 
 ### Server won't start on Railway/Render
 - Check the build logs in the Railway/Render dashboard
