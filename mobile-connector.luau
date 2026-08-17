@@ -117,8 +117,11 @@ CheckCap("setidentity", function() return type(setidentity) == "function" end)
 -- HTTP
 CheckCap("request", function() return type(request) == "function" end)
 CheckCap("http_request", function() return type(http_request) == "function" end)
-CheckCap("syn_request", function() return type(syn) == "table" and type(syn.request) == "function" end)
+-- Executors expose Synapse-style requests in either form; support both.
+CheckCap("syn_request", function() return type(syn_request) == "function" end)
+CheckCap("syn_request_method", function() return type(syn) == "table" and type(syn.request) == "function" end)
 CheckCap("http_get", function() return type(http_get) == "function" end)
+CheckCap("http_post", function() return type(http_post) == "function" end)
 
 -- WebSocket
 CheckCap("WebSocket", function() return type(WebSocket) == "table" and type(WebSocket.connect) == "function" end)
@@ -145,39 +148,54 @@ DetectPlatform()
 --// ─── Compatibility Shims ───────────────────────────────────────── \\\\--
 
 --// Unified HTTP request function with fallbacks \\\\
+local function NormalizedResponse(body)
+    return { Body = body, StatusCode = 200, Success = true }
+end
+
+local function HttpGetFallbackRequest(fetch, opts)
+    local method = string.upper(tostring(opts.Method or "GET"))
+    if method == "GET" then
+        return NormalizedResponse(fetch(opts.Url))
+    end
+
+    if method == "POST" then
+        -- Some mobile executors provide GET-only http_get alongside a compatible
+        -- POST helper. This covers local bridges that do not require auth headers.
+        if opts.Headers and opts.Headers.Authorization then
+            error("http_get/http_post cannot send Authorization headers. Use syn_request, syn.request, request, or http_request for authenticated cloud bridges.")
+        end
+        if Capabilities.http_post then
+            return NormalizedResponse(http_post(opts.Url, opts.Body or "", "application/json"))
+        end
+        if type(game.HttpPost) == "function" then
+            return NormalizedResponse(game:HttpPost(opts.Url, opts.Body or "", "application/json"))
+        end
+    end
+
+    error("This executor only exposes http_get for GET requests. Use syn_request, syn.request, request, or http_request for " .. method .. " requests.")
+end
+
+local HTTPGet = Capabilities.http_get and http_get or function(url)
+    return game:HttpGet(url)
+end
+
 local HTTPRequest
 if Capabilities.request then
     HTTPRequest = request
 elseif Capabilities.http_request then
     HTTPRequest = http_request
 elseif Capabilities.syn_request then
+    HTTPRequest = syn_request
+elseif Capabilities.syn_request_method then
     HTTPRequest = syn.request
 elseif Capabilities.http_get then
-    -- http_get is GET-only; wrap it for basic polling
     HTTPRequest = function(opts)
-        if opts.Method and opts.Method ~= "GET" then
-            -- Try game:HttpPost for POST requests
-            if opts.Method == "POST" and type(game.HttpPost) == "function" then
-                local body = game:HttpPost(opts.Url, opts.Body or "", "application/json")
-                return { Body = body, StatusCode = 200, Success = true }
-            end
-            error("http_get does not support " .. tostring(opts.Method) .. " requests")
-        end
-        local body = http_get(opts.Url)
-        return { Body = body, StatusCode = 200, Success = true }
+        return HttpGetFallbackRequest(HTTPGet, opts)
     end
 else
-    -- Last resort: game:HttpGet for GET, game:HttpPost for POST
+    -- Last resort: game:HttpGet is GET-only for the same reason as http_get.
     HTTPRequest = function(opts)
-        if opts.Method and opts.Method ~= "GET" then
-            if opts.Method == "POST" and type(game.HttpPost) == "function" then
-                local body = game:HttpPost(opts.Url, opts.Body or "", "application/json")
-                return { Body = body, StatusCode = 200, Success = true }
-            end
-            error("No HTTP function available for " .. tostring(opts.Method))
-        end
-        local body = game:HttpGet(opts.Url)
-        return { Body = body, StatusCode = 200, Success = true }
+        return HttpGetFallbackRequest(HTTPGet, opts)
     end
 end
 
@@ -828,8 +846,8 @@ Callbacks["client-screenshot"] = function(data)
     -- Try http_get screenshot protocol
     if not screenshotData then
         local ok, result = pcall(function()
-            if type(http_get) == "function" then
-                return http_get("screenshot://capture")
+            if Capabilities.http_get then
+                return HTTPGet("screenshot://capture")
             end
         end)
         if ok and type(result) == "string" and #result > 100 then
