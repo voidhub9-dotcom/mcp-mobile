@@ -14,6 +14,7 @@ import registerSearchInstances from "./impl/inspection/search-instances.js";
 import registerScriptGrep from "./impl/inspection/script-grep.js";
 import registerSemanticSearchScripts from "./impl/inspection/semantic-search-scripts.js";
 import registerGetGameInfo from "./impl/inspection/get-game-info.js";
+import registerGetAiScriptContext from "./impl/inspection/get-ai-script-context.js";
 import registerGetDescendantsTree from "./impl/inspection/get-descendants-tree.js";
 import registerClientScreenshot from "./impl/inspection/client-screenshot.js";
 import registerGetPlayerState from "./impl/inspection/get-player-state.js";
@@ -44,6 +45,7 @@ export function registerAllTools(server: McpServer): void {
     registerScriptGrep(server);
     registerSemanticSearchScripts(server);
     registerGetGameInfo(server);
+    registerGetAiScriptContext(server);
     registerGetDescendantsTree(server);
     registerClientScreenshot(server);
     registerGetPlayerState(server);

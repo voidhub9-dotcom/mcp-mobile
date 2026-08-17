@@ -1475,6 +1475,55 @@ Callbacks["find-game-systems"] = function(data)
     return { totalFound = #found, systems = found, byType = byType }
 end
 
+-- AI scripting context: a compact, read-only evidence package for planning code.
+-- It intentionally observes the current game without invoking remotes, moving the
+-- player, clicking UI, or changing any game state.
+Callbacks["get-ai-script-context"] = function(data)
+    data = type(data) == "table" and data or {}
+    local goal = type(data.goal) == "string" and string.sub(data.goal, 1, 500) or ""
+    local includeUi = data.includeUi ~= false
+    local includeSystems = data.includeSystems ~= false
+    local maxUiElements = math.max(5, math.min(tonumber(data.maxUiElements) or 20, 40))
+    local maxSystems = math.max(5, math.min(tonumber(data.maxSystems) or 30, 60))
+
+    local function observe(callbackName, payload)
+        local callback = Callbacks[callbackName]
+        if type(callback) ~= "function" then
+            return { error = "Observation callback unavailable: " .. callbackName }
+        end
+        local ok, result = pcall(callback, payload)
+        if ok then return result end
+        return { error = "Observation failed: " .. tostring(result) }
+    end
+
+    local gameInfo = observe("get-game-info", { includeDescription = false })
+    local playerState = observe("get-player-state", {})
+    local guiContext = includeUi and observe("get-game-guis", {
+        includeHidden = false,
+        maxDepth = 3,
+        limit = maxUiElements,
+    }) or nil
+    local systemContext = includeSystems and observe("find-game-systems", {
+        maxResults = maxSystems,
+    }) or nil
+
+    return {
+        kind = "read-only-ai-script-context",
+        capturedAt = os.time(),
+        requestedGoal = goal ~= "" and goal or nil,
+        game = gameInfo,
+        player = playerState,
+        interface = guiContext,
+        systems = systemContext,
+        authoringGuidance = {
+            "Base script suggestions on the observed names, paths, values, and UI elements in this snapshot.",
+            "Treat observed instances as evidence, not guarantees: validate availability and type before using them.",
+            "Prefer a small read-only probe before any game-state-changing action.",
+            "Do not suggest security, anti-cheat, access-control, or remote-validation bypasses.",
+        },
+    }
+end
+
 Callbacks["decrypt-remote"] = function(data)
     local remotePath = data.remotePath or data.path
     local remote
