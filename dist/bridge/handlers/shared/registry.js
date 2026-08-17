@@ -84,8 +84,15 @@ export function resetRegistry() {
     activeClientIsRemote = false;
 }
 export function registerClient(info) {
+    const now = Date.now();
     const existing = info.sessionId ? findClientBySessionId(info.sessionId) : undefined;
     if (existing) {
+        const sessionChanged = existing.placeId !== info.placeId || existing.jobId !== info.jobId;
+        const previousSession = {
+            placeId: existing.placeId,
+            jobId: existing.jobId,
+            placeName: existing.placeName,
+        };
         if (existing.ws && existing.ws !== info.ws) {
             wsToClientId.delete(existing.ws);
             try {
@@ -103,12 +110,32 @@ export function registerClient(info) {
         existing.sessionId = info.sessionId;
         existing.transport = info.transport;
         existing.ws = info.ws;
-        existing.lastHttpPoll = Date.now();
+        existing.lastRegistrationAt = now;
+        existing.lastHttpPoll = now;
+        existing.registrationCount += 1;
+        existing.reconnectCount += 1;
         existing.pendingPollResolve = null;
         existing.mobile = info.mobile ?? existing.mobile;
         existing.executor = info.executor ?? existing.executor;
         existing.platform = info.platform ?? existing.platform;
         existing.capabilities = info.capabilities ?? existing.capabilities;
+        if (sessionChanged) {
+            const alert = {
+                type: "session-change",
+                detectedAt: now,
+                previousPlaceId: previousSession.placeId,
+                previousJobId: previousSession.jobId,
+                previousPlaceName: previousSession.placeName,
+                currentPlaceId: info.placeId,
+                currentJobId: info.jobId,
+                currentPlaceName: info.placeName,
+            };
+            existing.sessionChangeCount += 1;
+            existing.sessionAlerts.push(alert);
+            if (existing.sessionAlerts.length > 12)
+                existing.sessionAlerts.shift();
+            console.error(`[Registry] Session change detected for ${existing.clientId}: ${previousSession.jobId} -> ${info.jobId}`);
+        }
         if (info.ws) {
             wsToClientId.set(info.ws, existing.clientId);
         }
@@ -126,7 +153,13 @@ export function registerClient(info) {
         placeName: info.placeName,
         transport: info.transport,
         ws: info.ws,
-        lastHttpPoll: Date.now(),
+        connectedAt: now,
+        lastRegistrationAt: now,
+        lastHttpPoll: now,
+        registrationCount: 1,
+        reconnectCount: 0,
+        sessionChangeCount: 0,
+        sessionAlerts: [],
         pendingHttpCommands: [],
         pendingPollResolve: null,
         mobile: info.mobile,
@@ -146,6 +179,21 @@ export function unregisterClient(clientId) {
 }
 export function getClientById(clientId) {
     return clientRegistry.get(clientId);
+}
+export function getClientMonitoring(client, now = Date.now()) {
+    const lastSeenAt = Math.max(client.lastRegistrationAt, client.lastHttpPoll);
+    return {
+        connectedAt: client.connectedAt,
+        lastRegistrationAt: client.lastRegistrationAt,
+        lastSeenAt,
+        sessionUptimeMs: Math.max(0, now - client.connectedAt),
+        idleMs: Math.max(0, now - lastSeenAt),
+        registrationCount: client.registrationCount,
+        reconnectCount: client.reconnectCount,
+        sessionChangeCount: client.sessionChangeCount,
+        currentSessionActive: isClientActive(client),
+        sessionAlerts: [...client.sessionAlerts],
+    };
 }
 export function getClientIdByWs(ws) {
     return wsToClientId.get(ws);

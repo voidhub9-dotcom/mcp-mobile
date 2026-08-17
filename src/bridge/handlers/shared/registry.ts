@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { WebSocket } from "ws";
 import { HTTP_POLL_TIMEOUT } from "../../../config.js";
-import type { RobloxClient } from "../../types.js";
+import type { ClientSessionAlert, RobloxClient } from "../../types.js";
 import { clearScriptSourceIndex } from "./script-source-store.js";
 import { clearDecompilerHealthForClient } from "../../../decompiler/health.js";
 const clientRegistry: Map<string, RobloxClient> = new Map();
@@ -100,8 +100,15 @@ export function registerClient(info: {
     platform?: string;
     capabilities?: Record<string, boolean>;
 }): string {
+    const now = Date.now();
     const existing = info.sessionId ? findClientBySessionId(info.sessionId) : undefined;
     if (existing) {
+        const sessionChanged = existing.placeId !== info.placeId || existing.jobId !== info.jobId;
+        const previousSession = {
+            placeId: existing.placeId,
+            jobId: existing.jobId,
+            placeName: existing.placeName,
+        };
         if (existing.ws && existing.ws !== info.ws) {
             wsToClientId.delete(existing.ws);
             try {
@@ -119,12 +126,32 @@ export function registerClient(info: {
         existing.sessionId = info.sessionId;
         existing.transport = info.transport;
         existing.ws = info.ws;
-        existing.lastHttpPoll = Date.now();
+        existing.lastRegistrationAt = now;
+        existing.lastHttpPoll = now;
+        existing.registrationCount += 1;
+        existing.reconnectCount += 1;
         existing.pendingPollResolve = null;
         existing.mobile = info.mobile ?? existing.mobile;
         existing.executor = info.executor ?? existing.executor;
         existing.platform = info.platform ?? existing.platform;
         existing.capabilities = info.capabilities ?? existing.capabilities;
+        if (sessionChanged) {
+            const alert: ClientSessionAlert = {
+                type: "session-change",
+                detectedAt: now,
+                previousPlaceId: previousSession.placeId,
+                previousJobId: previousSession.jobId,
+                previousPlaceName: previousSession.placeName,
+                currentPlaceId: info.placeId,
+                currentJobId: info.jobId,
+                currentPlaceName: info.placeName,
+            };
+            existing.sessionChangeCount += 1;
+            existing.sessionAlerts.push(alert);
+            if (existing.sessionAlerts.length > 12)
+                existing.sessionAlerts.shift();
+            console.error(`[Registry] Session change detected for ${existing.clientId}: ${previousSession.jobId} -> ${info.jobId}`);
+        }
         if (info.ws) {
             wsToClientId.set(info.ws, existing.clientId);
         }
@@ -142,7 +169,13 @@ export function registerClient(info: {
         placeName: info.placeName,
         transport: info.transport,
         ws: info.ws,
-        lastHttpPoll: Date.now(),
+        connectedAt: now,
+        lastRegistrationAt: now,
+        lastHttpPoll: now,
+        registrationCount: 1,
+        reconnectCount: 0,
+        sessionChangeCount: 0,
+        sessionAlerts: [],
         pendingHttpCommands: [],
         pendingPollResolve: null,
         mobile: info.mobile,
@@ -162,6 +195,32 @@ export function unregisterClient(clientId: string): void {
 }
 export function getClientById(clientId: string): RobloxClient | undefined {
     return clientRegistry.get(clientId);
+}
+export function getClientMonitoring(client: RobloxClient, now = Date.now()): {
+    connectedAt: number;
+    lastRegistrationAt: number;
+    lastSeenAt: number;
+    sessionUptimeMs: number;
+    idleMs: number;
+    registrationCount: number;
+    reconnectCount: number;
+    sessionChangeCount: number;
+    currentSessionActive: boolean;
+    sessionAlerts: ClientSessionAlert[];
+} {
+    const lastSeenAt = Math.max(client.lastRegistrationAt, client.lastHttpPoll);
+    return {
+        connectedAt: client.connectedAt,
+        lastRegistrationAt: client.lastRegistrationAt,
+        lastSeenAt,
+        sessionUptimeMs: Math.max(0, now - client.connectedAt),
+        idleMs: Math.max(0, now - lastSeenAt),
+        registrationCount: client.registrationCount,
+        reconnectCount: client.reconnectCount,
+        sessionChangeCount: client.sessionChangeCount,
+        currentSessionActive: isClientActive(client),
+        sessionAlerts: [...client.sessionAlerts],
+    };
 }
 export function getClientIdByWs(ws: WebSocket): string | undefined {
     return wsToClientId.get(ws);
