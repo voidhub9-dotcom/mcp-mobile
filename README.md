@@ -29,7 +29,7 @@ Use it to see connected Roblox clients, inspect scripts, run tools, view server 
 - **Game Understanding** — Player state snapshot, game GUI inspection, activity tracing, and game system discovery for writing automation scripts.
 - **Anti-Cheat Tools** — Scan games for anti-cheat systems with detailed severity-level reports.
 - **Anti-AFK** — Automatically prevents idle disconnections by responding to the `Player.Idled` event. Keeps you in the game.
-- **Claude (claude.ai) Support** — Works as a custom connector in Claude's web interface. See the [Claude Setup Guide](docs/setup-claude-ai.md).
+- **Claude Remote Connector Support** — Works as a secure custom connector in Claude's web interface. See the [Claude Remote Connector Guide](docs/claude-connector.md).
 - **Custom AI Chat** — Built-in chat interface at `/ai` supporting any Anthropic-compatible API with api-key, bearer token, or custom header auth. Screenshot images are passed to the AI as vision content.
 - **Mobile Support** — Works with mobile executors (Delta, CodeX, VegaX, etc.) with fallbacks for missing APIs. See [Mobile README](MOBILE-README.md).
 
@@ -48,8 +48,8 @@ Use it to see connected Roblox clients, inspect scripts, run tools, view server 
 ### 1. Clone the server
 
 ```bash
-git clone https://github.com/dissering/roblox-executor-mcp.git
-cd roblox-executor-mcp
+git clone https://github.com/voidhub9-dotcom/mcp-mobile.git
+cd mcp-mobile
 ```
 
 ### 2. Run the harness installer
@@ -97,7 +97,7 @@ If you prefer to configure a client yourself, use the setup guide for your clien
 | -------------- | ------------------------------------------- |
 | Cursor         | [Setup Guide](docs/setup-cursor.md)         |
 | Claude Desktop | [Setup Guide](docs/setup-claude-desktop.md) |
-| **Claude (Web)** | [**Setup Guide**](docs/setup-claude-ai.md) |
+| **Claude (Web / Mobile / Remote)** | [**Remote Connector Guide**](docs/claude-connector.md) |
 | Claude Code    | [Setup Guide](docs/setup-claude-code.md)    |
 | Codex CLI      | [Setup Guide](docs/setup-codex.md)          |
 | Windsurf       | [Setup Guide](docs/setup-windsurf.md)       |
@@ -146,7 +146,7 @@ Run everything from your phone using Termux. See the [Mobile-Only Setup Guide](d
 
 ```bash
 # In Termux:
-git clone https://github.com/vonsalt/mcp-mobile.git
+git clone https://github.com/voidhub9-dotcom/mcp-mobile.git
 cd mcp-mobile
 bash termux-setup.sh
 bash termux-start.sh --cf
@@ -216,7 +216,7 @@ MCP_AUTH_TOKEN=your-secret-token node dist/index.js --http
 loadstring(game:HttpGet("http://localhost:16384/mobile-connector.luau"))()
 ```
 
-For full instructions, see the [Claude Setup Guide](docs/setup-claude-ai.md).
+For deployment, OAuth authorization, end-to-end testing, and tool-permission guidance, see the [Claude Remote Connector Guide](docs/claude-connector.md).
 
 ## Custom AI Integration
 

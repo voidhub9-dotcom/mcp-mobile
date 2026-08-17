@@ -30,31 +30,32 @@ The MCP server runs on your PC. The mobile executor on your phone loads the mobi
 
 ## Remote MCP Setup (Cloud Deployment)
 
-When deployed to Railway, Render, or any cloud host, the MCP server exposes a Streamable HTTP endpoint at `/mcp`. Here's how to connect your AI client:
+A Railway, Render, custom-domain, or tunnel deployment exposes a Streamable HTTP endpoint at `/mcp`. Use your **own** public HTTPS host, never someone else's Railway URL.
 
-### MCP Client Config
+### Claude Web, Mobile, and Remote Connector Setup
 
-Use this JSON config in any AI client that supports the MCP Streamable HTTP transport (Perplexity Computer, Claude Desktop with HTTP, Cursor, etc.):
+Claude uses the server's built-in OAuth flow rather than a manually configured Bearer header. Follow the [Claude Remote Connector Guide](docs/claude-connector.md): it covers deployment, authorization, Roblox bridge setup, verification, and safe tool permissions.
+
+> In Claude, add `https://YOUR_HOST/mcp`, leave OAuth Client ID and Client Secret blank, then select **Connect**. Do not append `?token=` and do not paste `MCP_AUTH_TOKEN` into the connector URL.
+
+### Other Streamable HTTP MCP Clients
+
+For a client that supports custom request headers, use its HTTP MCP configuration with your deployment's token:
 
 ```json
 {
   "mcpServers": {
     "roblox-mcp": {
-      "url": "https://YOUR-APP.up.railway.app/mcp",
+      "url": "https://YOUR_HOST/mcp",
       "headers": {
-        "Authorization": "Bearer YOUR_TOKEN"
+        "Authorization": "Bearer YOUR_MCP_AUTH_TOKEN"
       }
     }
   }
 }
 ```
 
-### Important Notes
-
-- **Do NOT include `Mcp-Session-Id` in your config.** The session ID is a temporary runtime header returned by the server after `initialize`. It expires after 30 minutes of inactivity. Your MCP client manages session IDs automatically — never hardcode them.
-- **Auth token**: Set the `MCP_AUTH_TOKEN` environment variable on Railway/Render. The same value goes in the `Authorization: Bearer` header.
-- **Setup page**: Visit `https://YOUR-APP.up.railway.app/mcp-info` for a copy-paste ready config and troubleshooting guide.
-- **Health check**: `https://YOUR-APP.up.railway.app/` returns server status.
+Do not hardcode `Mcp-Session-Id`; clients manage it at runtime. Set `MCP_AUTH_TOKEN` as a server environment variable, then use that same value only where a non-OAuth client explicitly requires a Bearer token. Visit `https://YOUR_HOST/mcp-info` for server information and `https://YOUR_HOST/` for the dashboard.
 
 ### Connecting Your Roblox Client
 
@@ -74,7 +75,7 @@ Run everything from your phone using Termux. The MCP server runs on your phone a
 
 ```bash
 # In Termux:
-git clone https://github.com/vonsalt/mcp-mobile.git
+git clone https://github.com/voidhub9-dotcom/mcp-mobile.git
 cd mcp-mobile
 bash termux-setup.sh
 bash termux-start.sh --cf
@@ -82,6 +83,7 @@ bash termux-start.sh --cf
 
 Then in your Roblox executor:
 ```lua
+getgenv().MCP_AUTH_TOKEN = "YOUR_MCP_AUTH_TOKEN"
 loadstring(game:HttpGet("http://localhost:16384/mobile-connector.luau"))("localhost:16384")
 ```
 

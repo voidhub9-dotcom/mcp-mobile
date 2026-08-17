@@ -2,6 +2,8 @@
 
 This guide covers setting up the Roblox Executor MCP server to work with **mobile Roblox executors** (Delta, CodeX, VegaX, ArceusX, Cryptic, Ronix, etc.) on Android and iOS.
 
+> This is the local PC-and-phone workflow. For a public HTTPS deployment used with Claude Web or Mobile, follow the [Claude Remote Connector Guide](claude-connector.md).
+
 ## How It Works
 
 ```

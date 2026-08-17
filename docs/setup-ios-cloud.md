@@ -2,6 +2,8 @@
 
 > Run the MCP server in the cloud — your iPhone's Roblox executor and your AI client both connect to it over HTTPS. No PC or local server needed.
 
+> For the full Claude OAuth flow, deployment verification, and tool-permission guidance, see the [Claude Remote Connector Guide](claude-connector.md).
+
 Since iOS doesn't have Termux, the MCP server runs on a free cloud service instead. Your iPhone connects to it just like any other website.
 
 ```
@@ -51,7 +53,7 @@ Railway gives you a free public HTTPS URL for your server.
 6. Railway auto-detects the `Dockerfile` and starts building
 7. Wait 2-3 minutes for the build to complete
 8. Go to **Settings > Networking > Generate Domain**
-9. You now have a URL like `https://mcp-mobile-production.up.railway.app`
+9. Railway gives your service a unique URL, such as `https://YOUR-SERVICE-production.up.railway.app`. Use your own generated domain everywhere in this guide.
 
 ### Set the auth token (important for security)
 
@@ -96,7 +98,7 @@ The connector automatically:
 
 ## Step 4: Connect Claude (claude.ai) as a Custom Connector
 
-This is the recommended way to use the server — Claude's web interface connects directly to your cloud MCP endpoint over HTTPS. No JSON config files needed.
+This is the recommended way to use the server — Claude connects directly to your cloud MCP endpoint over HTTPS through OAuth. No JSON config files or static OAuth client credentials are needed. The complete steps are in the [Claude Remote Connector Guide](claude-connector.md).
 
 ### Add the connector in Claude
 
@@ -180,8 +182,7 @@ Now you can chat with Claude.ai and it can:
 
 ### Server won't start on Railway/Render
 - Check the build logs in the Railway/Render dashboard
-- Make sure the port is set to `16384` (should be automatic via `PORT` env var)
-- If using a different platform, set `PORT=16384` as an environment variable
+- Railway and Render supply the `PORT` environment variable automatically; do not hardcode a different value unless your host requires one.
 
 ### Roblox can't connect
 - Make sure you set `getgenv().BridgeURL` to the full HTTPS URL including `https://`

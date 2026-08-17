@@ -1,5 +1,7 @@
 # Claude (claude.ai) Setup
 
+> **Quick path:** For the complete current flow—including deployment verification, OAuth sign-in, Roblox bridge connection, testing, and tool permissions—start with the [Claude Remote Connector Guide](claude-connector.md).
+
 > Connect Claude.ai as an MCP client over the web. Claude calls your server's `/mcp` endpoint using Streamable HTTP, and the server forwards each tool call to your Roblox client.
 
 Claude.ai only accepts **HTTPS** URLs for custom connectors — plain `http://localhost` will not work. This guide shows two ways to get a public HTTPS endpoint in front of your server: a quick local tunnel, or a managed cloud deployment.
@@ -72,11 +74,11 @@ Copy the forwarding URL, e.g. `https://abcd-1-2-3-4.ngrok-free.app`.
 
 Deploy the server to Railway or Render, which provide a native HTTPS domain. This mirrors the [iOS Cloud Setup](setup-ios-cloud.md).
 
-1. Fork [github.com/vonsalt/mcp-mobile](https://github.com/vonsalt/mcp-mobile)
+1. Fork [voidhub9-dotcom/mcp-mobile](https://github.com/voidhub9-dotcom/mcp-mobile) into your own GitHub account.
 2. Deploy the fork:
    - **Railway:** New Project → Deploy from GitHub repo → pick your fork → Settings → Networking → Generate Domain
    - **Render:** New + → Web Service → connect your repo (the `render.yaml` is auto-detected) → Create Web Service
-3. Wait 2–3 minutes for the build. You'll get a URL like `https://mcp-mobile-production.up.railway.app`.
+3. Wait for the build to complete. Railway generates a unique URL for your own service, such as `https://YOUR-SERVICE-production.up.railway.app`.
 
 Cloud platforms set the `PORT` env var automatically; the server reads it and listens on that port. No `--http` flag is needed in the Docker/start command the platform uses — the repo's `Dockerfile` and `render.yaml` already start the server in HTTP mode.
 
@@ -109,7 +111,7 @@ Set `MCP_AUTH_TOKEN` to a long random string. The server uses it as the administ
    - **Name:** `Roblox MCP` (or anything you like)
    - **Remote MCP server URL:** your public HTTPS `/mcp` endpoint **without a token in the URL**, e.g.
      - `https://random-words-xxxx.trycloudflare.com/mcp` (tunnel)
-     - `https://mcp-mobile-production.up.railway.app/mcp` (cloud)
+     - `https://YOUR-SERVICE-production.up.railway.app/mcp` (your cloud deployment)
    - Leave **Advanced settings** blank unless you deliberately use your own pre-registered OAuth client.
 4. Click **Add**, then **Connect**. Claude discovers the server’s OAuth metadata and registers a connector client automatically.
 5. On the **Roblox MCP** sign-in page, enter the `MCP_AUTH_TOKEN` value configured on your server, then choose **Authorize Roblox MCP**.
@@ -186,6 +188,8 @@ Once connected, Claude sees these tools (all require an active Roblox client unl
 ## Troubleshooting
 
 ### OAuth sign-in fails or reports “Couldn’t register”
+
+The complete check sequence is also available in the [Claude Remote Connector Guide](claude-connector.md#2-verify-the-deployment).
 
 Claude could not complete OAuth discovery, dynamic client registration, or the authorization-code exchange.
 
