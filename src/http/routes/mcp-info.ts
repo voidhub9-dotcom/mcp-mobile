@@ -72,8 +72,8 @@ ${hasAuth ? `<p>Auth: <code>Authorization: Bearer &lt;your-token&gt;</code></p>`
 </div>
 
 <div class="section">
-<h2>Available Tools (${18})</h2>
-<p>set-active-client, list-clients, get-client-capabilities, execute, execute-file, get-script-content, get-data-by-code, get-console-output, search-instances, script-grep, semantic-search-scripts, get-game-info, get-descendants-tree, decrypt-remote, remote-spy, type-text-box, click-button, screenshot-window, list-roblox-windows</p>
+<h2>Available Tools (${26})</h2>
+<p>set-active-client, list-clients, get-client-capabilities, execute, execute-file, get-script-content, get-data-by-code, get-console-output, search-instances, script-grep, semantic-search-scripts, get-game-info, get-descendants-tree, client-screenshot, get-player-state, get-game-guis, trace-game-activity, find-game-systems, scan-anticheat, anticheat-bypass, decrypt-remote, remote-spy, type-text-box, click-button, screenshot-window, list-roblox-windows</p>
 </div>
 
 <div class="section">

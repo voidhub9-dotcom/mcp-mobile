@@ -27,7 +27,9 @@ Use it to see connected Roblox clients, inspect scripts, run tools, view server 
 - **Multi-Client** — Connect multiple Roblox clients at once.
 - **Primary / Secondary** — Multiple MCP instances auto-coordinate with automatic promotion. Supports remote relaying via `--baseurl`. See [Advanced](docs/advanced.md).
 - **Game Understanding** — Player state snapshot, game GUI inspection, activity tracing, and game system discovery for writing automation scripts.
-- **Anti-Cheat Tools** — Scan games for anti-cheat systems and generate tailored bypass scripts.
+- **Anti-Cheat Tools** — Scan games for anti-cheat systems with detailed severity-level reports.
+- **Anti-AFK** — Automatically prevents idle disconnections by responding to the `Player.Idled` event. Keeps you in the game.
+- **Claude (claude.ai) Support** — Works as a custom connector in Claude's web interface. See the [Claude Setup Guide](docs/setup-claude-ai.md).
 - **Custom AI Chat** — Built-in chat interface at `/ai` supporting any Anthropic-compatible API with api-key, bearer token, or custom header auth. Screenshot images are passed to the AI as vision content.
 - **Mobile Support** — Works with mobile executors (Delta, CodeX, VegaX, etc.) with fallbacks for missing APIs. See [Mobile README](MOBILE-README.md).
 
@@ -95,6 +97,7 @@ If you prefer to configure a client yourself, use the setup guide for your clien
 | -------------- | ------------------------------------------- |
 | Cursor         | [Setup Guide](docs/setup-cursor.md)         |
 | Claude Desktop | [Setup Guide](docs/setup-claude-desktop.md) |
+| **Claude (Web)** | [**Setup Guide**](docs/setup-claude-ai.md) |
 | Claude Code    | [Setup Guide](docs/setup-claude-code.md)    |
 | Codex CLI      | [Setup Guide](docs/setup-codex.md)          |
 | Windsurf       | [Setup Guide](docs/setup-windsurf.md)       |
@@ -124,6 +127,7 @@ getgenv().DisableWebSocket = true                        -- force HTTP polling
 getgenv().DisableInitialScriptDecompMapping = true       -- skip initial decompilation
 getgenv().MCP_FailedScriptResyncInterval = 30            -- retry failed script syncs periodically
 getgenv().MCP_FailedScriptResyncBatchSize = 8            -- bound each periodic retry batch
+getgenv().MCP_DisableAntiAFK = true                       -- disable anti-AFK (enabled by default)
 ```
 
 After the MCP server starts and Roblox connects, open the dashboard:
@@ -171,6 +175,45 @@ If you have a PC, see the [Mobile Setup Guide](docs/setup-mobile.md) and [Mobile
 ```lua
 loadstring(game:HttpGet("http://YOUR_PC_IP:16384/mobile-connector.luau"))("YOUR_PC_IP:16384")
 ```
+
+## Claude (claude.ai) Custom Connector
+
+This server works as a **custom connector** in Claude's web interface (claude.ai). Claude connects to your MCP server over HTTPS using the Streamable HTTP transport.
+
+### Quick Setup
+
+1. **Start the server in HTTP mode:**
+```bash
+node dist/index.js --http
+```
+
+2. **Expose it via HTTPS** (Claude requires HTTPS). Use a tunnel or cloud deployment:
+```bash
+# Option A: Cloudflare Tunnel (free, no signup needed for quick tunnels)
+cloudflared tunnel --url http://localhost:16384
+
+# Option B: Deploy to Railway/Render (provides HTTPS natively)
+# See docs/setup-ios-cloud.md for cloud deployment guide
+```
+
+3. **Set an auth token** for security:
+```bash
+MCP_AUTH_TOKEN=your-secret-token node dist/index.js --http
+```
+
+4. **Add the connector in Claude:**
+   - Go to **Settings > Connectors > Add custom connector**
+   - **Name:** `Roblox MCP`
+   - **URL:** `https://YOUR-TUNNEL-URL/mcp`
+   - Leave OAuth fields blank (use `MCP_AUTH_TOKEN` for Bearer auth instead)
+   - Click **Add**
+
+5. **Connect your Roblox client** using the connector script:
+```lua
+loadstring(game:HttpGet("http://localhost:16384/mobile-connector.luau"))()
+```
+
+For full instructions, see the [Claude Setup Guide](docs/setup-claude-ai.md).
 
 ## Custom AI Integration
 
