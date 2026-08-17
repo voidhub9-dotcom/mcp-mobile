@@ -1,7 +1,7 @@
 export declare const serverStartTime: number;
 export declare const WS_PORT: number;
 export declare const MCP_HTTP_PORT = 3001;
-export declare const HTTP_POLL_TIMEOUT = 10000;
+export declare const HTTP_POLL_TIMEOUT: number;
 export declare const PROMOTION_JITTER_MAX = 300;
 export declare const TOOL_RESPONSE_TIMEOUT = 15000;
 export declare const MCP_AUTH_TOKEN: string | null;

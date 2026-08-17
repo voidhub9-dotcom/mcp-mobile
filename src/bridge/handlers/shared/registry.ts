@@ -6,7 +6,11 @@ import { clearScriptSourceIndex } from "./script-source-store.js";
 import { clearDecompilerHealthForClient } from "../../../decompiler/health.js";
 const clientRegistry: Map<string, RobloxClient> = new Map();
 const wsToClientId: Map<WebSocket, string> = new Map();
-const HTTP_CLIENT_RETENTION_MS = HTTP_POLL_TIMEOUT * 2;
+// A mobile executor can lose one or several long-poll responses while its app is
+// backgrounded or a carrier briefly changes networks. Keep the dashboard session
+// active through that short gap, and retain its telemetry longer for a clean rejoin.
+export const HTTP_CLIENT_ACTIVE_GRACE_MS = Math.max(HTTP_POLL_TIMEOUT * 4, 45_000);
+const HTTP_CLIENT_RETENTION_MS = Math.max(HTTP_CLIENT_ACTIVE_GRACE_MS * 4, 180_000);
 let activeClientId: string | undefined = undefined;
 let activeClientIsRemote = false;
 function isClientActive(entry: RobloxClient): boolean {
@@ -15,7 +19,7 @@ function isClientActive(entry: RobloxClient): boolean {
     }
     if (entry.pendingPollResolve)
         return true;
-    return Date.now() - entry.lastHttpPoll < HTTP_POLL_TIMEOUT;
+    return Date.now() - entry.lastHttpPoll < HTTP_CLIENT_ACTIVE_GRACE_MS;
 }
 function removeClient(clientId: string, reason: string): void {
     const entry = clientRegistry.get(clientId);

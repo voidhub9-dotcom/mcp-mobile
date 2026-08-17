@@ -1,5 +1,6 @@
 import { WebSocket } from "ws";
 import type { ClientSessionAlert, RobloxClient } from "../../types.js";
+export declare const HTTP_CLIENT_ACTIVE_GRACE_MS: number;
 export declare function cleanupInactiveHttpClients(now?: number): number;
 export declare function getActiveClientId(): string | undefined;
 export declare function setActiveClientId(clientId: string, options?: {

@@ -1570,16 +1570,18 @@ local function Connect()
 
     -- Polling loop
     local connected = true
-    -- The server normally keeps this request open for up to ten seconds. If an
-    -- executor returns an empty response immediately, use a conservative fallback
-    -- delay so the bridge cannot create a high-rate background request loop.
+    -- The server long-poll ends normally with HTTP 204. Mobile executors and
+    -- carrier networks can also end one request early; do not treat that as a
+    -- session-ending disconnect. Retry the same registered client with bounded
+    -- backoff and only re-register when the server explicitly no longer knows it.
     local configuredPollInterval = tonumber(getgenv().MCP_PollInterval)
-    local pollInterval = math.clamp(configuredPollInterval or 1, 0.5, 10)
+    local pollInterval = math.clamp(configuredPollInterval or 0.35, 0.25, 10)
     local consecutiveFailures = 0
-    local maxConsecutiveFailures = 5
+    local maxPollRetryDelay = 8
 
     while connected do
         local gotCommands = false
+        local retryDelay = nil
         local success, err = pcall(function()
             local pollUrl = BridgeBase() .. "/poll"
             if clientId then
@@ -1591,11 +1593,20 @@ local function Connect()
                 Headers = AuthHeaders(),
             })
 
-            if response.StatusCode ~= 204 and response.StatusCode ~= 200 then
-                consecutiveFailures = consecutiveFailures + 1
-                if consecutiveFailures >= maxConsecutiveFailures then
-                    print("[Mobile MCP] Too many poll failures (last status: " .. tostring(response.StatusCode) .. "), disconnecting")
+            local statusCode = tonumber(response and response.StatusCode) or 0
+            if statusCode ~= 204 and statusCode ~= 200 then
+                -- A missing client means the server restarted or expired the old
+                -- record, so leave this loop once to register again. Other HTTP
+                -- failures keep the same client session and retry in place.
+                if statusCode == 404 then
+                    print("[Mobile MCP] Server no longer recognizes this client; re-registering...")
                     connected = false
+                    return
+                end
+                consecutiveFailures = consecutiveFailures + 1
+                retryDelay = math.min(0.5 * (2 ^ math.min(consecutiveFailures - 1, 4)), maxPollRetryDelay)
+                if consecutiveFailures == 1 or consecutiveFailures % 5 == 0 then
+                    print("[Mobile MCP] Poll returned status " .. tostring(statusCode) .. "; keeping session alive and retrying in " .. tostring(retryDelay) .. " seconds")
                 end
                 return
             end
@@ -1631,14 +1642,14 @@ local function Connect()
 
         if not success then
             consecutiveFailures = consecutiveFailures + 1
-            if consecutiveFailures >= maxConsecutiveFailures then
-                print("[Mobile MCP] Too many poll errors, disconnecting: " .. tostring(err))
-                connected = false
+            retryDelay = math.min(0.5 * (2 ^ math.min(consecutiveFailures - 1, 4)), maxPollRetryDelay)
+            if consecutiveFailures == 1 or consecutiveFailures % 5 == 0 then
+                print("[Mobile MCP] Poll request ended early; keeping session alive and retrying in " .. tostring(retryDelay) .. " seconds: " .. tostring(err))
             end
         end
 
-        if not gotCommands then
-            task.wait(pollInterval)
+        if not gotCommands and connected then
+            task.wait(retryDelay or pollInterval)
         end
     end
 
