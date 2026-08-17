@@ -104,16 +104,15 @@ This is the recommended way to use the server — Claude's web interface connect
 4. Click **Add custom connector**
 5. Fill in the fields:
    - **Name:** `Roblox MCP`
-   - **Remote MCP server URL:** `https://YOUR-APP.up.railway.app/mcp`
+   - **Remote MCP server URL:** `https://YOUR-APP.up.railway.app/mcp?token=YOUR_TOKEN_HERE`
    - Expand **Advanced settings**
    - **OAuth Client ID:** leave blank
    - **OAuth Client Secret:** leave blank
 6. Click **Add**
-7. If you set `MCP_AUTH_TOKEN` on your server, Claude will ask for authorization. In the **Request headers** section that appears, add:
-   - Header name: `Authorization`
-   - Header value: `Bearer YOUR_TOKEN_HERE`
-8. The connector should now show as **Connected**
+7. The connector should now show as **Connected**
 
+> **Important:** Claude's custom connector dialog does not support custom headers (like `Authorization: Bearer ...`). Instead, pass your auth token as a `?token=` query parameter in the URL. The server accepts both methods.
+>
 > **Note:** Custom connectors require a **Claude Pro or Max** plan, or an Owner/Primary Owner role on a Team/Enterprise plan. Free tier does not support custom connectors.
 
 ### Verify the connection
@@ -167,7 +166,7 @@ Now you can chat with Claude.ai and it can:
 ## Troubleshooting
 
 ### Claude says "Connector failed" or "Unauthorized"
-- Make sure you added the `Authorization` header with value `Bearer YOUR_TOKEN_HERE` in the connector's Request headers section
+- Make sure you included `?token=YOUR_TOKEN_HERE` in the connector URL — Claude can't send custom headers, so the token must be in the query parameter
 - The token must match the `MCP_AUTH_TOKEN` env var on your server exactly
 - Remove any `Mcp-Session-Id` header — it's managed automatically by Claude
 

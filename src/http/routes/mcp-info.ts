@@ -40,7 +40,7 @@ a { color: #9933ff; }
 <div class="section">
 <h2>MCP Endpoint</h2>
 <p>URL: <code>${mcpUrl}</code></p>
-${hasAuth ? `<p>Auth: <code>Authorization: Bearer &lt;your-token&gt;</code></p>` : `<p>Auth: <span style="color:#ff6666">Not configured (set MCP_AUTH_TOKEN env var for security)</span></p>`}
+${hasAuth ? `<p>Auth (header): <code>Authorization: Bearer &lt;your-token&gt;</code></p><p>Auth (query param): <code>${mcpUrl}?token=&lt;your-token&gt;</code></p><p class="note">Use the query param method for Claude.ai custom connectors (they don't support custom headers).</p>` : `<p>Auth: <span style="color:#ff6666">Not configured (set MCP_AUTH_TOKEN env var for security)</span></p>`}
 </div>
 
 <div class="section">

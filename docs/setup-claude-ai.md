@@ -8,7 +8,7 @@ Claude.ai only accepts **HTTPS** URLs for custom connectors — plain `http://lo
                  HTTPS (Streamable HTTP)              WebSocket / HTTP polling
   ┌─────────┐ ────────────────────────────────► ┌────────────────────────┐ ◄────────────────────► ┌───────────────────┐
   │ Claude  │   POST https://YOUR_HOST/mcp      │  MCP Server             │                       │  Roblox client    │
-  │ .ai     │   Authorization: Bearer <token>  │  Port 16384 (--http)    │                       │  (Delta/CodeX/PC) │
+  │ .ai     │   ?token=YOUR_TOKEN               │  Port 16384 (--http)    │                       │  (Delta/CodeX/PC) │
   └─────────┘                                   │  Mcp-Session-Id        │                       └───────────────────┘
                                                 └────────────────────────┘
 ```
@@ -82,7 +82,7 @@ Cloud platforms set the `PORT` env var automatically; the server reads it and li
 
 ## Step 2: Set the auth token (required for security)
 
-Set `MCP_AUTH_TOKEN` to a long random string. The server checks every request for `Authorization: Bearer <token>` and rejects anything that doesn't match.
+Set `MCP_AUTH_TOKEN` to a long random string. The server checks every request for the token via `Authorization: Bearer <token>` header OR `?token=<token>` query parameter.
 
 - **Local:** start the server with the env var:
 
@@ -105,19 +105,17 @@ Set `MCP_AUTH_TOKEN` to a long random string. The server checks every request fo
    - On **Team/Enterprise** plans this lives under **Organization settings → Connectors → Add → Custom → Web** (done by an Owner), and members then go to **Customize → Connectors** to click **Connect**.
 3. Fill in:
    - **Name:** `Roblox MCP` (or anything you like)
-   - **URL:** your HTTPS `/mcp` endpoint, e.g.
-     - `https://random-words-xxxx.trycloudflare.com/mcp` (tunnel)
-     - `https://mcp-mobile-production.up.railway.app/mcp` (cloud)
-4. Add the Bearer token as a request header (this is how static token auth works in Claude — leave the OAuth Client ID/Secret fields blank):
-   - Open the **Request headers** section.
-   - Add a header named `authorization` (it's on Claude's allowlist).
-   - Value: `Bearer YOUR_TOKEN_HERE` — include the word `Bearer`, a space, then your token. Most servers reject a bare token without the `Bearer ` prefix.
-   - Mark it **Required**.
-5. Click **Add**, then **Connect**.
+   - **Remote MCP server URL:** your HTTPS `/mcp` endpoint **with the token as a query parameter**, e.g.
+     - `https://random-words-xxxx.trycloudflare.com/mcp?token=YOUR_TOKEN_HERE` (tunnel)
+     - `https://mcp-mobile-production.up.railway.app/mcp?token=YOUR_TOKEN_HERE` (cloud)
+   - Expand **Advanced settings**
+   - **OAuth Client ID:** leave blank
+   - **OAuth Client Secret:** leave blank
+4. Click **Add**, then **Connect**.
 
 Claude will call the endpoint and list the available tools. You should see a green "Connected" status.
 
-> The OAuth Client ID and Secret fields are **optional** — only fill them in if you've built a full OAuth authorization server. This server uses a static Bearer token, so use the Request headers approach instead.
+> **Important:** Claude's custom connector dialog does not have a "Request headers" section. It only supports Name, URL, and OAuth fields. To pass your auth token, append `?token=YOUR_TOKEN_HERE` to the URL. The server accepts both the `Authorization: Bearer` header (for other MCP clients) and the `?token=` query parameter (for Claude.ai).
 
 ## Step 4: Connect the Roblox client
 
@@ -188,12 +186,12 @@ Once connected, Claude sees these tools (all require an active Roblox client unl
 
 ### 401 Unauthorized
 
-The `Authorization` header Claude sends doesn't match `MCP_AUTH_TOKEN` on the server.
+The token in the URL doesn't match `MCP_AUTH_TOKEN` on the server.
 
-- Confirm the header value is exactly `Bearer ` + your token (with the space).
+- Confirm your connector URL includes `?token=YOUR_TOKEN_HERE` (Claude can't send headers, so the token must be in the query parameter).
 - Confirm `MCP_AUTH_TOKEN` is set on the **server process that's actually running** (restart it after changing the env var).
 - On cloud deployments, re-check the variable in the Railway/Render dashboard — a typo or trailing space will break it.
-- If you skipped Step 2 and ran without a token, either set one and add the header, or (local testing only) leave `MCP_AUTH_TOKEN` unset so the server accepts all requests.
+- If you skipped Step 2 and ran without a token, either set one and add `?token=` to the URL, or (local testing only) leave `MCP_AUTH_TOKEN` unset so the server accepts all requests.
 
 ### 404 / "Session not found"
 

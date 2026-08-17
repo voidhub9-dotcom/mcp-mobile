@@ -204,9 +204,11 @@ MCP_AUTH_TOKEN=your-secret-token node dist/index.js --http
 4. **Add the connector in Claude:**
    - Go to **Settings > Connectors > Add custom connector**
    - **Name:** `Roblox MCP`
-   - **URL:** `https://YOUR-TUNNEL-URL/mcp`
-   - Leave OAuth fields blank (use `MCP_AUTH_TOKEN` for Bearer auth instead)
+   - **URL:** `https://YOUR-TUNNEL-URL/mcp?token=YOUR_TOKEN_HERE`
+   - Leave OAuth fields blank
    - Click **Add**
+
+   > Claude's connector dialog doesn't support custom headers. Pass your auth token as `?token=` in the URL instead.
 
 5. **Connect your Roblox client** using the connector script:
 ```lua

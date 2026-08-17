@@ -32,6 +32,13 @@ function checkAuth(req, res) {
     if (typeof adminToken === "string" && adminToken.length > 0) {
         return true;
     }
+    // Support token via query parameter (for clients like Claude.ai that
+    // can't send custom headers — e.g. ?token=YOUR_TOKEN)
+    const url = new URL(req.url || "", "http://localhost");
+    const queryToken = url.searchParams.get("token");
+    if (typeof queryToken === "string" && queryToken === MCP_AUTH_TOKEN) {
+        return true;
+    }
     res.writeHead(401, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Unauthorized" }));
     return false;
