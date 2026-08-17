@@ -35,7 +35,7 @@ end
 -- Player.Idled event. Disabled when getgenv().MCP_DisableAntiAFK = true.
 if getgenv().MCP_DisableAntiAFK ~= true then
     local VirtualUser = game:GetService("VirtualUser")
-    local localPlayer_afk = Players.LocalPlayer
+    local localPlayer_afk = game:GetService("Players").LocalPlayer
     if localPlayer_afk then
         localPlayer_afk.Idled:Connect(function()
             pcall(function()
