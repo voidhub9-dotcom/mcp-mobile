@@ -370,20 +370,12 @@ local function GenerateSessionGuid()
     return tostring(os.clock()) .. "-" .. tostring(math.random(1, 1000000000))
 end
 
-local function GetClientIdentityKey()
-    local player = Players.LocalPlayer
-    return table.concat({
-        tostring(game.PlaceId or 0),
-        tostring(game.JobId or ""),
-        tostring(player and player.UserId or 0),
-    }, ":")
-end
-
+-- This identifier deliberately survives a place or JobId change while the
+-- executor session remains alive. The bridge can then report that movement as
+-- a session alert instead of registering an unrelated new client.
 local function GetStableClientSessionId()
-    local identityKey = GetClientIdentityKey()
-    if type(getgenv().MCP_ClientSessionId) ~= "string" or getgenv().MCP_ClientIdentityKey ~= identityKey then
+    if type(getgenv().MCP_ClientSessionId) ~= "string" or getgenv().MCP_ClientSessionId == "" then
         getgenv().MCP_ClientSessionId = GenerateSessionGuid()
-        getgenv().MCP_ClientIdentityKey = identityKey
     end
     return getgenv().MCP_ClientSessionId
 end
