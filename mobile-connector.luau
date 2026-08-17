@@ -31,9 +31,9 @@ if not game:IsLoaded() then
 end
 
 --// ─── Anti-AFK ──────────────────────────────────────────────────── \\\\--
--- Prevents accidental idle disconnections by responding to the
--- Player.Idled event. Disabled when getgenv().MCP_DisableAntiAFK = true.
-if getgenv().MCP_DisableAntiAFK ~= true then
+-- Synthetic anti-AFK input is disabled by default because some games and mobile
+-- executors react poorly to it. Opt in explicitly with MCP_EnableAntiAFK = true.
+if getgenv().MCP_EnableAntiAFK == true and getgenv().MCP_DisableAntiAFK ~= true then
     local VirtualUser = game:GetService("VirtualUser")
     local localPlayer_afk = game:GetService("Players").LocalPlayer
     if localPlayer_afk then
@@ -1560,7 +1560,11 @@ local function Connect()
 
     -- Polling loop
     local connected = true
-    local pollInterval = 0.15 -- Slightly slower for mobile
+    -- The server normally keeps this request open for up to ten seconds. If an
+    -- executor returns an empty response immediately, use a conservative fallback
+    -- delay so the bridge cannot create a high-rate background request loop.
+    local configuredPollInterval = tonumber(getgenv().MCP_PollInterval)
+    local pollInterval = math.clamp(configuredPollInterval or 1, 0.5, 10)
     local consecutiveFailures = 0
     local maxConsecutiveFailures = 5
 
@@ -1646,11 +1650,16 @@ for name, available in pairs(Capabilities) do
     print("  " .. (available and "[OK]" or "[--]") .. " " .. name)
 end
 
--- Reconnect loop
-while true do
-    local success = pcall(Connect)
-    if not success then
-        print("[Mobile MCP] Connection error, retrying in 3 seconds...")
+-- Reconnect loop. Back off after lost connections so a network or executor
+-- failure cannot create a continuous background reconnect storm.
+local reconnectDelay = 5
+while getgenv().MCP_Loaded == true do
+    local completed, connected = pcall(Connect)
+    if completed and connected == true then
+        reconnectDelay = 5
+    else
+        print("[Mobile MCP] Connection ended; retrying in " .. reconnectDelay .. " seconds...")
+        task.wait(reconnectDelay)
+        reconnectDelay = math.min(reconnectDelay * 2, 60)
     end
-    task.wait(3)
 end
