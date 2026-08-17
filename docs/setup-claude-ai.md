@@ -5,12 +5,12 @@
 Claude.ai only accepts **HTTPS** URLs for custom connectors — plain `http://localhost` will not work. This guide shows two ways to get a public HTTPS endpoint in front of your server: a quick local tunnel, or a managed cloud deployment.
 
 ```
-                 HTTPS (Streamable HTTP)              WebSocket / HTTP polling
-  ┌─────────┐ ────────────────────────────────► ┌────────────────────────┐ ◄────────────────────► ┌───────────────────┐
-  │ Claude  │   POST https://YOUR_HOST/mcp      │  MCP Server             │                       │  Roblox client    │
-  │ .ai     │   ?token=YOUR_TOKEN               │  Port 16384 (--http)    │                       │  (Delta/CodeX/PC) │
-  └─────────┘                                   │  Mcp-Session-Id        │                       └───────────────────┘
-                                                └────────────────────────┘
+                    HTTPS OAuth + Streamable HTTP                   WebSocket / HTTP polling
+  ┌─────────┐ ───────────────────────────────────────────────► ┌────────────────────────┐ ◄────────────────────► ┌───────────────────┐
+  │ Claude  │   1. Discover OAuth metadata at /mcp             │  MCP Server             │                       │  Roblox client    │
+  │ .ai     │   2. Sign in with MCP_AUTH_TOKEN                 │  Port 16384 (--http)    │                       │  (Delta/CodeX/PC) │
+  │         │   3. Use short-lived Bearer token for /mcp       │  OAuth + MCP endpoint   │                       │                   │
+  └─────────┘                                                  └────────────────────────┘                       └───────────────────┘
 ```
 
 ## Prerequisites
@@ -18,7 +18,7 @@ Claude.ai only accepts **HTTPS** URLs for custom connectors — plain `http://lo
 - A built copy of this server (`npm run build`)
 - **Node.js** ≥ 18
 - A **Roblox executor** connected as a client (PC or mobile) — see [Mobile Setup](setup-mobile.md)
-- A **paid Claude plan** (Pro or Max) or an Owner/Primary Owner role on a Team/Enterprise plan — custom connectors are not available on the Free tier
+- A Claude account with permission to add a custom connector. Plan and organization settings can limit how many custom connectors are available or who can add them; check your Claude connector settings if the option is unavailable.
 
 ## Step 1: Get an HTTPS endpoint
 

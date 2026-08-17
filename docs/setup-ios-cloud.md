@@ -30,7 +30,7 @@ Cloud (Railway/Render):
 
 - An **iPhone** (or any device) with a mobile Roblox executor (Delta, CodeX, etc.)
 - A **GitHub account** (to fork the repo and deploy)
-- A **Claude Pro or Max plan** (required for custom connectors on claude.ai)
+- A Claude account with permission to add a custom connector. If the option is unavailable, check your plan and organization connector settings.
 
 ## Step 1: Fork the Repository
 
@@ -115,7 +115,7 @@ This is the recommended way to use the server — Claude's web interface connect
 
 > **Important:** Do not add `?token=YOUR_TOKEN_HERE` to the Claude connector URL. Claude discovers the server’s OAuth metadata, registers a client, and receives a short-lived OAuth token after you authorize it. This avoids keeping the long-lived server token in the connector URL.
 >
-> **Note:** Custom connectors require a **Claude Pro or Max** plan, or an Owner/Primary Owner role on a Team/Enterprise plan. Free tier does not support custom connectors.
+> **Note:** Connector availability and who can add a custom connector can depend on your Claude plan and organization settings. If **Add custom connector** is unavailable, check those settings before continuing.
 
 ### Verify the connection
 
