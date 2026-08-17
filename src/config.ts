@@ -5,7 +5,11 @@ export const HTTP_POLL_TIMEOUT = 10000;
 export const PROMOTION_JITTER_MAX = 300;
 export const TOOL_RESPONSE_TIMEOUT = 15000;
 export const MCP_AUTH_TOKEN: string | null = process.env.MCP_AUTH_TOKEN || null;
-/** Public HTTPS origin used in OAuth metadata, for example https://your-app.up.railway.app. */
+/**
+ * Optional public-origin override for reverse proxies that do not forward the original Host
+ * and X-Forwarded-Proto headers. Ordinary Railway, Render, tunnel, and cloned deployments
+ * derive their OAuth origin from each incoming request and do not need this setting.
+ */
 export const PUBLIC_BASE_URL: string | null = process.env.PUBLIC_BASE_URL || null;
 const args = process.argv.slice(2);
 const baseUrlIdx = args.indexOf("--baseurl");

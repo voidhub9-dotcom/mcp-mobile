@@ -56,12 +56,12 @@ Railway gives you a free public HTTPS URL for your server.
 ### Set the auth token (important for security)
 
 1. In Railway, go to your project > **Variables**.
-2. Add these variables:
+2. Add this variable:
    - Key: `MCP_AUTH_TOKEN`
    - Value: any random string (use at least 32 random characters)
-   - Key: `PUBLIC_BASE_URL`
-   - Value: the Railway HTTPS URL you generated, for example `https://mcp-mobile-production.up.railway.app` (without a trailing slash)
 3. The server auto-restarts with the new configuration.
+
+> Every clone derives its OAuth metadata and issuer from **its own** Railway or Render HTTPS URL. Do not copy another deployment’s URL, OAuth Client ID, or OAuth Client Secret into your project.
 
 ## Alternative: Deploy to Render (Free)
 
@@ -71,9 +71,8 @@ Railway gives you a free public HTTPS URL for your server.
 4. Connect your GitHub repo: `YOUR_USERNAME/mcp-mobile`
 5. Render auto-detects `render.yaml` — just confirm the settings
 6. Add environment variable `MCP_AUTH_TOKEN` with a random string.
-7. After Render assigns the HTTPS URL, add `PUBLIC_BASE_URL` with that exact origin (without a trailing slash).
-8. Tap **Create Web Service** or redeploy after adding the URL.
-9. Wait for deployment — you get a URL like `https://mcp-mobile.onrender.com`.
+7. Tap **Create Web Service**.
+8. Wait for deployment — you get a URL like `https://mcp-mobile.onrender.com`. The server discovers this URL automatically when Claude connects.
 
 ## Step 3: Connect Your iPhone's Roblox Executor
 
@@ -169,8 +168,8 @@ Now you can chat with Claude.ai and it can:
 
 ### Claude says “Couldn’t register” or the sign-in flow fails
 - Confirm this OAuth-enabled version is deployed; the server must expose `/.well-known/oauth-protected-resource/mcp` as JSON.
-- Set `PUBLIC_BASE_URL` to the exact public HTTPS origin and restart the service after updating variables.
-- Add the connector as `https://YOUR-APP.up.railway.app/mcp` without `?token=` and leave Advanced settings blank.
+- Set `MCP_AUTH_TOKEN` on the deployment, then restart it after updating the variable.
+- Add the connector using **your own** URL, as `https://YOUR-APP.up.railway.app/mcp`, without `?token=`, and leave Advanced settings blank.
 - On the Roblox MCP sign-in page, enter the `MCP_AUTH_TOKEN` value exactly as it appears in Railway/Render.
 - If an old query-token connector already exists, remove it and add it again to start a clean OAuth flow.
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import http from "node:http";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -34,14 +35,43 @@ function form(values) {
     return new URLSearchParams(values).toString();
 }
 
+function requestAsPublicOrigin(origin, path) {
+    const publicUrl = new URL(origin);
+    return new Promise((resolve, reject) => {
+        const request = http.request({
+            host: "127.0.0.1",
+            port,
+            path,
+            method: "GET",
+            headers: {
+                Host: publicUrl.host,
+                "X-Forwarded-Proto": publicUrl.protocol.replace(":", ""),
+            },
+        }, (response) => {
+            let body = "";
+            response.setEncoding("utf8");
+            response.on("data", (chunk) => { body += chunk; });
+            response.on("end", () => resolve({
+                status: response.statusCode,
+                headers: response.headers,
+                body,
+            }));
+        });
+        request.once("error", reject);
+        request.end();
+    });
+}
+
+const testEnvironment = {
+    ...process.env,
+    PORT: String(port),
+    MCP_AUTH_TOKEN: serverToken,
+};
+delete testEnvironment.PUBLIC_BASE_URL;
+
 const server = spawn("node", ["dist/index.js", "--http"], {
     cwd: projectRoot,
-    env: {
-        ...process.env,
-        PORT: String(port),
-        MCP_AUTH_TOKEN: serverToken,
-        PUBLIC_BASE_URL: baseUrl,
-    },
+    env: testEnvironment,
     stdio: ["ignore", "pipe", "pipe"],
 });
 
@@ -58,6 +88,25 @@ try {
         unauthenticated.headers.get("www-authenticate"),
         `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource/mcp", scope="mcp"`,
     );
+
+    for (const deploymentOrigin of ["https://alice-clone.example", "https://bob-clone.example"]) {
+        const metadataResponse = await requestAsPublicOrigin(deploymentOrigin, "/.well-known/oauth-protected-resource/mcp");
+        assert.equal(metadataResponse.status, 200);
+        assert.deepEqual(JSON.parse(metadataResponse.body), {
+            resource: `${deploymentOrigin}/mcp`,
+            authorization_servers: [deploymentOrigin],
+            scopes_supported: ["mcp"],
+            bearer_methods_supported: ["header"],
+            resource_name: "Roblox MCP",
+            resource_documentation: `${deploymentOrigin}/mcp-info`,
+        });
+        const challengeResponse = await requestAsPublicOrigin(deploymentOrigin, "/mcp");
+        assert.equal(challengeResponse.status, 401);
+        assert.equal(
+            challengeResponse.headers["www-authenticate"],
+            `Bearer resource_metadata="${deploymentOrigin}/.well-known/oauth-protected-resource/mcp", scope="mcp"`,
+        );
+    }
 
     const protectedResourceMetadata = await (await fetch(`${baseUrl}/.well-known/oauth-protected-resource/mcp`)).json();
     assert.deepEqual(protectedResourceMetadata, {

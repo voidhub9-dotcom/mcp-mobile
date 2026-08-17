@@ -147,7 +147,7 @@ You can still use Claude, ChatGPT, or Cursor via the tunnel URL if you prefer:
 3. Leave advanced OAuth settings empty, select **Add**, then select **Connect**.
 4. On the Roblox MCP sign-in page, enter the `MCP_AUTH_TOKEN` value you exported in Termux and authorize the connector.
 
-Claude discovers the server metadata, registers a connector client, and receives a short-lived OAuth access token. For a temporary tunnel, the server derives its public URL from the incoming request; set `PUBLIC_BASE_URL` only when you use a stable custom domain.
+Claude discovers the server metadata, registers a connector client, and receives a short-lived OAuth access token. The server derives its OAuth origin from the incoming public request, so every temporary tunnel, custom domain, Railway deployment, and independent clone works without a repository-specific URL or OAuth client configuration.
 
 ### ChatGPT (Developer Mode)
 Add the public `https://YOUR_TUNNEL_URL/mcp` endpoint using the OAuth-capable connector flow supported by your ChatGPT account. Do not share the long-lived `MCP_AUTH_TOKEN` in a URL.

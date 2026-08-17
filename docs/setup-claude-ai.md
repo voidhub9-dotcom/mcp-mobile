@@ -92,11 +92,11 @@ Set `MCP_AUTH_TOKEN` to a long random string. The server uses it as the administ
   npm run start:http
   ```
 
-- **Cloud (Railway/Render):** add these environment variables in the dashboard:
+- **Cloud (Railway/Render):** add this environment variable in the dashboard:
   - Key: `MCP_AUTH_TOKEN`
   - Value: any random string (e.g. 32+ characters)
-  - Key: `PUBLIC_BASE_URL` *(recommended)*
-  - Value: your public HTTPS origin, such as `https://mcp-mobile-production.up.railway.app` (without a trailing slash)
+
+> **Clone-safe by default:** Every deployed copy derives its own OAuth issuer, protected-resource metadata, and authorization endpoints from the HTTPS URL that Claude connects to. Do not set a repository-specific URL, OAuth Client ID, or OAuth Client Secret for a normal Railway, Render, tunnel, or custom-domain deployment.
 
 > Without `MCP_AUTH_TOKEN`, anyone who knows your URL can execute Luau in your Roblox client. Never deploy to the cloud without it.
 
@@ -189,8 +189,8 @@ Once connected, Claude sees these tools (all require an active Roblox client unl
 
 Claude could not complete OAuth discovery, dynamic client registration, or the authorization-code exchange.
 
-- Deploy the version that includes the OAuth routes, then set both `MCP_AUTH_TOKEN` and `PUBLIC_BASE_URL` in Railway/Render and restart the service.
-- Confirm the connector URL is exactly `https://YOUR_HOST/mcp`, with no `?token=` parameter.
+- Deploy the version that includes the OAuth routes, then set `MCP_AUTH_TOKEN` in Railway/Render and restart the service.
+- Confirm the connector URL is exactly **your own deployment URL** in the form `https://YOUR_HOST/mcp`, with no `?token=` parameter.
 - Open `https://YOUR_HOST/.well-known/oauth-protected-resource/mcp` in a browser. It must return JSON metadata, not `MCP Server Running`.
 - When the sign-in page opens, enter the exact `MCP_AUTH_TOKEN` configured on the running server. A typo or trailing space will fail authorization.
 - If you previously added the connector using a query token, remove it and add it again so Claude starts the OAuth flow from a clean configuration.
