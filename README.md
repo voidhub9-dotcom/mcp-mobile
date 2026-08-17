@@ -31,7 +31,7 @@ Use it to see connected Roblox clients, inspect scripts, run tools, view server 
 - **Anti-AFK** — Automatically prevents idle disconnections by responding to the `Player.Idled` event. Keeps you in the game.
 - **Claude Remote Connector Support** — Works as a secure custom connector in Claude's web interface. See the [Claude Remote Connector Guide](docs/claude-connector.md).
 - **Custom AI Chat** — Built-in chat interface at `/ai` supporting any Anthropic-compatible API with api-key, bearer token, or custom header auth. Screenshot images are passed to the AI as vision content.
-- **Mobile Support** — Works with mobile executors (Delta, CodeX, VegaX, etc.) with fallbacks for missing APIs. See [Mobile README](MOBILE-README.md).
+- **Mobile Support** — Works with mobile executors (Delta, CodeX, VegaX, etc.) with fallbacks for missing APIs. See the [Mobile Setup Guide](docs/setup-mobile.md) or [Mobile-Only Setup Guide](docs/setup-mobile-only.md).
 
 ## Tutorial
 
@@ -170,7 +170,7 @@ loadstring(game:HttpGet("https://YOUR-APP.up.railway.app/mobile-connector.luau")
 
 ### Mobile + PC Setup
 
-If you have a PC, see the [Mobile Setup Guide](docs/setup-mobile.md) and [Mobile README](MOBILE-README.md).
+If you have a PC, see the [Mobile Setup Guide](docs/setup-mobile.md).
 
 ```lua
 loadstring(game:HttpGet("http://YOUR_PC_IP:16384/mobile-connector.luau"))("YOUR_PC_IP:16384")
