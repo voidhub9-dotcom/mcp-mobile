@@ -776,6 +776,7 @@ loop(0.35, function()
 
     local egg = target.egg
     local areaId = egg.AreaId
+    local dropoff = plotDropoff()
     StealStatus = string.format("Travelling to %s (%sKg) in %s",
         tostring(egg.AssetCategory), formatKg(target.kg), tostring(areaId))
 
@@ -819,11 +820,13 @@ loop(0.35, function()
     Stats.stolen = Stats.stolen + 1
     StealStatus = "Carrying " .. tostring(egg.AssetCategory) .. " home"
 
-    local dropoff = plotDropoff()
+    dropoff = dropoff or plotDropoff()
     if dropoff then
+        local leftAt = os.clock()
         travelTo(dropoff, function()
             if not S.stealAuto then return false end
-            if S.stealDropOnGuard and (guardHuntingMe(areaId) or guardDistance(areaId) < 25) then
+            if S.stealDropOnGuard and (os.clock() - leftAt) > 1.5
+                and (guardHuntingMe(areaId) or guardDistance(areaId) < 25) then
                 dropCarriedEgg("GuardCaughtUp")
                 StealStatus = "Dropped egg - guard caught up"
                 return false
