@@ -7,7 +7,28 @@ export const HTTP_POLL_TIMEOUT = Number.isFinite(configuredHttpPollTimeout)
     ? Math.min(Math.max(configuredHttpPollTimeout, 3000), 30000)
     : 6000;
 export const PROMOTION_JITTER_MAX = 300;
-export const TOOL_RESPONSE_TIMEOUT = 15000;
+/**
+ * How long a client that has stopped long-polling still counts as connected.
+ *
+ * A mobile executor goes quiet for far longer than one poll cycle in normal use:
+ * the app is backgrounded, the screen locks, the phone changes cell or hands off
+ * to Wi-Fi, or the connector is sitting in its reconnect backoff. None of those
+ * mean the session is gone, and dropping the client mid-gap is what makes the
+ * dashboard flap between connected and disconnected. Keep the window comfortably
+ * longer than the connector's worst-case reconnect (poll backoff + reconnect
+ * delay + liveness probe + re-register) so a client that is coming back is never
+ * declared dead first.
+ */
+const configuredClientGrace = parseInt(process.env.HTTP_CLIENT_GRACE_MS || "120000", 10);
+export const HTTP_CLIENT_GRACE_MS = Number.isFinite(configuredClientGrace)
+    ? Math.min(Math.max(configuredClientGrace, 30_000), 900_000)
+    : 120_000;
+const configuredToolTimeout = parseInt(process.env.TOOL_RESPONSE_TIMEOUT_MS || "30000", 10);
+// Mobile executors answer slower than desktop ones: a command can wait out a poll
+// cycle before it is even delivered, then run on a throttled background thread.
+export const TOOL_RESPONSE_TIMEOUT = Number.isFinite(configuredToolTimeout)
+    ? Math.min(Math.max(configuredToolTimeout, 5_000), 300_000)
+    : 30000;
 export const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN || null;
 /**
  * Optional public-origin override for reverse proxies that do not forward the original Host

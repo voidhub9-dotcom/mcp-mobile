@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/dashboard.css">
+    <link rel="stylesheet" href="/dashboard-refresh.css">
     <link rel="stylesheet" href="/theme-settings.css">
     <link rel="stylesheet" href="/custom-provider-editor.css">
     <link rel="stylesheet" href="/client-setup.css">
@@ -330,6 +331,46 @@
                             <button class="monitor-copy-button" id="monitorCopySnapshot" type="button">Copy health snapshot</button>
                         </article>
                     </div>
+
+                    <!-- ─── Connection health ─────────────────── -->
+                    <section class="linkhealth" aria-label="Connection health">
+                        <div class="linkhealth-head">
+                            <div class="linkhealth-title">
+                                <span class="linkhealth-kicker">LINK QUALITY</span>
+                                <h3>Is it actually staying connected?</h3>
+                            </div>
+                            <span class="linkhealth-verdict linkhealth-verdict--idle" id="linkHealthVerdict">Awaiting client</span>
+                        </div>
+
+                        <div class="linkhealth-strip" id="linkHealthStrip" role="img"
+                             aria-label="Recent connection freshness samples, oldest to newest"></div>
+                        <div class="linkhealth-scale" id="linkHealthScale"><span>—</span><span>now</span></div>
+
+                        <dl class="linkhealth-stats">
+                            <div class="linkhealth-stat">
+                                <dt>Session uptime</dt><dd id="linkHealthUptime">—</dd>
+                            </div>
+                            <div class="linkhealth-stat">
+                                <dt>Idle</dt><dd id="linkHealthIdle">—</dd>
+                            </div>
+                            <div class="linkhealth-stat">
+                                <dt>Held</dt><dd id="linkHealthHold">—</dd>
+                            </div>
+                            <div class="linkhealth-stat">
+                                <dt>Drops seen</dt><dd id="linkHealthDrops">0</dd>
+                            </div>
+                            <div class="linkhealth-stat">
+                                <dt>Reconnects</dt><dd id="linkHealthReconnects">0</dd>
+                            </div>
+                            <div class="linkhealth-stat">
+                                <dt>Server hops</dt><dd id="linkHealthMoves">0</dd>
+                            </div>
+                        </dl>
+
+                        <div class="linkhealth-ledger" id="linkHealthLedger">
+                            <div class="linkhealth-empty">No connection transitions recorded yet.</div>
+                        </div>
+                    </section>
                 </section>
             </div>
 
@@ -1038,6 +1079,9 @@
     </div>
 
     <script src="custom-provider-editor.js"></script>
+    <!-- Classic script: runs before the deferred module, so window.connectionHealth
+         is in place by the time dashboard.js takes its first status sample. -->
+    <script src="/connection-health.js"></script>
     <script type="module" src="dashboard.js"></script>
 </body>
 </html>

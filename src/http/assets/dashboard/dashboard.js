@@ -3652,6 +3652,11 @@ $('settingsTestBtn').addEventListener('click', async () => {
 });
 
 /* ── Polling ─────────────────────────────────────────────── */
+// Status is sampled every 2s; tolerate a few consecutive misses (~10s) before
+// deciding the selected client is really gone.
+const MISSED_SAMPLES_BEFORE_DROP = 5;
+let missedClientSamples = 0;
+
 async function updateStatus() {
     try {
         const res = await dashboardApiFetch('/api/status');
@@ -3664,14 +3669,31 @@ async function updateStatus() {
         // Overview tiles
         const cb = $('connBadge'); if(cb) { cb.textContent = data.connected?'Active':'Inactive'; cb.className='status-tile-badge '+(data.connected?'status-tile-badge--green':''); }
 
-        if (selectedClientId && !clients.find(c => c.clientId === selectedClientId)) {
-            showToast('Client disconnected', 'error');
-            selectedClientId = null;
-            resetScriptsState();
-            clientSelectorName.textContent = 'Select Client';
-            clientSelectorAvatar.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>';
-            setSidebarMode('home');
-            showView('clients');
+        const selectedClient = selectedClientId
+            ? clients.find(c => c.clientId === selectedClientId)
+            : null;
+
+        // Don't tear the user out of the client view on a single missed sample.
+        // A backgrounded mobile executor routinely drops out of one poll and is
+        // back on the next; only give up once it has really stopped answering.
+        if (selectedClientId && !selectedClient) {
+            missedClientSamples += 1;
+            if (missedClientSamples >= MISSED_SAMPLES_BEFORE_DROP) {
+                missedClientSamples = 0;
+                showToast('Client disconnected', 'error');
+                selectedClientId = null;
+                resetScriptsState();
+                clientSelectorName.textContent = 'Select Client';
+                clientSelectorAvatar.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>';
+                setSidebarMode('home');
+                showView('clients');
+            }
+        } else {
+            missedClientSamples = 0;
+        }
+
+        if (window.connectionHealth) {
+            window.connectionHealth.update(selectedClient || null);
         }
 
         if (dashboardMode === 'home' && currentView === 'clients') {

@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { WebSocket } from "ws";
-import { HTTP_POLL_TIMEOUT } from "../../../config.js";
+import { HTTP_CLIENT_GRACE_MS, HTTP_POLL_TIMEOUT } from "../../../config.js";
 import { clearScriptSourceIndex } from "./script-source-store.js";
 import { clearDecompilerHealthForClient } from "../../../decompiler/health.js";
 const clientRegistry = new Map();
@@ -8,7 +8,7 @@ const wsToClientId = new Map();
 // A mobile executor can lose one or several long-poll responses while its app is
 // backgrounded or a carrier briefly changes networks. Keep the dashboard session
 // active through that short gap, and retain its telemetry longer for a clean rejoin.
-export const HTTP_CLIENT_ACTIVE_GRACE_MS = Math.max(HTTP_POLL_TIMEOUT * 4, 45_000);
+export const HTTP_CLIENT_ACTIVE_GRACE_MS = Math.max(HTTP_POLL_TIMEOUT * 4, HTTP_CLIENT_GRACE_MS);
 const HTTP_CLIENT_RETENTION_MS = Math.max(HTTP_CLIENT_ACTIVE_GRACE_MS * 4, 180_000);
 let activeClientId = undefined;
 let activeClientIsRemote = false;

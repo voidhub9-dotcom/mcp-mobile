@@ -1627,6 +1627,10 @@ local function Connect()
     local pollInterval = math.clamp(configuredPollInterval or 0.35, 0.25, 10)
     local consecutiveFailures = 0
     local maxPollRetryDelay = 8
+    -- Set when the server explicitly forgot this client (HTTP 404). That is an
+    -- ordinary re-registration, not a failed connection, so the caller must not
+    -- treat it as a reason to back off before trying again.
+    local needsReregister = false
 
     while connected do
         local gotCommands = false
@@ -1650,6 +1654,7 @@ local function Connect()
                 if statusCode == 404 then
                     print("[Mobile MCP] Server no longer recognizes this client; re-registering...")
                     connected = false
+                    needsReregister = true
                     return
                 end
                 consecutiveFailures = consecutiveFailures + 1
@@ -1702,6 +1707,14 @@ local function Connect()
         end
     end
 
+    -- Reaching here after a real session means the loop ended deliberately, which
+    -- today only happens when the server asked us to register again. Report that
+    -- as a healthy session so the reconnect loop retries immediately instead of
+    -- escalating its backoff past the server's active-client grace window.
+    if needsReregister then
+        return true
+    end
+
     print("[Mobile MCP] Disconnected from server")
     return false
 end
@@ -1720,16 +1733,22 @@ for name, available in pairs(Capabilities) do
     print("  " .. (available and "[OK]" or "[--]") .. " " .. name)
 end
 
--- Reconnect loop. Back off after lost connections so a network or executor
--- failure cannot create a continuous background reconnect storm.
-local reconnectDelay = 5
+-- Reconnect loop. Back off after genuinely lost connections so a network or
+-- executor failure cannot create a continuous background reconnect storm, but
+-- keep the ceiling well inside the server's active-client grace window: a client
+-- that sleeps longer than that window is dropped from the registry and shows up
+-- on the dashboard as disconnected even though it is about to come back.
+local MIN_RECONNECT_DELAY = 2
+local MAX_RECONNECT_DELAY = 15
+local reconnectDelay = MIN_RECONNECT_DELAY
 while getgenv().MCP_Loaded == true do
     local completed, connected = pcall(Connect)
     if completed and connected == true then
-        reconnectDelay = 5
+        -- Healthy session that ended only to re-register: reconnect at once.
+        reconnectDelay = MIN_RECONNECT_DELAY
     else
         print("[Mobile MCP] Connection ended; retrying in " .. reconnectDelay .. " seconds...")
         task.wait(reconnectDelay)
-        reconnectDelay = math.min(reconnectDelay * 2, 60)
+        reconnectDelay = math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY)
     end
 end
