@@ -293,28 +293,51 @@ local function rarityRank(name)
 end
 
 local RarityCache = {}
+local RarityNameByTable = nil
+
+local function buildRarityIdentityMap()
+    if RarityNameByTable then return RarityNameByTable end
+    RarityNameByTable = {}
+    local rarities = Game.Rarity and Game.Rarity.Rarities
+    if type(rarities) == "table" then
+        for name, def in pairs(rarities) do
+            if type(def) == "table" then
+                RarityNameByTable[def] = name
+            end
+        end
+    end
+    return RarityNameByTable
+end
 
 local function rarityOf(category)
     if not category then return nil end
-    if RarityCache[category] ~= nil then
-        return RarityCache[category] or nil
+    local cached = RarityCache[category]
+    if cached ~= nil then
+        return cached or nil
     end
+
     local found = nil
     local assets = Game.Assets
-    if assets then
-        local dir = assets.Directory
-        if type(dir) == "table" and type(dir[category]) == "table" and dir[category].Rarity then
-            found = dir[category].Rarity
-        end
-        if not found and type(assets.ByRarity) == "table" then
-            for rarityName, pets in pairs(assets.ByRarity) do
-                if type(pets) == "table" and pets[category] ~= nil then
-                    found = rarityName
-                    break
+    local directory = assets and assets.Directory
+
+    if type(directory) == "table" then
+        local ok, def = pcall(function() return directory[category] end)
+        if ok and type(def) == "table" then
+            local raw = def.Rarity
+            if type(raw) == "string" then
+                found = raw
+            elseif type(raw) == "table" then
+                if type(raw._id) == "string" then
+                    found = raw._id
+                elseif type(raw.DisplayName) == "string" then
+                    found = raw.DisplayName
+                else
+                    found = buildRarityIdentityMap()[raw]
                 end
             end
         end
     end
+
     RarityCache[category] = found or false
     return found
 end
@@ -411,11 +434,35 @@ local function plotCenter()
     return nil
 end
 
+local function plotPen()
+    local plot = cachedPlot()
+    if not plot then return nil end
+    local update = plot:FindFirstChild("ToUpdate")
+    local pen = update and update:FindFirstChild("StarterPen")
+    local grid = pen and pen:FindFirstChild("GridCenter")
+    if grid and grid:IsA("BasePart") then return grid end
+    for _, descendant in ipairs(plot:GetDescendants()) do
+        if descendant.Name == "GridCenter" and descendant:IsA("BasePart") then
+            return descendant
+        end
+    end
+    return nil
+end
+
+local function plotDropoff()
+    local grid = plotPen()
+    if grid then return grid.Position + Vector3.new(0, 3, 0) end
+    return plotCenter()
+end
+
 local function atBase(range)
-    local center = plotCenter()
     local root = getRoot()
-    if not center or not root then return false end
-    return (root.Position - center).Magnitude <= (range or 60)
+    if not root then return false end
+    local limit = range or 60
+    local pen = plotDropoff()
+    if pen and (root.Position - pen).Magnitude <= limit then return true end
+    local center = plotCenter()
+    return center ~= nil and (root.Position - center).Magnitude <= limit
 end
 
 local function guardAreasFolder()
@@ -527,10 +574,17 @@ local function travelTo(position, shouldContinue)
     return r ~= nil and (r.Position - position).Magnitude < 12
 end
 
-local function areaEggs()
+local AreaCache = { records = {}, at = 0 }
+
+local function areaEggs(maxAge)
+    if (os.clock() - AreaCache.at) < (maxAge or 0.3) then
+        return AreaCache.records
+    end
     local ok, data = invoke("Eggs: RequestAreaEggSnapshot")
     if not ok or type(data) ~= "table" then return {} end
-    return data.Records or {}
+    AreaCache.records = data.Records or {}
+    AreaCache.at = os.clock()
+    return AreaCache.records
 end
 
 local function myEggs()
@@ -564,19 +618,39 @@ end
 local BagFullUntil = 0
 
 local function markBagFull(seconds)
-    BagFullUntil = os.clock() + (seconds or 20)
+    BagFullUntil = os.clock() + (seconds or 25)
 end
 
 local function bagIsFull()
-    if os.clock() < BagFullUntil then return true end
-    local stats = getStats()
-    if not stats then return false end
-    local capacity = tonumber(stats.EggInventoryCapacity)
-        or tonumber(stats.EggInventoryLimit)
-        or tonumber(stats.PetPenCapacityGuidance)
-    if not capacity or capacity <= 0 then return false end
-    local held = countPairs(stats.EggInventory)
-    return held >= capacity
+    return os.clock() < BagFullUntil
+end
+
+local function ragdollSecondsLeft()
+    local endTime = LocalPlayer:GetAttribute("RagdollEndTime")
+    if type(endTime) ~= "number" then return 0 end
+    local left = endTime - os.time()
+    if left <= 0 then return 0 end
+    return left
+end
+
+local function waitOutRagdoll(limit)
+    local left = ragdollSecondsLeft()
+    if left <= 0 then return false end
+    local waited = 0
+    while Running and waited < math.min(left, limit or 8) do
+        waited += task.wait(0.25)
+        if ragdollSecondsLeft() <= 0 then break end
+    end
+    return true
+end
+
+local function carriedAreaEgg()
+    for _, egg in pairs(areaEggs()) do
+        if egg.State == "Carried" and egg.CarrierUserId == LocalPlayer.UserId then
+            return egg
+        end
+    end
+    return nil
 end
 
 local function eggPassesFilters(egg)
@@ -676,6 +750,23 @@ loop(0.35, function()
         return
     end
 
+    if ragdollSecondsLeft() > 0 then
+        StealStatus = string.format("Knocked down - %.0fs left", ragdollSecondsLeft())
+        waitOutRagdoll(6)
+        return
+    end
+
+    local stranded = carriedAreaEgg()
+    if stranded then
+        StealStatus = "Delivering carried " .. tostring(stranded.AssetCategory)
+        local pen = plotDropoff()
+        if pen then
+            travelTo(pen, function() return S.stealAuto end)
+            task.wait(0.6)
+        end
+        return
+    end
+
     local target = pickStealTarget()
     if not target then
         StealStatus = "No egg matches your filters"
@@ -728,9 +819,9 @@ loop(0.35, function()
     Stats.stolen = Stats.stolen + 1
     StealStatus = "Carrying " .. tostring(egg.AssetCategory) .. " home"
 
-    local center = plotCenter()
-    if center then
-        travelTo(center, function()
+    local dropoff = plotDropoff()
+    if dropoff then
+        travelTo(dropoff, function()
             if not S.stealAuto then return false end
             if S.stealDropOnGuard and (guardHuntingMe(areaId) or guardDistance(areaId) < 25) then
                 dropCarriedEgg("GuardCaughtUp")
@@ -739,9 +830,13 @@ loop(0.35, function()
             end
             return true
         end)
+        task.wait(0.6)
+        if carriedAreaEgg() then
+            travelTo(dropoff, function() return S.stealAuto end)
+            task.wait(0.6)
+        end
     end
 
-    task.wait(0.2)
     if S.placeAuto then
         placeAllEggs()
     end
@@ -772,7 +867,7 @@ loop(2, function()
     if not Game.ok or not S.placeAuto or S.stealAuto then return end
     if countPairs(myEggs()) == 0 then return end
     if not atBase(80) then
-        local center = plotCenter()
+        local center = plotDropoff()
         if center then travelTo(center) end
     end
     placeAllEggs()
@@ -1573,7 +1668,7 @@ TabEggs:CreateButton({
     Callback = function()
         task.spawn(function()
             if not atBase(80) then
-                local center = plotCenter()
+                local center = plotDropoff()
                 if center then travelTo(center) end
             end
             local ok = placeAllEggs()
