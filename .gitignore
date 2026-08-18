@@ -1,5 +1,8 @@
-# Build artifacts
-dist/
+# Build output is committed on purpose: termux-start.sh only compiles when
+# dist/index.js is absent, so phones start from the prebuilt tree instead of
+# running tsc on device. Ignoring dist/ here did not untrack the 250 files
+# already committed — it only stopped new ones from joining them, which left
+# the tree permanently drifting from src/.
 
 # Dependencies
 node_modules/

@@ -1,0 +1,374 @@
+/* ────────────────────────────────────────────────────────────
+   Dashboard refresh — 2.0 look
+   Loaded after dashboard.css. Every rule here is expressed in the
+   existing theme tokens (--bg/--surface/--accent/...), so the six
+   built-in themes and any custom palette keep working untouched.
+   ──────────────────────────────────────────────────────────── */
+
+:root {
+    --r-gap: 16px;
+    --r-radius: 14px;
+    --r-radius-sm: 10px;
+    --r-radius-pill: 999px;
+    --r-ring: color-mix(in srgb, var(--accent) 38%, transparent);
+    --r-ring-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+    --r-hairline: color-mix(in srgb, var(--border) 70%, transparent);
+    --r-glow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+    --r-elev-1: 0 1px 2px color-mix(in srgb, var(--shadow) 40%, transparent);
+    --r-elev-2: 0 4px 16px -4px color-mix(in srgb, var(--shadow) 55%, transparent);
+    --r-elev-3: 0 18px 48px -18px color-mix(in srgb, var(--shadow) 80%, transparent);
+    --r-sheen: linear-gradient(180deg,
+        color-mix(in srgb, var(--lift-overlay) 100%, transparent),
+        transparent 42%);
+}
+
+/* Readable text on an accent-filled surface.
+   --contrast-text is white in every built-in theme, which works for the themes
+   whose accent is a saturated colour but leaves white-on-white on the default
+   theme, where --accent is #ffffff. Default to the page background (always the
+   opposite end of the theme's range) and opt the coloured themes back in. */
+:root { --on-accent: var(--bg); }
+:root[data-theme="claude"],
+:root[data-theme="chatgpt"],
+:root[data-theme="github-dark"],
+:root[data-theme="github-light"],
+:root[data-theme="custom"] { --on-accent: var(--contrast-text); }
+
+.monitor-copy-button { color: var(--on-accent); }
+
+/* ── Ambient backdrop ─────────────────────────────────────── */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+        radial-gradient(1100px 520px at 12% -12%,
+            color-mix(in srgb, var(--accent) 9%, transparent), transparent 62%),
+        radial-gradient(900px 460px at 108% 4%,
+            color-mix(in srgb, var(--blue) 8%, transparent), transparent 60%);
+}
+.layout, .topbar { position: relative; z-index: 1; }
+
+/* ── Topbar ───────────────────────────────────────────────── */
+.topbar {
+    backdrop-filter: saturate(160%) blur(18px);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    border-bottom: 1px solid var(--r-hairline);
+    box-shadow: var(--r-elev-1);
+}
+.topbar-client-selector {
+    border-radius: var(--r-radius-pill);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 5px 12px 5px 6px;
+    transition: border-color var(--transition), background var(--transition), box-shadow var(--transition);
+}
+.topbar-client-selector:hover {
+    border-color: var(--r-ring);
+    background: var(--surface-hover);
+    box-shadow: var(--r-glow);
+}
+.topbar-section {
+    letter-spacing: -0.01em;
+    font-weight: 600;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────── */
+.sidebar {
+    border-right: 1px solid var(--r-hairline);
+    background: linear-gradient(180deg,
+        color-mix(in srgb, var(--surface) 60%, transparent),
+        transparent 30%);
+}
+.sidebar-item {
+    position: relative;
+    border-radius: var(--r-radius-sm);
+    font-weight: 500;
+    transition: color var(--transition), background var(--transition);
+}
+.sidebar-item::before {
+    content: "";
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    height: 0;
+    width: 3px;
+    border-radius: var(--r-radius-pill);
+    background: var(--accent);
+    transform: translateY(-50%);
+    transition: height 180ms cubic-bezier(.34,1.4,.64,1);
+}
+.sidebar-item:hover { background: var(--surface-hover); }
+.sidebar-item--active::before { height: 62%; }
+
+/* ── Cards, tiles, panels ─────────────────────────────────── */
+.info-card,
+.status-tile,
+.monitor-metric-card,
+.monitor-panel {
+    position: relative;
+    border-radius: var(--r-radius);
+    border: 1px solid var(--r-hairline);
+    background-image: var(--r-sheen);
+    box-shadow: var(--r-elev-1);
+    transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+.info-card:hover,
+.status-tile:hover,
+.monitor-metric-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
+    box-shadow: var(--r-elev-2);
+    transform: translateY(-1px);
+}
+.info-card-label,
+.status-tile-title,
+.monitor-metric-card > span {
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+}
+.info-card-value--mono { font-variant-ligatures: none; }
+
+.overview-hero {
+    border-radius: var(--r-radius);
+    border: 1px solid var(--r-hairline);
+    background-image: var(--r-sheen);
+    box-shadow: var(--r-elev-2);
+}
+.overview-username { letter-spacing: -0.025em; }
+
+/* Progress bars get a moving sheen while they are not yet full. */
+.sync-progress-bar {
+    border-radius: var(--r-radius-pill);
+    overflow: hidden;
+    background: color-mix(in srgb, var(--border) 55%, transparent);
+}
+.sync-progress-fill {
+    border-radius: inherit;
+    background: linear-gradient(90deg,
+        color-mix(in srgb, var(--accent) 70%, var(--blue)),
+        var(--accent));
+    transition: width 420ms cubic-bezier(.22,.8,.3,1);
+}
+
+/* ── Live status dot ──────────────────────────────────────── */
+.status-tile-badge--green,
+.monitor-live-state span {
+    position: relative;
+}
+.monitor-live-state span::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+    opacity: 0;
+    animation: r-ping 2.4s cubic-bezier(0,0,.2,1) infinite;
+}
+@keyframes r-ping {
+    0%   { opacity: .5; transform: scale(.7); }
+    70%  { opacity: 0;  transform: scale(1.7); }
+    100% { opacity: 0;  transform: scale(1.7); }
+}
+
+/* ────────────────────────────────────────────────────────────
+   Connection health module
+   ──────────────────────────────────────────────────────────── */
+.linkhealth {
+    margin-top: var(--r-gap);
+    border-radius: var(--r-radius);
+    border: 1px solid var(--r-hairline);
+    background: var(--surface);
+    background-image: var(--r-sheen);
+    box-shadow: var(--r-elev-2);
+    overflow: hidden;
+}
+.linkhealth-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--r-hairline);
+}
+.linkhealth-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.linkhealth-title h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    color: var(--text);
+}
+.linkhealth-kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    font-size: 9.5px;
+    font-weight: 700;
+    color: var(--text-tertiary);
+}
+.linkhealth-verdict {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
+    border-radius: var(--r-radius-pill);
+    font-size: 11.5px;
+    font-weight: 650;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+.linkhealth-verdict::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent);
+}
+.linkhealth-verdict--solid   { color: var(--green); background: var(--green-dim); border-color: color-mix(in srgb, var(--green) 30%, transparent); }
+.linkhealth-verdict--wobbly  { color: var(--amber); background: var(--amber-dim); border-color: color-mix(in srgb, var(--amber) 30%, transparent); }
+.linkhealth-verdict--dropped { color: var(--red);   background: var(--red-dim);   border-color: color-mix(in srgb, var(--red) 32%, transparent); }
+.linkhealth-verdict--idle    { color: var(--text-tertiary); background: color-mix(in srgb, var(--border) 40%, transparent); border-color: var(--border); }
+
+/* Rolling sample strip */
+.linkhealth-strip {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 62px;
+    padding: 14px 18px 10px;
+}
+.linkhealth-bar {
+    flex: 1 1 0;
+    min-width: 2px;
+    border-radius: 2px 2px 1px 1px;
+    background: color-mix(in srgb, var(--border) 60%, transparent);
+    transition: height 220ms ease, background 220ms ease;
+}
+.linkhealth-bar--fresh    { background: var(--green); }
+.linkhealth-bar--late     { background: var(--amber); }
+.linkhealth-bar--missing  { background: var(--red); }
+/* Slots with no sample yet: a faint baseline, not a dash. */
+.linkhealth-bar--gap {
+    background: color-mix(in srgb, var(--border) 32%, transparent);
+    align-self: stretch;
+    height: 100% !important;
+    border-radius: 2px;
+    opacity: .32;
+    -webkit-mask-image: linear-gradient(to top, #000 0 3px, transparent 3px);
+    mask-image: linear-gradient(to top, #000 0 3px, transparent 3px);
+}
+
+.linkhealth-scale {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 18px 12px;
+    font-size: 10px;
+    color: var(--text-tertiary);
+    font-family: var(--mono);
+}
+
+/* Stat row */
+.linkhealth-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 1px;
+    background: var(--r-hairline);
+    border-top: 1px solid var(--r-hairline);
+}
+.linkhealth-stat {
+    background: var(--surface);
+    padding: 13px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.linkhealth-stat dt {
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-size: 9.5px;
+    font-weight: 650;
+    color: var(--text-tertiary);
+}
+.linkhealth-stat dd {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+.linkhealth-stat dd small {
+    display: block;
+    margin-top: 2px;
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--text-tertiary);
+}
+.linkhealth-stat--warn dd { color: var(--amber); }
+.linkhealth-stat--bad dd  { color: var(--red); }
+
+/* Event ledger */
+.linkhealth-ledger {
+    border-top: 1px solid var(--r-hairline);
+    max-height: 190px;
+    overflow-y: auto;
+}
+.linkhealth-event {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 10px 18px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+    font-size: 12px;
+}
+.linkhealth-event:last-child { border-bottom: none; }
+.linkhealth-event-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.linkhealth-event--up   .linkhealth-event-dot { background: var(--green); }
+.linkhealth-event--down .linkhealth-event-dot { background: var(--red); }
+.linkhealth-event--move .linkhealth-event-dot { background: var(--blue); }
+.linkhealth-event-text { color: var(--text-secondary); flex: 1; min-width: 0; }
+.linkhealth-event-text strong { color: var(--text); font-weight: 600; }
+.linkhealth-event-time {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+}
+.linkhealth-empty {
+    padding: 22px 18px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+
+@media (max-width: 720px) {
+    .linkhealth-strip { height: 48px; }
+    .linkhealth-head { padding: 13px 14px; }
+    .linkhealth-stat { padding: 11px 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .monitor-live-state span::after { animation: none; }
+    .info-card, .status-tile, .monitor-metric-card,
+    .sidebar-item::before, .sync-progress-fill, .linkhealth-bar {
+        transition: none;
+    }
+}

@@ -29,9 +29,20 @@ for arg in "$@"; do
     esac
 done
 
-# ─── Check build exists ───
+# ─── Check build exists and is current ───
+# A prebuilt dist ships with the repo so phones do not have to run tsc, but it
+# goes stale the moment src/ moves ahead of it (after a git pull, say). Running
+# a stale tree silently serves old code, or dies on an import that was added
+# later, so rebuild whenever anything in src/ is newer than the build.
+needs_build=""
 if [ ! -f "dist/index.js" ]; then
-    echo "→ Build not found. Building now..."
+    needs_build="Build not found"
+elif [ -n "$(find src -type f -newer dist/index.js -print -quit 2>/dev/null)" ]; then
+    needs_build="Build is older than src/"
+fi
+
+if [ -n "$needs_build" ]; then
+    echo "→ $needs_build. Building now..."
     npx tsc 2>&1 | tail -5
     node scripts/copy-assets.mjs 2>/dev/null || true
 fi
