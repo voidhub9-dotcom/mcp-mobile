@@ -123,7 +123,7 @@ local AREA_LIST = {
 local TRAVEL_SPEED_RATIO = 1.0
 local TRAVEL_SPEED_FLOOR = 18
 local TRAVEL_SPEED_CEILING = 220
-local TRAVEL_CAP_START = 45
+local TRAVEL_CAP_START = 220
 local TRAVEL_LEG_STUDS = 90
 
 local S = {
@@ -726,8 +726,8 @@ local function pickStealTarget()
     return candidates[1]
 end
 
-local function dropCarriedEgg(reason)
-    invoke("Eggs: RequestAreaEggDrop", { Reason = reason })
+local function dropCarriedEgg()
+    invoke("Eggs: RequestAreaEggDrop", {})
     Stats.drops = Stats.drops + 1
 end
 
@@ -851,7 +851,7 @@ loop(0.35, function()
             if not S.stealAuto then return false end
             if S.stealDropOnGuard and (os.clock() - leftAt) > 1.5
                 and (guardHuntingMe(areaId) or guardDistance(areaId) < 25) then
-                dropCarriedEgg("GuardCaughtUp")
+                dropCarriedEgg()
                 StealStatus = "Dropped egg - guard caught up"
                 return false
             end
