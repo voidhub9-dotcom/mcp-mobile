@@ -561,18 +561,21 @@ local function countPairs(t)
     return n
 end
 
+local BagFullUntil = 0
+
+local function markBagFull(seconds)
+    BagFullUntil = os.clock() + (seconds or 20)
+end
+
 local function bagIsFull()
+    if os.clock() < BagFullUntil then return true end
     local stats = getStats()
     if not stats then return false end
-    local inventory = stats.EggInventory
-    if type(inventory) ~= "table" then return false end
-    local held = countPairs(inventory)
-    local capacity = tonumber(stats.EggInventoryCapacity) or 0
-    if capacity <= 0 then
-        local guidance = tonumber(stats.PetPenCapacityGuidance) or 0
-        capacity = guidance > 0 and guidance or 0
-    end
-    if capacity <= 0 then return false end
+    local capacity = tonumber(stats.EggInventoryCapacity)
+        or tonumber(stats.EggInventoryLimit)
+        or tonumber(stats.PetPenCapacityGuidance)
+    if not capacity or capacity <= 0 then return false end
+    local held = countPairs(stats.EggInventory)
     return held >= capacity
 end
 
@@ -699,11 +702,17 @@ loop(0.35, function()
     end
 
     local carried = false
+    local lastReason = nil
     for _ = 1, 5 do
         if not S.stealAuto then break end
         local ok, ret = invokeTrue("Eggs: RequestAreaEggCarry", { Uid = egg.Uid })
+        lastReason = ret
         if ok and ret == true then
             carried = true
+            break
+        end
+        if type(ret) == "string" and ret:lower():find("full") then
+            markBagFull(25)
             break
         end
         task.wait(0.15)
@@ -711,6 +720,7 @@ loop(0.35, function()
 
     if not carried then
         StealStatus = "Could not grab " .. tostring(egg.AssetCategory)
+            .. (type(lastReason) == "string" and (" (" .. lastReason .. ")") or "")
         task.wait(0.4)
         return
     end
@@ -982,14 +992,24 @@ loop(6, function()
     sellList(list)
 end)
 
+local function pendingOfflineMoney()
+    local ok, summary = invoke("OfflineAssets: GetSummary")
+    if ok and type(summary) == "table" then
+        local amount = tonumber(summary.Amount or summary.Money or summary.Total or summary.Earnings)
+        if amount then return amount end
+    end
+    local stats = getStats()
+    if stats then
+        return tonumber(stats.PendingOfflineMoney) or 0
+    end
+    return 0
+end
+
 loop(10, function()
     if not Game.ok or not S.offlineAuto then return end
-    local ok, summary = invoke("OfflineAssets: GetSummary")
-    local amount = 0
-    if ok and type(summary) == "table" then
-        amount = tonumber(summary.Amount or summary.Money or summary.Total) or 0
-    end
-    if S.offlineMinimum > 0 and amount > 0 and amount < S.offlineMinimum then return end
+    local amount = pendingOfflineMoney()
+    if amount <= 0 then return end
+    if S.offlineMinimum > 0 and amount < S.offlineMinimum then return end
     if invokeTrue("OfflineAssets: Redeem") then
         Stats.claimed = Stats.claimed + 1
     end
@@ -1001,8 +1021,16 @@ loop(3, function()
     if not stats then return end
     local level = tonumber(stats.BaseUpgradeLevel) or 0
     if level >= S.baseTarget then return end
-    if fire("Plots: RequestBaseUpgrade") then
+
+    fire("Plots: RequestBaseUpgrade")
+    task.wait(1.2)
+
+    local after = getStats()
+    local newLevel = after and tonumber(after.BaseUpgradeLevel) or level
+    if newLevel > level then
         Stats.upgrades = Stats.upgrades + 1
+    else
+        task.wait(4)
     end
 end)
 
@@ -1039,15 +1067,111 @@ loop(3, function()
     end
 end)
 
+local RagdollModule = nil
+local RagdollOriginals = {}
+local RAGDOLL_BLOCKED = { "Ragdoll", "TimedRagdoll", "TimedRagdollAsync", "ApplyClientRagdoll", "NpcRagdoll" }
+
+local function resolveRagdollModule()
+    if RagdollModule then return RagdollModule end
+    local library = child(ReplicatedStorage, "Library")
+    local modules = child(library, "Modules")
+    local inst = child(modules, "Ragdoll")
+    RagdollModule = safeRequire(inst)
+    return RagdollModule
+end
+
+local function unragdollNow(char)
+    local M = resolveRagdollModule()
+    char = char or getChar()
+    if not M or not char then return end
+    pcall(function()
+        if RagdollOriginals.ClearClientRagdoll then
+            RagdollOriginals.ClearClientRagdoll(char)
+        elseif M.ClearClientRagdoll then
+            M.ClearClientRagdoll(char)
+        end
+    end)
+    pcall(function()
+        if RagdollOriginals.Unragdoll then
+            RagdollOriginals.Unragdoll(char)
+        elseif M.Unragdoll then
+            M.Unragdoll(char)
+        end
+    end)
+end
+
+local function blockRagdollModule()
+    local M = resolveRagdollModule()
+    if not M then return false end
+    if RagdollOriginals.Unragdoll == nil then
+        RagdollOriginals.Unragdoll = M.Unragdoll
+        RagdollOriginals.ClearClientRagdoll = M.ClearClientRagdoll
+    end
+    for _, name in ipairs(RAGDOLL_BLOCKED) do
+        if type(M[name]) == "function" and RagdollOriginals[name] == nil then
+            RagdollOriginals[name] = M[name]
+            local ok = pcall(function()
+                M[name] = function(target, ...)
+                    local char = getChar()
+                    if target == char or target == LocalPlayer then
+                        task.defer(unragdollNow, char)
+                        return nil
+                    end
+                    local original = RagdollOriginals[name]
+                    if original then return original(target, ...) end
+                    return nil
+                end
+            end)
+            if not ok then RagdollOriginals[name] = nil end
+        end
+    end
+    return true
+end
+
+local function restoreRagdollModule()
+    local M = resolveRagdollModule()
+    if not M then return end
+    for _, name in ipairs(RAGDOLL_BLOCKED) do
+        if RagdollOriginals[name] then
+            pcall(function() M[name] = RagdollOriginals[name] end)
+            RagdollOriginals[name] = nil
+        end
+    end
+end
+
+local RagdollRemoteMuted = {}
+
+local function muteRagdollRemote(mute)
+    local M = resolveRagdollModule()
+    local remoteInst = M and M.ClientRagdollRemote
+    if typeof(remoteInst) ~= "Instance" then return end
+    if typeof(getconnections) ~= "function" then return end
+    pcall(function()
+        for _, conn in ipairs(getconnections(remoteInst.OnClientEvent)) do
+            if mute then
+                if conn.Enabled ~= false then
+                    conn.Enabled = false
+                    table.insert(RagdollRemoteMuted, conn)
+                end
+            end
+        end
+    end)
+    if not mute then
+        for _, conn in ipairs(RagdollRemoteMuted) do
+            pcall(function() conn.Enabled = true end)
+        end
+        table.clear(RagdollRemoteMuted)
+    end
+end
+
 local function armGodMode(hum)
     if not hum then return end
     pcall(function()
         hum.BreakJointsOnDeath = false
-        hum.MaxHealth = math.huge
-        hum.Health = math.huge
         hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
         hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
         hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
     end)
 end
 
@@ -1058,41 +1182,97 @@ local function disarmGodMode()
         hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
         hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
         hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-        hum.MaxHealth = 100
-        hum.Health = 100
+        hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
     end)
+end
+
+local function ragdollConstraintCount(char)
+    if not char then return 0 end
+    local count = 0
+    for _, d in ipairs(char:GetDescendants()) do
+        if d:IsA("BallSocketConstraint") and d.Name:find("Ragdoll") then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+local function stripRagdollConstraints(char)
+    if not char then return end
+    for _, d in ipairs(char:GetDescendants()) do
+        if d:IsA("BallSocketConstraint") and d.Name:find("Ragdoll") then
+            pcall(function() d:Destroy() end)
+        elseif d:IsA("Motor6D") and d.Enabled == false then
+            pcall(function() d.Enabled = true end)
+        end
+    end
 end
 
 local function setGodMode(on)
     S.godMode = on
     dropList(GodConnections)
+
     if not on then
+        restoreRagdollModule()
+        muteRagdollRemote(false)
         disarmGodMode()
         return
     end
+
+    blockRagdollModule()
+    muteRagdollRemote(true)
     armGodMode(getHumanoid())
+    unragdollNow(getChar())
+
     track(GodConnections, RunService.Heartbeat:Connect(function()
         if not S.godMode then return end
         local hum = getHumanoid()
-        if not hum then return end
+        local char = getChar()
+        if not hum or not char then return end
+
         pcall(function()
-            if hum.Health < hum.MaxHealth then hum.Health = hum.MaxHealth end
+            if hum.PlatformStand then hum.PlatformStand = false end
+
             local state = hum:GetState()
             if state == Enum.HumanoidStateType.Ragdoll
                 or state == Enum.HumanoidStateType.FallingDown
                 or state == Enum.HumanoidStateType.Physics then
                 hum:ChangeState(Enum.HumanoidStateType.GettingUp)
             end
-            if hum.PlatformStand and not ActiveTween then
-                hum.PlatformStand = false
+
+            if state == Enum.HumanoidStateType.Physics or ragdollConstraintCount(char) > 0 then
+                unragdollNow(char)
+                stripRagdollConstraints(char)
+            end
+
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root and not ActiveTween then
+                local v = root.AssemblyLinearVelocity
+                if v.Magnitude > 120 then
+                    root.AssemblyLinearVelocity = Vector3.new(0, math.clamp(v.Y, -60, 60), 0)
+                end
+                if root.AssemblyAngularVelocity.Magnitude > 15 then
+                    root.AssemblyAngularVelocity = Vector3.zero
+                end
             end
         end)
     end))
+
     track(GodConnections, LocalPlayer.CharacterAdded:Connect(function(char)
         local hum = char:WaitForChild("Humanoid", 10)
         task.wait(0.2)
-        if S.godMode then armGodMode(hum) end
+        if S.godMode then
+            armGodMode(hum)
+            muteRagdollRemote(true)
+        end
     end))
+
+    task.spawn(function()
+        while S.godMode and Running do
+            muteRagdollRemote(true)
+            task.wait(3)
+        end
+    end)
 end
 
 local function setAntiFling(on)
@@ -1704,7 +1884,7 @@ TabProtect:CreateSection({ Text = "Survival", Icon = ICONS.shield })
 
 TabProtect:CreateToggle({
     Title = "God Mode",
-    Description = "Pins health and blocks death, ragdoll and falling states",
+    Description = "Blocks the guard's flinch and ragdoll at the source, and keeps you on your feet",
     Icon = ICONS.heart,
     Default = false,
     SaveId = "sae_god",
@@ -1737,9 +1917,9 @@ TabProtect:CreateToggle({
 })
 
 TabProtect:CreateParagraph({
-    Title = "What God Mode can and cannot do",
+    Title = "How God Mode works",
     Icon = ICONS.alert,
-    Description = "This runs on your client, so it stops guard knockdowns, fall damage and ragdoll. It cannot stop the server deciding to reset your character.",
+    Description = "The guard flinch runs through the game's own Ragdoll module. God Mode neutralises that module for your character, mutes its ragdoll remote, strips any ragdoll constraints that slip through and cancels the knockback impulse. You stay upright when the boss hits you. It cannot stop the server deciding to reset your character outright.",
 })
 
 local TabUtility = Window:CreateTab({
