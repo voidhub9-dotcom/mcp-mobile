@@ -11,6 +11,7 @@ export declare function getRelaySocket(): WebSocket | null;
 export declare function setRelaySocket(ws: WebSocket | null): void;
 export declare function resetPrimaryState(): void;
 export declare function resetSecondaryState(): void;
+export declare function requeueCommands(target: RobloxClient, commands: string[]): void;
 export declare function SendToClient(target: RobloxClient, message: string): void;
 export declare function GetResponseOfIdFromClient(id: string, timeoutMs?: number): Promise<RobloxResponse>;
 export declare function SendArbitraryDataToClient(type: string, data: Record<string, unknown>, id?: string, clientId?: string): DispatchResult;

@@ -31,6 +31,19 @@ export function resetPrimaryState() {
 export function resetSecondaryState() {
     secondaryResponseResolvers.clear();
 }
+// Put commands back at the head of the queue when a long-poll response could not
+// actually be written (backgrounded mobile app, carrier hand-off, dropped socket).
+// Without this the batch is handed to a dead response and silently lost, and the
+// tool call that issued it just times out.
+export function requeueCommands(target, commands) {
+    if (commands.length === 0)
+        return;
+    target.pendingHttpCommands = [...commands, ...target.pendingHttpCommands];
+    const overflow = target.pendingHttpCommands.length - MAX_PENDING_HTTP_COMMANDS;
+    if (overflow > 0) {
+        target.pendingHttpCommands.splice(0, overflow);
+    }
+}
 export function SendToClient(target, message) {
     if (target.transport === "ws" && target.ws && target.ws.readyState === WebSocket.OPEN) {
         target.ws.send(message);

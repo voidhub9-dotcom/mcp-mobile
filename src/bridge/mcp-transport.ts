@@ -52,7 +52,6 @@ export function createSession(): McpSession {
     const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => crypto.randomUUID(),
         enableJsonResponse: true,
-        keepAliveMs: 5000,
         onsessioninitialized: (sessionId: string) => {
             session.createdAt = Date.now();
             sessions.set(sessionId, session);
@@ -76,7 +75,12 @@ export function createSession(): McpSession {
             }
         }
     };
-    server.connect(transport);
+    // handleRequest runs immediately after this returns; connect() wires the
+    // transport callbacks synchronously, so only the failure path needs handling
+    // here — an unobserved rejection would otherwise take down the process.
+    server.connect(transport).catch((err: unknown) => {
+        console.error("[MCP] Failed to connect session transport:", err);
+    });
     return session;
 }
 export function getSession(sessionId: string): McpSession | undefined {
