@@ -181,6 +181,7 @@ local Stats = {
     claimed = 0,
     upgrades = 0,
     drops = 0,
+    lostToGuard = 0,
     errors = 0,
     startedAt = os.time(),
 }
@@ -189,6 +190,7 @@ local Running = true
 local Connections = {}
 local Window
 local StealStatus = "Idle"
+local GuardHintShown = false
 local SellPreviewText = "Nothing queued"
 local AreaResetText = "Waiting for reset signal"
 
@@ -847,6 +849,7 @@ loop(0.35, function()
     dropoff = dropoff or plotDropoff()
     if dropoff then
         local leftAt = os.clock()
+        local dropsBefore = Stats.drops
         travelTo(dropoff, function()
             if not S.stealAuto then return false end
             if S.stealDropOnGuard and (os.clock() - leftAt) > 1.5
@@ -861,6 +864,18 @@ loop(0.35, function()
         if carriedAreaEgg() then
             travelTo(dropoff, function() return S.stealAuto end)
             task.wait(0.6)
+        end
+        if Stats.drops == dropsBefore and not carriedAreaEgg() and not atBase(30) then
+            Stats.lostToGuard = Stats.lostToGuard + 1
+            if S.godMode then
+                StealStatus = "Lost the egg on the way home"
+            else
+                StealStatus = "Guard knocked the egg loose - turn on God Mode"
+                if not GuardHintShown then
+                    GuardHintShown = true
+                    notify("Auto Steal", "The guard knocked your egg loose. God Mode in the Protection tab stops that.", 6)
+                end
+            end
         end
     end
 
@@ -1562,7 +1577,7 @@ TabSteal:CreateSection({ Text = "Auto Steal", Icon = ICONS.zap, Side = 1 })
 
 TabSteal:CreateToggle({
     Title = "Auto Steal",
-    Description = "Travels to matching eggs, grabs them and carries them home",
+    Description = "Travels to matching eggs, grabs them and carries them home. Turn on God Mode in the Protection tab - without it the guard knocks the egg out of your hands on the way back.",
     Icon = ICONS.target,
     Default = false,
     SaveId = "sae_steal_auto",
@@ -2163,12 +2178,13 @@ loop(1, function()
     if statsPara and statsPara.SetDescription then
         pcall(function()
             statsPara:SetDescription(string.format(
-                "Stolen: %d   Placed: %d\nHatched: %d   Fused: %d\nSold: %d   Claimed: %d\nUpgrades: %d   Drops: %d\nErrors: %d   Uptime: %d min",
+                "Stolen: %d   Placed: %d\nHatched: %d   Fused: %d\nSold: %d   Claimed: %d\nUpgrades: %d   Drops: %d\nLost to guard: %d   Errors: %d\nUptime: %d min",
                 Stats.stolen, Stats.placed,
                 Stats.hatched, Stats.fused,
                 Stats.sold, Stats.claimed,
                 Stats.upgrades, Stats.drops,
-                Stats.errors, math.floor((os.time() - Stats.startedAt) / 60)
+                Stats.lostToGuard, Stats.errors,
+                math.floor((os.time() - Stats.startedAt) / 60)
             ))
         end)
     end
