@@ -120,7 +120,10 @@ local AREA_LIST = {
     "Lake", "Prehistoric", "Snow", "Volcano",
 }
 
-local TRAVEL_SPEED_RATIO = 1.4
+local TRAVEL_SPEED_RATIO = 1.0
+local TRAVEL_SPEED_FLOOR = 18
+local TRAVEL_SPEED_CEILING = 220
+local TRAVEL_CAP_START = 45
 local TRAVEL_LEG_STUDS = 90
 
 local S = {
@@ -132,7 +135,7 @@ local S = {
     stealPriority    = "Rarity",
     stealStopWhenFull = true,
     stealDropOnGuard = true,
-    travelSpeed      = 300,
+    travelSpeed      = TRAVEL_SPEED_CEILING,
 
     placeAuto        = false,
     hatchAuto        = false,
@@ -512,11 +515,24 @@ local function cancelTravel()
     end
 end
 
+local TravelCap = TRAVEL_CAP_START
+
 local function travelSpeed()
     local hum = getHumanoid()
-    local base = (hum and hum.WalkSpeed) or 16
-    local configured = tonumber(S.travelSpeed) or 300
-    return math.max(16, math.min(configured, base * TRAVEL_SPEED_RATIO))
+    local walk = (hum and hum.WalkSpeed) or 16
+    local configured = tonumber(S.travelSpeed) or TRAVEL_SPEED_CEILING
+    local allowed = math.min(walk * TRAVEL_SPEED_RATIO, TravelCap, configured)
+    return math.max(TRAVEL_SPEED_FLOOR, allowed)
+end
+
+local function easeTravelCap()
+    TravelCap = math.max(TRAVEL_SPEED_FLOOR, math.min(TravelCap, travelSpeed()) * 0.6)
+end
+
+local function recoverTravelCap()
+    if TravelCap < TRAVEL_SPEED_CEILING then
+        TravelCap = math.min(TRAVEL_SPEED_CEILING, TravelCap * 1.2)
+    end
 end
 
 local function tweenLeg(destination)
@@ -811,12 +827,20 @@ loop(0.35, function()
     end
 
     if not carried then
-        StealStatus = "Could not grab " .. tostring(egg.AssetCategory)
-            .. (type(lastReason) == "string" and (" (" .. lastReason .. ")") or "")
+        local root = getRoot()
+        local gap = root and (root.Position - target.position).Magnitude or math.huge
+        if gap < 12 then
+            easeTravelCap()
+            StealStatus = string.format("Grab refused - slowing travel to %d studs/s", travelSpeed())
+        else
+            StealStatus = "Could not reach " .. tostring(egg.AssetCategory)
+                .. (type(lastReason) == "string" and (" (" .. lastReason .. ")") or "")
+        end
         task.wait(0.4)
         return
     end
 
+    recoverTravelCap()
     Stats.stolen = Stats.stolen + 1
     StealStatus = "Carrying " .. tostring(egg.AssetCategory) .. " home"
 
@@ -1548,11 +1572,11 @@ TabSteal:CreateToggle({
 
 TabSteal:CreateSlider({
     Title = "Travel Speed",
-    Description = "Studs per second. Clamped near your real WalkSpeed so the server does not rubber-band you.",
-    Min = 50,
-    Max = 700,
-    Default = 300,
-    SaveId = "sae_travel_speed",
+    Description = "Studs per second while running a steal. The server checks how fast you actually move, so this is capped near your base WalkSpeed - pushing it higher gets your movement rejected and the grab fails.",
+    Min = TRAVEL_SPEED_FLOOR,
+    Max = TRAVEL_SPEED_CEILING,
+    Default = TRAVEL_SPEED_CEILING,
+    SaveId = "sae_travel_speed_v2",
     Side = 1,
     Callback = function(v) S.travelSpeed = v end,
 })
