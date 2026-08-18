@@ -8,11 +8,9 @@ local ProxyLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Prox
 local Library = ProxyLib.new()
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
-local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
@@ -21,8 +19,6 @@ local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 20)
 if not PlayerGui then return end
-
-local Camera = Workspace.CurrentCamera
 
 local ICONS = {
     activity   = "rbxassetid://10709752035",
@@ -153,7 +149,6 @@ local CARRY_ATTR = (Game.ScrapView and Game.ScrapView.CarryAttr) or "scrapCarry"
 local PIT_RADIUS = (Game.Config and Game.Config.pit and Game.Config.pit.radius) or 40
 local PIT_CENTER = (Game.PitZone and Game.PitZone.center) or Vector3.new(0, 0, 0)
 local SCRAP_PICKUP = (Game.Config and Game.Config.scrap and Game.Config.scrap.pickupRadius) or 4
-local DEPOSIT_RADIUS = (Game.Config and Game.Config.scrap and Game.Config.scrap.deposit and Game.Config.scrap.deposit.radius) or 14
 
 local GUARD = (Game.Config and Game.Config.guard) or {}
 local GUARD_REF_WALK = (GUARD.speed and GUARD.speed.refWalk) or 16
@@ -180,24 +175,25 @@ end
 
 local InvokeQueue = {
     busy = false,
-    timeouts = 0,
-    pausedUntil = 0,
+    stalled = false,
+    stalledOn = nil,
     lastError = nil,
 }
 
 local INVOKE_TIMEOUT = 8
-local INVOKE_TIMEOUT_LIMIT = 3
-local INVOKE_PAUSE = 25
+
+local onRemotesStalled
 
 local function invoke(name, ...)
     local r = remote(name)
     if not r or not r:IsA("RemoteFunction") then return nil end
-    if os.clock() < InvokeQueue.pausedUntil then return nil end
+    if InvokeQueue.stalled then return nil end
 
     local waited = 0
     while InvokeQueue.busy and waited < INVOKE_TIMEOUT * 2 do
         task.wait(0.1)
         waited = waited + 0.1
+        if InvokeQueue.stalled then return nil end
     end
     if InvokeQueue.busy then return nil end
 
@@ -223,15 +219,12 @@ local function invoke(name, ...)
     InvokeQueue.busy = false
 
     if not done then
-        InvokeQueue.timeouts = InvokeQueue.timeouts + 1
-        if InvokeQueue.timeouts >= INVOKE_TIMEOUT_LIMIT then
-            InvokeQueue.timeouts = 0
-            InvokeQueue.pausedUntil = os.clock() + INVOKE_PAUSE
-        end
+        InvokeQueue.stalled = true
+        InvokeQueue.stalledOn = name
+        if onRemotesStalled then task.spawn(onRemotesStalled, name) end
         return nil
     end
 
-    InvokeQueue.timeouts = 0
     return result
 end
 
@@ -480,8 +473,6 @@ end
 
 local function myCoop() return myModel("Coops", "Coop") end
 local function myRecycler() return myModel("Recyclers", "Recycler") end
-local function myIncubator() return myModel("Incubators", "Incubator") end
-
 local function pivotOf(inst)
     if not inst then return nil end
     local ok, cf = pcall(function() return inst:GetPivot() end)
@@ -500,11 +491,6 @@ local function homePosition()
 end
 
 local MoveBusy = false
-
-local function stopMoving()
-    local hum = getHum()
-    if hum then pcall(function() hum:MoveTo(getHRP() and getHRP().Position or Vector3.new()) end) end
-end
 
 local function tweenTo(pos, timeout)
     local hrp = getHRP()
@@ -634,18 +620,6 @@ local function rosterCap()
         if ok and type(v) == "number" then return v end
     end
     return 75
-end
-
-local function sellValueOf(c)
-    if Game.SellValue and Game.SellValue.of then
-        local ok, v = pcall(Game.SellValue.of, c)
-        if ok then return scalar(v) end
-    end
-    local base = 60
-    if Game.Config and Game.Config.roster and Game.Config.roster.sell and Game.Config.roster.sell.base then
-        base = Game.Config.roster.sell.base[chickenRarity(c)] or 60
-    end
-    return base
 end
 
 local function ownedEggs()
@@ -866,7 +840,7 @@ local function fuseOnce()
             table.sort(group, function(a, b) return chickenPower(a) < chickenPower(b) end)
             local a, b = group[1], group[2]
             if a and b and a.id ~= b.id then
-                local res = invoke("FuseChickens", a.id, b.id, nil, nil, nil)
+                local res = invoke("FuseChickens", a.id, b.id, {}, nil, "a")
                 if okResult(res) then
                     Stats.fused = Stats.fused + 1
                     return true, res
@@ -958,14 +932,26 @@ loop(5, function()
     end
 end)
 
+local TradeOffered = nil
+
+local function tradeSessionOpen()
+    local gui = PlayerGui:FindFirstChild("TradeGui")
+    if not gui then return false end
+    if gui:IsA("ScreenGui") and gui.Enabled == false then return false end
+    return #gui:GetChildren() > 0
+end
+
 loop(8, function()
     if not Game.ok or not S.tradeExtraAuto then return end
+    if not tradeSessionOpen() then return end
     local list = sellCandidates("secret", S.tradeKeepPerRarity)
-    if #list == 0 then return end
     local c = list[1]
     if not c then return end
+    if TradeOffered == c.id then return end
     local res = invoke("TradeOffer", c.id)
-    if not okResult(res) then Stats.errors = Stats.errors + 1 end
+    if okResult(res) then
+        TradeOffered = c.id
+    end
 end)
 
 local function looseScrap()
@@ -1080,9 +1066,15 @@ loop(0.6, function()
         if S.keepAwayFighters then
             local safe = true
             for _, f in ipairs(otherFightersInPit()) do
-                if (f.Position - p.Position).Magnitude < 12 then safe = false break end
+                if (f.Position - p.Position).Magnitude < 12 then
+                    safe = false
+                    break
+                end
             end
-            if safe then target = p break end
+            if safe then
+                target = p
+                break
+            end
         else
             target = p
             break
@@ -1354,7 +1346,7 @@ loop(2, function()
     fire("PetChicken")
 end)
 
-local EventState = { active = nil, lastId = nil }
+local EventState = { active = nil, lastId = nil, rsvped = nil }
 
 do
     local started = remote("LiveEventStarted")
@@ -1388,13 +1380,16 @@ end
 
 loop(10, function()
     if not Game.ok or not S.eventsAuto then return end
-    local active = invoke("LiveEventGetActive")
-    if type(active) == "table" then
-        local id = active.id or (active.event and active.event.id)
-        if id then
-            EventState.active = id
-            invoke("EventRsvp", id)
-        end
+    local res = invoke("LiveEventGetActive")
+    if not okResult(res) then return end
+    local info = res.data
+    if type(info) ~= "table" then return end
+    local id = info.id or info.kind or (info.event and info.event.id)
+    if not id then return end
+    if EventState.rsvped == id then return end
+    EventState.active = id
+    if okResult(invoke("EventRsvp", id)) then
+        EventState.rsvped = id
     end
 end)
 
@@ -1496,29 +1491,33 @@ local function claimMissions()
     return claimedCount
 end
 
-local function claimPass()
-    if os.clock() > ClaimBlacklist.resetAt then resetClaimBlacklist() end
-
-    local level = 0
-    if Game.PassView and Game.PassView.level then
-        local d = playerData()
-        local ok, v = pcall(Game.PassView.level, d)
-        if ok and type(v) == "number" then level = v end
+local function passLevelCount()
+    if Game.Config and Game.Config.premium and Game.Config.premium.pass then
+        local levels = Game.Config.premium.pass.levels
+        if type(levels) == "table" then return #levels end
     end
+    return 12
+end
 
-    local count, attempts = 0, 0
-    for tier = 0, math.min(level, 60) do
-        if not Running or attempts >= 8 then break end
-        if not ClaimBlacklist.pass[tier] then
-            attempts = attempts + 1
-            local res = invoke("PassClaim", tier, nil)
-            if okResult(res) then
-                count = count + 1
-                Stats.claims = Stats.claims + 1
-            else
-                ClaimBlacklist.pass[tier] = true
+local function claimPass()
+    local pass = dataSection("pass")
+    if type(pass) ~= "table" then return 0 end
+    if not (Game.PassView and Game.PassView.state and Game.PassView.track) then return 0 end
+
+    local count = 0
+    for tier = 1, passLevelCount() do
+        if not Running then break end
+        local okState, state = pcall(Game.PassView.state, pass, tier)
+        if okState and state == "claimable" then
+            local okTrack, trackName = pcall(Game.PassView.track, tier)
+            if okTrack and type(trackName) == "string" then
+                local res = invoke("PassClaim", tier, trackName)
+                if okResult(res) then
+                    count = count + 1
+                    Stats.claims = Stats.claims + 1
+                end
+                task.wait(0.15)
             end
-            task.wait(0.15)
         end
     end
     return count
@@ -1531,7 +1530,13 @@ loop(30, function()
         if okResult(res) then Stats.claims = Stats.claims + 1 end
     end
     if S.claimPlaytimeAuto then
-        for i = 1, 12 do
+        local sessions = 4
+        if Game.Config and Game.Config.daily and type(Game.Config.daily.session) == "table" then
+            local n = 0
+            for _ in pairs(Game.Config.daily.session) do n = n + 1 end
+            if n > 0 then sessions = n end
+        end
+        for i = 1, sessions do
             if not Running then break end
             if not ClaimBlacklist.pass["session" .. i] then
                 local res = invoke("DailyClaim", "session", i)
@@ -1606,7 +1611,7 @@ loop(20, function()
     local elapsed = os.time() - Webhook.lastSummary
     if elapsed < (S.whSummaryMins * 60) then return end
     Webhook.lastSummary = os.time()
-    local count, level, requirement = rebirthInfo()
+    local _, level, requirement = rebirthInfo()
     queueWebhook("Session Summary", string.format(
         "Runtime: `%d min`\nMoney: `%s`\nLevel: `%d` (rebirth at `%d`)\nRoster: `%d/%d`\nHatched `%d` | Fused `%d` | Sold `%d` | Devoured `%d`\nDeposits `%d` | Upgrades `%d`\nTower runs `%d` (best `%d`) | Retreats `%d`\nClaims `%d` | Errors `%d`",
         math.floor((os.time() - Stats.startedAt) / 60),
@@ -1853,7 +1858,18 @@ local function profileNames()
     return out
 end
 
-local function stopAllAutomation()
+local stopAllAutomation
+
+onRemotesStalled = function(name)
+    if stopAllAutomation then stopAllAutomation() end
+    notify(
+        "Server stopped responding",
+        string.format("'%s' never returned. This game queues remote calls per player, so nothing else will go through until you rejoin. Automation is off - use Stats > Rejoin Server.", tostring(name)),
+        12
+    )
+end
+
+function stopAllAutomation()
     for k, v in pairs(S) do
         if typeof(v) == "boolean" and (k:sub(1, 4) == "auto" or k:find("Auto")) then
             S[k] = false
@@ -3204,15 +3220,15 @@ loop(2, function()
     end
 
     if liveParaC and liveParaC.SetDescription then
-        local paused = os.clock() < InvokeQueue.pausedUntil
         pcall(function()
-            liveParaC:SetDescription(string.format(
-                "Server replies: %s\n%s",
-                paused and "STALLED" or "healthy",
-                paused
-                    and string.format("The game stopped answering remote calls, so automation is paused for %ds. This clears on its own, or rejoin to reset it.", math.ceil(InvokeQueue.pausedUntil - os.clock()))
-                    or "Remote calls are going through normally."
-            ))
+            liveParaC:SetDescription(
+                InvokeQueue.stalled
+                    and string.format(
+                        "Server replies: STALLED\n'%s' never returned. This game processes remote calls one at a time per player, so every later call is stuck behind it. Only rejoining clears this.",
+                        tostring(InvokeQueue.stalledOn)
+                    )
+                    or "Server replies: healthy\nRemote calls are going through normally."
+            )
         end)
     end
 
