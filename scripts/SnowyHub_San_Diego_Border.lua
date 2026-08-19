@@ -1035,15 +1035,30 @@ local function travelTo(targetPos, speed, tag)
         legs = legs + 1
         local r2 = rootPart()
         if r2 and (r2.Position - before).Magnitude < 6 then
+            local gap = (targetPos - r2.Position).Magnitude
             Travel.active = false
-            Travel.label = "blocked on foot"
+            if gap <= 45 then
+                Travel.label = ("arrived, %d studs out"):format(gap)
+                return true
+            end
+            Travel.label = ("blocked %d studs out"):format(gap)
             return false
         end
         task.wait(0.1)
     end
 
+    local r3 = rootPart()
+    local gap = r3 and (targetPos - r3.Position).Magnitude or 9e9
     Travel.active = false
-    Travel.label = Travel.cancel and "cancelled" or "gave up"
+    if Travel.cancel then
+        Travel.label = "cancelled"
+        return false
+    end
+    if gap <= 45 then
+        Travel.label = ("arrived, %d studs out"):format(gap)
+        return true
+    end
+    Travel.label = ("gave up %d studs out"):format(gap)
     return false
 end
 
@@ -2810,7 +2825,8 @@ TabTeleport:CreateButton({
         if not loc then notify("Teleport", "Pick a destination first.", 3) return end
         task.spawn(function()
             local ok = travelTo(loc.Position + Vector3.new(0, 4, 0), Flags.TpSpeed, "tp " .. loc.Name)
-            notify("Teleport", ok and ("Arrived at " .. loc.Name) or "Cancelled", 3)
+            notify("Teleport", ok and ("Arrived at " .. loc.Name)
+                or (loc.Name .. ": " .. tostring(Travel.label)), 4)
         end)
     end,
 })
