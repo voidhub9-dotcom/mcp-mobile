@@ -94,6 +94,7 @@ local function initGame()
     Game.Codes = safeRequire(child(config, "Codes"))
     Game.Races = safeRequire(child(config, "Races"))
     Game.Treadmills = safeRequire(child(config, "Treadmills"))
+    Game.Events = safeRequire(child(config, "Events"))
 
     local util = child(ReplicatedStorage, "Util")
     Game.BigNum = safeRequire(child(util, "BigNum"))
@@ -119,16 +120,22 @@ initGame()
 
 local WORLD_LIST = { "1", "2", "3", "4", "5" }
 
+local WIN_DWELL_DEFAULT = 1.0
+local WIN_PAYOUT_TIMEOUT = 1.5
+
 local S = {
     winFarm          = false,
     winWorld         = "Auto",
     winStage         = 9,
     winUseVip        = false,
-    winDwell         = 1.6,
+    winDwell         = 1.0,
 
     stepFarm         = false,
     treadmillType    = "Auto",
     runInPlace       = false,
+    quantumRush      = false,
+    skipPaidTreadmills = true,
+    freezePosition   = false,
 
     autoUpgrade      = false,
     autoBuyTrail     = false,
@@ -158,6 +165,10 @@ local S = {
     autoStreak       = false,
     autoPotionSpeed  = false,
     autoPotionWins   = false,
+    autoCodes        = false,
+    autoSecretChest  = false,
+    autoSecretDoor   = false,
+    ignoreHazards    = false,
 
     walkSpeed        = 0,
     noclip           = false,
@@ -188,6 +199,9 @@ local Running = true
 local Connections = {}
 local Window
 local FarmStatus = "Idle"
+local WinCycleSeconds = 0
+local WinMisses = 0
+local TreadmillStatus = "Idle"
 local ShopStatus = "Idle"
 local RewardStatus = "Idle"
 local CodeStatus = "Not run yet"
@@ -296,6 +310,19 @@ end
 
 local function currentWins()
     return bigValue("Wins")
+end
+
+local function rawWins()
+    local folder = dataFolder("Wins")
+    if not folder then return 0, 0 end
+    local m = folder:FindFirstChild("Mantissa")
+    local t = folder:FindFirstChild("Tier")
+    return (m and m.Value) or 0, (t and t.Value) or 0
+end
+
+local function winsChanged(m0, t0)
+    local m1, t1 = rawWins()
+    return t1 ~= t0 or math.abs(m1 - m0) > 1e-9
 end
 
 local function currentLevel()
@@ -448,7 +475,21 @@ local function bestStageFor(world)
     return 1
 end
 
-loop(0.2, function()
+local ButtonCache = {}
+
+local function cachedButtonPosition(world, order, preferVip)
+    local key = string.format("%d:%d:%s", world, order, tostring(preferVip))
+    local hit = ButtonCache[key]
+    if hit then return hit, key end
+    local part = returnButtonPart(world, order, preferVip)
+    if part then
+        ButtonCache[key] = part.Position
+        return part.Position, key
+    end
+    return nil, key
+end
+
+loop(0.05, function()
     if not Game.ok or not S.winFarm then return end
     if not alive() then task.wait(1) return end
 
@@ -462,49 +503,61 @@ loop(0.2, function()
 
     local order = bestStageFor(world)
     local reward = stageWinsFor(world, order)
-    FarmStatus = string.format("World %d stage %d (%s wins)", world, order, formatNumber(reward or 0))
 
     local cp = checkpointPosition(world, order)
     if not cp then
-        FarmStatus = string.format("World %d stage %d not loaded", world, order)
+        FarmStatus = string.format("World %d stage %d is not in this place", world, order)
         task.wait(1)
         return
     end
 
-    local before = currentWins()
-    requestStream(cp)
-    teleportTo(cp, 5)
-    task.wait(math.clamp(tonumber(S.winDwell) or 1.6, 0.4, 6))
-
-    local button = returnButtonPart(world, order, S.winUseVip)
-    if not button then
+    local buttonPos, key = cachedButtonPosition(world, order, S.winUseVip)
+    if not buttonPos then
+        FarmStatus = "Finding the stage " .. order .. " return button"
         requestStream(cp)
-        button = returnButtonPart(world, order, S.winUseVip)
-    end
-    if not button then
-        FarmStatus = "Return button has not streamed in yet"
-        task.wait(0.6)
-        return
+        teleportTo(cp, 5)
+        task.wait(0.8)
+        buttonPos = cachedButtonPosition(world, order, S.winUseVip)
+        if not buttonPos then
+            task.wait(0.5)
+            return
+        end
     end
 
-    teleportTo(button.Position, 4)
+    local m0, t0 = rawWins()
+    local started = os.clock()
+    local dwell = math.clamp(tonumber(S.winDwell) or 1.0, 0.4, 3)
 
-    local deadline = os.clock() + 4
+    teleportTo(cp, 5)
+    task.wait(dwell)
+    teleportTo(buttonPos, 4)
+
+    local paid = false
+    local deadline = os.clock() + dwell + WIN_PAYOUT_TIMEOUT
     while Running and S.winFarm and os.clock() < deadline do
-        if currentWins() > before then break end
-        task.wait(0.2)
+        if winsChanged(m0, t0) then paid = true break end
+        task.wait(0.04)
     end
 
-    local gained = currentWins() - before
-    if gained > 0 then
-        Stats.wins = Stats.wins + gained
+    if paid then
         Stats.winRuns = Stats.winRuns + 1
-        FarmStatus = string.format("Banked %s wins (world %d stage %d)", formatNumber(gained), world, order)
+        Stats.wins = Stats.wins + (reward or 0)
+        WinCycleSeconds = os.clock() - started
+        WinMisses = 0
+        FarmStatus = string.format("World %d stage %d - %s wins every %.2fs",
+            world, order, formatNumber(reward or 0), WinCycleSeconds)
+        if S.winDwell > WIN_DWELL_DEFAULT then
+            S.winDwell = math.max(WIN_DWELL_DEFAULT, S.winDwell - 0.02)
+        end
     else
-        FarmStatus = "No payout - raising dwell time"
-        S.winDwell = math.min(6, (tonumber(S.winDwell) or 1.6) + 0.3)
+        WinMisses = WinMisses + 1
+        S.winDwell = math.min(2.5, dwell + 0.15)
+        if WinMisses >= 4 then
+            ButtonCache[key] = nil
+            WinMisses = 0
+        end
+        FarmStatus = string.format("Missed a payout - dwell now %.2fs", S.winDwell)
     end
-    task.wait(0.2)
 end)
 
 local function treadmillMulti(kind)
@@ -513,14 +566,45 @@ local function treadmillMulti(kind)
     return tonumber(t.Multis[kind]) or 1
 end
 
+local PaidTreadmills = {}
+local LockedTreadmills = {}
+
+do
+    local ok, ids = pcall(require, ReplicatedStorage.Config.ProductIDs)
+    if ok and type(ids) == "table" and Game.Treadmills and type(Game.Treadmills.Multis) == "table" then
+        for kind in pairs(Game.Treadmills.Multis) do
+            if type(ids[kind]) == "number" then PaidTreadmills[kind] = true end
+        end
+    end
+end
+
+do
+    local prompt = Game.Remotes and Game.Remotes:FindFirstChild("PromptTreadmill")
+    if prompt and prompt:IsA("RemoteEvent") then
+        track(nil, prompt.OnClientEvent:Connect(function(which)
+            local kind = tostring(which)
+            LockedTreadmills[kind] = os.clock() + 300
+            TreadmillStatus = kind .. " needs its Robux pass - skipping it"
+        end))
+    end
+end
+
+local function treadmillLocked(kind)
+    if S.skipPaidTreadmills and PaidTreadmills[kind] then return true end
+    local until_ = LockedTreadmills[kind]
+    return until_ ~= nil and os.clock() < until_
+end
+
 local function bestTreadmill()
     local best, bestScore
     local root = getRoot()
     for _, part in ipairs(CollectionService:GetTagged("Treadmill")) do
         if part:IsA("BasePart") then
-            local kind = part:GetAttribute("Type")
+            local kind = tostring(part:GetAttribute("Type"))
             local score = treadmillMulti(kind)
             if S.treadmillType ~= "Auto" and kind ~= S.treadmillType then
+                score = nil
+            elseif S.treadmillType == "Auto" and treadmillLocked(kind) then
                 score = nil
             end
             if score then
@@ -537,14 +621,90 @@ local function bestTreadmill()
     return best, bestScore
 end
 
+local function quantumTreadmillPart()
+    local best
+    for _, part in ipairs(CollectionService:GetTagged("Treadmill")) do
+        if part:IsA("BasePart") and tostring(part:GetAttribute("Type")) == "Quantum" then
+            best = part
+        end
+    end
+    return best
+end
+
+local QuantumActiveUntil = 0
+local QuantumDeadUntil = 0
+
+do
+    local announced = Game.Remotes and Game.Remotes:FindFirstChild("WorldEventAnnounced")
+    if announced and announced:IsA("RemoteEvent") then
+        track(nil, announced.OnClientEvent:Connect(function(...)
+            local blob = ""
+            for i = 1, select("#", ...) do
+                local v = select(i, ...)
+                if type(v) == "string" then
+                    blob = blob .. " " .. v
+                elseif type(v) == "table" then
+                    for _, vv in pairs(v) do
+                        if type(vv) == "string" then blob = blob .. " " .. vv end
+                    end
+                end
+            end
+            if blob:lower():find("quantum") then
+                local duration = 300
+                if Game.Events and type(Game.Events.List) == "table" then
+                    local def = Game.Events.List["Quantum Treadmill"]
+                    if type(def) == "table" and tonumber(def.Duration) then
+                        duration = tonumber(def.Duration)
+                    end
+                end
+                QuantumActiveUntil = os.clock() + duration
+                QuantumDeadUntil = 0
+                TreadmillStatus = "Quantum event started - rushing it"
+                if S.quantumRush then
+                    notify("Quantum Treadmill", "Free x10 event is live for " .. duration .. "s.", 5)
+                end
+            end
+        end))
+    end
+end
+
+local function quantumUsable()
+    if os.clock() < QuantumDeadUntil then return false end
+    if os.clock() < QuantumActiveUntil then return true end
+    return false
+end
+
 loop(0.5, function()
-    if not Game.ok or not S.stepFarm then return end
+    if not Game.ok then return end
     if not alive() then task.wait(1) return end
+
+    if S.quantumRush and quantumUsable() then
+        local q = quantumTreadmillPart()
+        if q then
+            local root = getRoot()
+            local top = q.Position + Vector3.new(0, q.Size.Y / 2 + 3, 0)
+            if not root or (root.Position - top).Magnitude > 6 then
+                teleportTo(q.Position, q.Size.Y / 2 + 3)
+                task.wait(1.5)
+            end
+            if dataValue("TouchingTreadmill", false) == true then
+                TreadmillStatus = string.format("Quantum event treadmill (x10, free) - %.0fs left, level %d",
+                    math.max(0, QuantumActiveUntil - os.clock()), currentLevel())
+                FarmStatus = TreadmillStatus
+                return
+            end
+            QuantumDeadUntil = os.clock() + 20
+            TreadmillStatus = "Quantum belt is not live - back to the best free treadmill"
+        end
+    end
+
+    if not S.stepFarm then return end
     if S.winFarm then return end
 
     local belt, multi = bestTreadmill()
     if not belt then
-        FarmStatus = "No treadmill loaded nearby"
+        TreadmillStatus = "No usable treadmill is loaded nearby"
+        FarmStatus = TreadmillStatus
         task.wait(1)
         return
     end
@@ -555,9 +715,28 @@ loop(0.5, function()
         teleportTo(belt.Position, belt.Size.Y / 2 + 3)
     end
 
-    local level = currentLevel()
-    FarmStatus = string.format("%s treadmill (x%s) - level %d", tostring(belt:GetAttribute("Type")), tostring(multi), level)
+    local kind = tostring(belt:GetAttribute("Type"))
+    TreadmillStatus = string.format("%s treadmill (x%s)%s - level %d",
+        kind, tostring(multi), PaidTreadmills[kind] and " [pass]" or " [free]", currentLevel())
+    FarmStatus = TreadmillStatus
 end)
+
+loop(1, function()
+    if not Game.ok or not S.freezePosition then return end
+    if S.winFarm then return end
+    local root = getRoot()
+    if root and not root.Anchored then
+        pcall(function() root.Anchored = true end)
+    end
+end)
+
+track(nil, RunService.Heartbeat:Connect(function()
+    if S.freezePosition and not S.winFarm then return end
+    local root = getRoot()
+    if root and root.Anchored then
+        pcall(function() root.Anchored = false end)
+    end
+end))
 
 do
     local lastLevel = nil
@@ -982,6 +1161,101 @@ local function redeemAllCodes()
     return worked, failed
 end
 
+local KnownCodes = {}
+
+loop(30, function()
+    if not Game.ok or not S.autoCodes then return end
+    local ok, fresh = pcall(function()
+        return require(ReplicatedStorage.Config.Codes)
+    end)
+    if not ok or type(fresh) ~= "table" then return end
+    Game.Codes = fresh
+
+    local list = {}
+    if type(fresh.Active) == "table" then
+        for _, c in ipairs(fresh.Active) do table.insert(list, c) end
+    end
+    if type(fresh.Available) == "table" then
+        for name in pairs(fresh.Available) do
+            local seen = false
+            for _, c in ipairs(list) do if c == name then seen = true break end end
+            if not seen then table.insert(list, name) end
+        end
+    end
+
+    local redeemed = {}
+    local folder = dataFolder("RedeemedCodes")
+    if folder then
+        for _, c in ipairs(folder:GetChildren()) do redeemed[c.Name] = true end
+    end
+
+    local added = 0
+    for _, code in ipairs(list) do
+        if not Running or not S.autoCodes then break end
+        if not KnownCodes[code] and not redeemed[code] then
+            KnownCodes[code] = true
+            local okInvoke, res = invoke("RedeemCode", code)
+            if okInvoke and (res == true or res == "success" or res == "ok") then
+                added = added + 1
+                Stats.rewards = Stats.rewards + 1
+                CodeStatus = "New code redeemed: " .. code
+            elseif type(res) == "string" then
+                CodeStatus = code .. " -> " .. res
+            end
+            task.wait(0.4)
+        else
+            KnownCodes[code] = true
+        end
+    end
+    if added > 0 then
+        notify("Codes", added .. " new code(s) redeemed automatically.", 4)
+    end
+end)
+
+local HazardFolders = { "Crushers", "SwingingAxes", "Presses", "Cars", "Lava", "Traps" }
+
+loop(2, function()
+    if not Game.ok or not S.ignoreHazards then return end
+    local scanned = 0
+    for _, name in ipairs(HazardFolders) do
+        local folder = Workspace:FindFirstChild(name, true)
+        if folder then
+            for _, part in ipairs(folder:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanTouch then
+                    pcall(function() part.CanTouch = false end)
+                    scanned = scanned + 1
+                end
+            end
+        end
+    end
+    if scanned > 0 then
+        FarmStatus = "Disabled " .. scanned .. " hazard hitboxes"
+    end
+end)
+
+loop(5, function()
+    if not Game.ok or not S.autoSecretChest then return end
+    local pending = tonumber(dataValue("PendingSkullChests", 0)) or 0
+    if pending <= 0 then return end
+    for _ = 1, pending do
+        if not Running or not S.autoSecretChest then break end
+        fire("OpenSecretChest", 1)
+        task.wait(0.6)
+        fire("ChestSpinComplete")
+        task.wait(0.4)
+    end
+    Stats.rewards = Stats.rewards + 1
+    RewardStatus = "Opened skull chests"
+end)
+
+loop(4, function()
+    if not Game.ok or not S.autoSecretDoor then return end
+    local door = Workspace:FindFirstChild("Map")
+    door = door and door:FindFirstChild("SecretDoor")
+    if not door then return end
+    fire("SecretDoorRequestEnter")
+end)
+
 loop(0.2, function()
     if S.walkSpeed <= 0 then return end
     local hum = getHumanoid()
@@ -1116,8 +1390,14 @@ local function panicStop()
     S.collectLucky = false
     S.collectPortals = false
     S.collectShards = false
+    S.quantumRush = false
+    S.freezePosition = false
+    S.ignoreHazards = false
+    S.autoCodes = false
     setNoclip(false)
     S.walkSpeed = 0
+    local root = getRoot()
+    if root then pcall(function() root.Anchored = false end) end
     FarmStatus = "Panic stop - everything off"
     notify("VoidHub", "Panic stop: every automation is off.", 4)
 end
@@ -1285,10 +1565,10 @@ TabFarm:CreateToggle({
 
 TabFarm:CreateSlider({
     Title = "Checkpoint Dwell (s)",
-    Description = "Time spent on the checkpoint before touching the return button. Raised automatically if a run pays nothing.",
+    Description = "Time on the checkpoint before touching the return button. Measured best at 1.00s - lower looks faster but drops payouts, so the effective rate falls. Self-tunes upward if runs start missing.",
     Min = 0.4,
-    Max = 6,
-    Default = 1.6,
+    Max = 3,
+    Default = 1.0,
     SaveId = "sme_win_dwell",
     Side = 1,
     Callback = function(v) S.winDwell = v end,
@@ -1324,6 +1604,43 @@ TabFarm:CreateToggle({
     SaveId = "sme_run_place",
     Side = 2,
     Callback = function(v) S.runInPlace = v end,
+})
+
+TabFarm:CreateToggle({
+    Title = "Rush Quantum Event Treadmill",
+    Description = "The Quantum treadmill is a free world event worth x10, better than the paid Diamond. Its belt sits in the map but stays inert until the event fires, so this waits for the announcement, rushes it, confirms the server actually put you on it, and drops back to your best free belt if it did not.",
+    Icon = ICONS.rocket,
+    Default = false,
+    SaveId = "sme_quantum_rush",
+    Side = 2,
+    Callback = function(v) S.quantumRush = v end,
+})
+
+TabFarm:CreateToggle({
+    Title = "Skip Robux-Locked Treadmills",
+    Description = "Auto picks only treadmills you can actually use. Any belt the server answers with a purchase prompt is skipped for 5 minutes.",
+    Icon = ICONS.shield,
+    Default = true,
+    SaveId = "sme_skip_paid",
+    Side = 2,
+    Callback = function(v) S.skipPaidTreadmills = v end,
+})
+
+TabFarm:CreateToggle({
+    Title = "Freeze Position",
+    Description = "Anchors you in place. Handy on a treadmill, ignored while the wins farm is running.",
+    Icon = ICONS.person,
+    Default = false,
+    SaveId = "sme_freeze",
+    Side = 2,
+    Callback = function(v) S.freezePosition = v end,
+})
+
+local treadmillPara = TabFarm:CreateParagraph({
+    Title = "Treadmill",
+    Icon = ICONS.gauge,
+    Side = 2,
+    Description = "Idle",
 })
 
 TabFarm:CreateSection({ Text = "Status", Icon = ICONS.activity, Side = 2 })
@@ -1683,7 +2000,39 @@ TabRewards:CreateToggle({
     Callback = function(v) S.autoPotionWins = v end,
 })
 
+TabRewards:CreateSection({ Text = "Events", Icon = ICONS.sparkles, Side = 1 })
+
+TabRewards:CreateToggle({
+    Title = "Auto Open Skull Chests",
+    Description = "Opens and spins any pending skull chest",
+    Icon = ICONS.boxes,
+    Default = false,
+    SaveId = "sme_secret_chest",
+    Side = 1,
+    Callback = function(v) S.autoSecretChest = v end,
+})
+
+TabRewards:CreateToggle({
+    Title = "Auto Enter Secret Door",
+    Description = "Requests entry whenever the Secret Door event is up",
+    Icon = ICONS.key,
+    Default = false,
+    SaveId = "sme_secret_door",
+    Side = 1,
+    Callback = function(v) S.autoSecretDoor = v end,
+})
+
 TabRewards:CreateSection({ Text = "Codes", Icon = ICONS.key, Side = 2 })
+
+TabRewards:CreateToggle({
+    Title = "Auto Update Codes",
+    Description = "Re-reads the game's own code list every 30s and redeems anything new the moment the developers add it",
+    Icon = ICONS.refresh,
+    Default = false,
+    SaveId = "sme_auto_codes",
+    Side = 2,
+    Callback = function(v) S.autoCodes = v end,
+})
 
 TabRewards:CreateButton({
     Title = "Redeem All Codes",
@@ -1782,6 +2131,15 @@ TabPlayer:CreateToggle({
     Default = false,
     SaveId = "sme_infjump",
     Callback = function(v) S.infiniteJump = v end,
+})
+
+TabPlayer:CreateToggle({
+    Title = "Ignore Hazards",
+    Description = "Turns off the hitboxes on crushers, axes, presses, cars and lava so a farm run cannot be knocked out by an obstacle",
+    Icon = ICONS.shield,
+    Default = false,
+    SaveId = "sme_ignore_hazards",
+    Callback = function(v) S.ignoreHazards = v end,
 })
 
 TabPlayer:CreateSection({ Text = "Teleports", Icon = ICONS.mappin })
@@ -1920,7 +2278,13 @@ TabInfo:CreateDiscordInvite({
 TabInfo:CreateParagraph({
     Title = "How the wins farm works",
     Icon = ICONS.alert,
-    Description = "Every stage checkpoint has a return button worth a fixed payout, and the payout grows sharply with the stage number and the world. The farm hops to the checkpoint, waits for the return button to stream in, then touches it to bank the wins. If a run pays nothing the dwell time is raised automatically until it lands.",
+    Description = "Every stage checkpoint has a return button worth a fixed payout, and the payout grows sharply with the stage number and the world. The farm touches the checkpoint, then its return button. The button position is cached after the first run so later cycles skip the streaming wait entirely - measured at about 0.85s per payout on World 2 stage 9.",
+})
+
+TabInfo:CreateParagraph({
+    Title = "Which treadmills are free",
+    Icon = ICONS.gauge,
+    Description = "Golden x3, Diamond x9, Galaxy x25, Void x100 and Celestial x1000 are Robux gamepasses and the check runs on the server - standing on one just makes the server send you a purchase prompt, so no client script can unlock them. The free ladder is Quantum x10 (a world event, better than the paid Diamond), Sunken x2 (needs all 9 shards, which this hub collects), Reward x1.5 and Basic x1. Turn on Rush Quantum Event Treadmill and Collect All 9 Shards to get the most speed without spending anything.",
 })
 
 TabInfo:CreateSection({ Text = "Session Stats", Icon = ICONS.activity })
@@ -1954,6 +2318,9 @@ loop(1, function()
                 FarmStatus, formatNumber(currentWins()), currentLevel(), speed
             ))
         end)
+    end
+    if treadmillPara and treadmillPara.SetDescription then
+        pcall(function() treadmillPara:SetDescription(TreadmillStatus) end)
     end
     if shopStatusPara and shopStatusPara.SetDescription then
         pcall(function() shopStatusPara:SetDescription(ShopStatus) end)
@@ -2020,6 +2387,12 @@ local function unload()
     S.autoStreak = false
     S.autoPotionSpeed = false
     S.autoPotionWins = false
+    S.autoCodes = false
+    S.autoSecretChest = false
+    S.autoSecretDoor = false
+    S.ignoreHazards = false
+    S.quantumRush = false
+    S.freezePosition = false
     S.rejoinOnKick = false
     S.walkSpeed = 0
 
