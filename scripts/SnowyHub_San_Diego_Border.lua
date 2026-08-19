@@ -1774,15 +1774,21 @@ local function approach(inst, tag)
         if Travel.cancel then return false end
     end
     leaveVehicle()
-    local r = rootPart()
-    if r then
-        local step = pos + Vector3.new(0, 4, 0)
-        local g = groundAt(step, character()) or step
-        r.CFrame = CFrame.new(g)
+
+    for _ = 1, 4 do
+        if Travel.cancel then return false end
+        local r = rootPart()
+        if not r then return false end
+        local here = instancePosition(inst)
+        if not here then return false end
+        if (here - r.Position).Magnitude <= 10 then return true end
+        r.CFrame = CFrame.new(here + Vector3.new(0, 2.5, 0))
         task.wait(0.5)
     end
+
     local r2 = rootPart()
-    return r2 ~= nil and (instancePosition(inst) - r2.Position).Magnitude < 30
+    local final = instancePosition(inst)
+    return r2 ~= nil and final ~= nil and (final - r2.Position).Magnitude <= 14
 end
 
 local function itemFarmStep()
