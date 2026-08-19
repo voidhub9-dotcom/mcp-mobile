@@ -88,7 +88,8 @@ police-only, `Boats=true` + `Team` for boat spawners.
 
 ## Player state
 
-- Money: `Players.<name>.ReplicatedStats.Money` (StringValue, formatted e.g. "10.6K")
+- Money: `PlayerDataController:GetPlayerData().Currency.Money` (integer).
+  `Players.<name>.ReplicatedStats.Money` is only the formatted HUD string ("10.6K").
 - Player attributes: `WantedLevel`, `CurrentRankName`, `Sprinting`, `Crouching`,
   `LegallyCrossedBorder`, `FromMexico`, `VehicleDrivePermission`, `IsDeveloper`,
   `ShowModeratorTag`, `HasModeratorGui`, `InCivTutorial`, `CivTutorialState`, `DataLoaded`
@@ -110,8 +111,9 @@ The game ships a real, server-backed anti-exploit stack:
   `SharedModules.ExploitWatchUtil`, `Workspace.NoClipTracker`
 
 Consequences that matter for feature design: raw CFrame teleports get reverted, so travel has to
-be a speed-limited tween; walkspeed is watched client-side and reported; sell rate is profiled
-server-side. None of this is bypassed by the script.
+go through the game's own movement (see the measured table below); walkspeed is watched
+client-side and reported; sell rate is profiled server-side. None of this is bypassed by the
+script.
 
 ## Other useful modules
 
@@ -183,7 +185,7 @@ spawner.
 Measured with Mona Lisa Painting: buy -$3,750, launder +$5,537, about 110s per round trip.
 Crate Of Avacados: buy -$150, launder +$501.
 
-Job NPCs `Workspace.NPC.TruckerNPC` and `Workspace.NPC.BoatNPC` gate `StartMission` at 18 studds.
+Job NPCs `Workspace.NPC.TruckerNPC` and `Workspace.NPC.BoatNPC` gate `StartMission` at 18 studs.
 Neither was present in the server tested, so both mission runners refuse until you are at the
 depot/marina.
 
