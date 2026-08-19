@@ -659,11 +659,23 @@ local function flyStep()
     local cf = Camera.CFrame
     local dir = Vector3.zero
 
-    local moveVec = humanoid() and humanoid().MoveDirection or Vector3.zero
-    if moveVec.Magnitude > 0 then
-        dir = dir + moveVec
+    local move = humanoid() and humanoid().MoveDirection or Vector3.zero
+    if move.Magnitude > 0 then
+        local flatLook = Vector3.new(cf.LookVector.X, 0, cf.LookVector.Z)
+        local flatRight = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z)
+        if flatLook.Magnitude > 0 then flatLook = flatLook.Unit end
+        if flatRight.Magnitude > 0 then flatRight = flatRight.Unit end
+        local forward = move:Dot(flatLook)
+        local strafe = move:Dot(flatRight)
+        dir = dir + cf.LookVector * forward + cf.RightVector * strafe
     end
-    dir = dir + cf.LookVector * FlyInput.f + cf.RightVector * FlyInput.r + Vector3.new(0, FlyInput.u, 0)
+
+    local vertical = FlyInput.u
+    if Flags.FlyAscend then vertical = vertical + 1 end
+    if Flags.FlyDescend then vertical = vertical - 1 end
+
+    dir = dir + cf.LookVector * FlyInput.f + cf.RightVector * FlyInput.r
+        + Vector3.new(0, vertical, 0)
 
     if dir.Magnitude > 0 then
         dir = dir.Unit * speed
@@ -1127,25 +1139,52 @@ local function setGateNoCollide(on)
     return count
 end
 
-local SpeedLimit = { saved = {} }
+local SpeedLimit = { saved = nil }
+
+local function regionSpeedConfig()
+    local shared = ReplicatedStorage:FindFirstChild("SharedModules")
+    local configs = shared and shared:FindFirstChild("Configs")
+    return configs and safeRequire(configs:FindFirstChild("RegionSpeedLimits")) or nil
+end
 
 local function setRemoveSpeedLimit(on)
-    local regions = Workspace:FindFirstChild("GameRegions")
-    if not regions then return 0 end
+    local cfg = regionSpeedConfig()
+    if not cfg or type(cfg.Regions) ~= "table" then return 0 end
     local count = 0
-    for _, d in ipairs(regions:GetDescendants()) do
-        local limit = d:GetAttribute("SpeedLimit")
-        if limit ~= nil then
-            if on then
-                if SpeedLimit.saved[d] == nil then SpeedLimit.saved[d] = limit end
-                d:SetAttribute("SpeedLimit", 9999)
-            elseif SpeedLimit.saved[d] ~= nil then
-                d:SetAttribute("SpeedLimit", SpeedLimit.saved[d])
-                SpeedLimit.saved[d] = nil
+    if on then
+        if SpeedLimit.saved then return 0 end
+        SpeedLimit.saved = {
+            MinimumBrakeInput = cfg.MinimumBrakeInput,
+            FullBrakeOverSpeedMPH = cfg.FullBrakeOverSpeedMPH,
+            Regions = {},
+        }
+        cfg.MinimumBrakeInput = 0
+        cfg.FullBrakeOverSpeedMPH = 9999
+        for name, region in pairs(cfg.Regions) do
+            if type(region) == "table" then
+                SpeedLimit.saved.Regions[name] = {
+                    MaxMPH = region.MaxMPH,
+                    BrakeTorqueMultiplier = region.BrakeTorqueMultiplier,
+                }
+                region.MaxMPH = 9999
+                region.BrakeTorqueMultiplier = 1
+                count = count + 1
             end
+        end
+        return count
+    end
+    if not SpeedLimit.saved then return 0 end
+    cfg.MinimumBrakeInput = SpeedLimit.saved.MinimumBrakeInput
+    cfg.FullBrakeOverSpeedMPH = SpeedLimit.saved.FullBrakeOverSpeedMPH
+    for name, old in pairs(SpeedLimit.saved.Regions) do
+        local region = cfg.Regions[name]
+        if type(region) == "table" then
+            region.MaxMPH = old.MaxMPH
+            region.BrakeTorqueMultiplier = old.BrakeTorqueMultiplier
             count = count + 1
         end
     end
+    SpeedLimit.saved = nil
     return count
 end
 
@@ -3452,6 +3491,25 @@ TabCharacter:CreateSlider({
 })
 
 TabCharacter:CreateToggle({
+    Title = "Ascend",
+    Description = "Hold altitude gain while flying, for touch screens with no space bar",
+    Icon = ICONS.rocket,
+    Default = false,
+    SaveId = "sdb_fly_up",
+    Side = 1,
+    Callback = function(v) Flags.FlyAscend = v end,
+})
+
+TabCharacter:CreateToggle({
+    Title = "Descend",
+    Icon = ICONS.rocket,
+    Default = false,
+    SaveId = "sdb_fly_down",
+    Side = 1,
+    Callback = function(v) Flags.FlyDescend = v end,
+})
+
+TabCharacter:CreateToggle({
     Title = "Noclip",
     Description = "Turns collision off on your own character parts",
     Icon = ICONS.layers,
@@ -3686,8 +3744,8 @@ TabVehicle:CreateToggle({
 })
 
 TabVehicle:CreateToggle({
-    Title = "Remove Speed Limits",
-    Description = "Raises the region speed limit attributes the client reads",
+    Title = "Remove Border Speed Limit",
+    Description = "Stops the border region force-braking your car at 21mph",
     Icon = ICONS.zap,
     Default = false,
     SaveId = "sdb_speed_limit",
