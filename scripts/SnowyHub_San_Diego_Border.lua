@@ -1782,36 +1782,52 @@ local function briefcaseValue()
     return bc:GetAttribute("SmuggleValue") or 0
 end
 
+local function nearEnough(inst, radius)
+    local pos = instancePosition(inst)
+    local root = rootPart()
+    if not pos or not root then return false end
+    return (pos - root.Position).Magnitude <= (radius or 12)
+end
+
 local function approach(inst, tag)
     local pos = instancePosition(inst)
     if not pos then return false end
+
+    for _ = 1, 3 do
+        if Travel.cancel then return false end
+        local root = rootPart()
+        if not root then return false end
+        if (pos - root.Position).Magnitude <= 90 then break end
+        local car = ensureVehicle()
+        if not car then
+            setStatus("need a car to reach the " .. tostring(tag))
+            task.wait(1.5)
+            return false
+        end
+        setStatus("driving to the " .. tostring(tag))
+        driveVehicleTo(car, pos, Flags.VehicleTravelSpeed)
+    end
+
     local root = rootPart()
     if not root then return false end
-    local dist = (pos - root.Position).Magnitude
-    if dist > 700 and Flags.FarmAutoSpawn then
-        setStatus("getting a car")
-        ensureVehicle()
+    if (pos - root.Position).Magnitude > 220 then
+        setStatus("could not get near the " .. tostring(tag))
+        return false
     end
-    if dist > 60 then
-        travelTo(pos + Vector3.new(0, 4, 0), Flags.TravelSpeed, tag)
-        if Travel.cancel then return false end
-    end
+
     leaveVehicle()
 
-    for _ = 1, 4 do
+    for _ = 1, 5 do
         if Travel.cancel then return false end
+        if nearEnough(inst, 12) then return true end
         local r = rootPart()
-        if not r then return false end
         local here = instancePosition(inst)
-        if not here then return false end
-        if (here - r.Position).Magnitude <= 10 then return true end
+        if not r or not here then return false end
         r.CFrame = CFrame.new(here + Vector3.new(0, 2.5, 0))
-        task.wait(0.5)
+        task.wait(0.45)
     end
 
-    local r2 = rootPart()
-    local final = instancePosition(inst)
-    return r2 ~= nil and final ~= nil and (final - r2.Position).Magnitude <= 14
+    return nearEnough(inst, 12)
 end
 
 local function itemFarmStep()
@@ -1827,12 +1843,12 @@ local function itemFarmStep()
         if not part then setStatus("no launder point found") task.wait(2) return end
         setStatus(("laundering $%s"):format(comma(briefcaseValue())))
         equipTool(case)
-        if not approach(part, "launder") then
-            setStatus("could not reach launder point")
+        if not approach(part, "launder point") then
             return
         end
         equipTool(briefcaseTool())
         task.wait(0.3)
+        if not nearEnough(part, 16) then setStatus("pushed away from the launder point") return end
         local before = moneyValue() or 0
         svcCall("SmuggleService", "LaunderBriefcase", part)
         local landed = waitFor(function()
@@ -1856,12 +1872,10 @@ local function itemFarmStep()
         if not seller then setStatus("no seller found") task.wait(2) return end
         setStatus("selling " .. itemName)
         equipTool(held)
-        if not approach(seller, "sell") then
-            setStatus("could not reach seller")
-            return
-        end
+        if not approach(seller, "seller") then return end
         equipTool(holdingTool(itemName))
         task.wait(0.3)
+        if not nearEnough(seller, 16) then setStatus("pushed away from the seller") return end
         svcCall("SmuggleService", "SellSmuggledGoods", seller)
         if waitFor(function() return briefcaseTool() ~= nil end, 8) then
             Stats.Sold = Stats.Sold + 1
@@ -1886,10 +1900,8 @@ local function itemFarmStep()
     end
 
     setStatus("buying " .. itemName)
-    if not approach(model, "buy") then
-        setStatus("could not reach the shop")
-        return
-    end
+    if not approach(model, "shop") then return end
+    if not nearEnough(model, 16) then setStatus("pushed away from the shop") return end
     svcCall("WorldBuyableItemService", "PurchaseWorldBuyableItem", model)
     if waitFor(function() return holdingTool(itemName) end, 6) then
         Stats.Bought = Stats.Bought + 1
@@ -1912,7 +1924,8 @@ local function boxFarmStep()
 
     if not box then
         setStatus("fetching box")
-        if not approach(fetch, "box fetch") then setStatus("could not reach the box stack") return end
+        if not approach(fetch, "box stack") then return end
+        if not nearEnough(fetch, 16) then setStatus("pushed away from the box stack") return end
         svcCall("BoxJobService", "FetchBox", fetch)
         if not waitFor(function() return anyToolNamed("Box") end, 5) then
             Stats.Failed = Stats.Failed + 1
@@ -1924,8 +1937,9 @@ local function boxFarmStep()
 
     setStatus("delivering box")
     equipTool(box)
-    if not approach(deliver, "box deliver") then setStatus("could not reach the drop point") return end
+    if not approach(deliver, "drop point") then return end
     equipTool(anyToolNamed("Box"))
+    if not nearEnough(deliver, 16) then setStatus("pushed away from the drop point") return end
     svcCall("BoxJobService", "DeliverBox", deliver)
     if waitFor(function() return anyToolNamed("Box") == nil end, 5) then
         Stats.Boxes = Stats.Boxes + 1
