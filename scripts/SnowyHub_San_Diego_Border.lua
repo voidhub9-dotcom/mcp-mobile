@@ -1093,13 +1093,6 @@ local function currentVehicle()
     return model, seat
 end
 
-local function vehicleRoot(model)
-    if not model then return nil end
-    return model.PrimaryPart
-        or model:FindFirstChild("Chassis")
-        or model:FindFirstChild("Body")
-        or model:FindFirstChildWhichIsA("BasePart")
-end
 
 local function setVehicleNoCollide(on)
     local model = currentVehicle()
@@ -1464,15 +1457,20 @@ local SELLABLE = {}
 
 local function rebuildSellable()
     SELLABLE = {}
+    local stocked = {}
+    for _, model in ipairs(tagged("WorldBuyableItem")) do
+        stocked[model.Name] = (stocked[model.Name] or 0) + 1
+    end
     for name, info in pairs(Game.ToolInfo or {}) do
         if type(info) == "table" and type(info.Value) == "number" and type(info.Price) == "number"
-            and info.Value > info.Price then
+            and info.Value > info.Price and (stocked[name] or 0) > 0 then
             table.insert(SELLABLE, {
                 Name = name,
                 Price = info.Price,
                 Value = info.Value,
                 Profit = info.Value - info.Price,
                 Detection = info.Detection or 0,
+                Shops = stocked[name],
             })
         end
     end
@@ -1485,8 +1483,9 @@ local function sellableOptions()
     for _, item in ipairs(SELLABLE) do
         table.insert(t, {
             Value = item.Name,
-            Description = ("buy $%s -> sell $%s | +$%s | detect %d%%")
-                :format(comma(item.Price), comma(item.Value), comma(item.Profit), item.Detection),
+            Description = ("buy $%s -> sell $%s | +$%s | detect %d%% | %d shop(s)")
+                :format(comma(item.Price), comma(item.Value), comma(item.Profit),
+                    item.Detection, item.Shops or 0),
         })
     end
     return t
@@ -1622,21 +1621,29 @@ local function nearestCivilianSpawner()
     return best, bestDist
 end
 
+local function ownsVehicle(model)
+    return model:GetAttribute("OwnerUserId") == LocalPlayer.UserId
+        or model:GetAttribute("OwnerName") == LocalPlayer.Name
+end
+
 local function myVehicles()
     local out = {}
+    local from = rootPart() and rootPart().Position or Vector3.zero
     for _, folderName in ipairs({ "Vehicles", "Boats" }) do
         local folder = Workspace:FindFirstChild(folderName)
         if folder then
             for _, model in ipairs(folder:GetChildren()) do
-                local owner = model:GetAttribute("Owner") or model:GetAttribute("OwnerUserId")
-                    or model:GetAttribute("OwnerId")
-                if owner == LocalPlayer.UserId or owner == LocalPlayer.Name then
-                    table.insert(out, model)
+                if ownsVehicle(model) then
+                    local p = instancePosition(model)
+                    table.insert(out, { Model = model, Dist = p and (p - from).Magnitude or 1e9 })
                 end
             end
         end
     end
-    return out
+    table.sort(out, function(a, b) return a.Dist < b.Dist end)
+    local models = {}
+    for _, e in ipairs(out) do table.insert(models, e.Model) end
+    return models
 end
 
 local function findSeat(model)
@@ -1694,9 +1701,19 @@ local function spawnVehicleNear(name, wantBoat)
     if not sp then return nil, "no spawner" end
 
     local target = instancePosition(sp)
-    if target and dist and dist > 22 then
-        setStatus("driving to spawner")
-        travelTo(target + Vector3.new(0, 4, 0), Flags.TravelSpeed, "spawner")
+    if target then
+        for _ = 1, 3 do
+            local root = rootPart()
+            if not root then break end
+            if (target - root.Position).Magnitude <= 20 then break end
+            setStatus("heading to the car spawner")
+            travelTo(target + Vector3.new(0, 4, 0), Flags.TravelSpeed, "spawner")
+            if Travel.cancel then return nil, "cancelled" end
+        end
+        local root = rootPart()
+        if root and (target - root.Position).Magnitude > 30 then
+            return nil, "could not reach a spawner"
+        end
     end
 
     local remote = wantBoat and "SpawnBoatFromSpawner" or "SpawnVehicleFromSpawner"
@@ -1724,14 +1741,20 @@ end
 
 local function ensureVehicle()
     local car = seatedVehicle()
-    if car then return car end
+    if car and car.Parent then return car end
     local mine = myVehicles()
-    if #mine > 0 then
-        if boardVehicle(mine[1]) then return mine[1] end
+    for i = 1, math.min(#mine, 2) do
+        local p = instancePosition(mine[i])
+        local root = rootPart()
+        if p and root and (p - root.Position).Magnitude > 120 then
+            travelTo(p + Vector3.new(0, 4, 0), Flags.TravelSpeed, "to car")
+        end
+        if boardVehicle(mine[i]) then return mine[i] end
     end
     if not Flags.FarmAutoSpawn then return nil end
-    local model = spawnVehicleNear(Flags.FarmVehicle or "Prius2", false)
+    local model, why = spawnVehicleNear(Flags.FarmVehicle or "Prius2", false)
     if model and boardVehicle(model) then return model end
+    setStatus("no car: " .. tostring(why))
     return nil
 end
 
@@ -2016,18 +2039,13 @@ local function findOwnedVehicle(vehicleType)
     for _, folder in ipairs(folders) do
         if folder then
             for _, model in ipairs(folder:GetChildren()) do
-                local owner = model:GetAttribute("Owner") or model:GetAttribute("OwnerUserId")
-                local matchesOwner = owner == LocalPlayer.UserId or owner == LocalPlayer.Name
-                local matchesType = vehicleType and (model.Name == vehicleType
-                    or model:GetAttribute("VehicleType") == vehicleType)
-                if matchesOwner or matchesType then
-                    local part = vehicleRoot(model)
-                    if part then
-                        local d = (part.Position - myPos).Magnitude
-                        if not bestDist or d < bestDist then
-                            bestDist = d
-                            best = model
-                        end
+                local typeMatch = vehicleType == nil or model.Name == vehicleType
+                    or model:GetAttribute("VehicleType") == vehicleType
+                if ownsVehicle(model) and typeMatch then
+                    local p = instancePosition(model)
+                    if p then
+                        local d = (p - myPos).Magnitude
+                        if not bestDist or d < bestDist then bestDist = d best = model end
                     end
                 end
             end
