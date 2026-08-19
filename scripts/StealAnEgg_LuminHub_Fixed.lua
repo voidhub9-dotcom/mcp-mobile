@@ -335,6 +335,62 @@ local function getPlotCenter()
     return nil
 end
 
+local SHOP_ANCHORS = {
+    ["Sell Shop"]    = { "Stands", "Models", "Sell Stands", "Shop Stand" },
+    ["Gear Shop"]    = { "Stands", "Models", "GearShopStand" },
+    ["Trail Shop"]   = { "Stands", "Pads", "TrailShop" },
+    ["Upgrade Shop"] = { "__OBJECTS", "ExclamationPoints", "UpgradeShop" },
+    ["Skin Shop"]    = { "__OBJECTS", "ExclamationPoints", "SkinShop" },
+}
+
+local function resolveByPath(path)
+    local node = workspace
+    for _, name in ipairs(path) do
+        node = node and node:FindFirstChild(name)
+        if not node then return nil end
+    end
+    return node
+end
+
+local function getShopAnchor()
+    local wanted = Flags.ShopAnchor or "Sell Shop"
+    local path = SHOP_ANCHORS[wanted] or SHOP_ANCHORS["Sell Shop"]
+    local inst = resolveByPath(path)
+    if not inst then
+        for name, p in pairs(SHOP_ANCHORS) do
+            inst = resolveByPath(p)
+            if inst then break end
+        end
+    end
+    if not inst then return nil end
+    local pos
+    if inst:IsA("BasePart") then
+        pos = inst.Position
+    elseif inst:IsA("Model") then
+        local ok, pivot = pcall(function() return inst:GetPivot() end)
+        if ok then pos = pivot.Position end
+    end
+    if not pos then return nil end
+    return pos + Vector3.new(0, 4, 0)
+end
+
+local function getPlotPen()
+    local plot = getMyPlot()
+    if not plot then return nil end
+    local update = plot:FindFirstChild("ToUpdate")
+    local pen = update and update:FindFirstChild("StarterPen")
+    local grid = pen and pen:FindFirstChild("GridCenter")
+    if grid and grid:IsA("BasePart") then
+        return grid.Position + Vector3.new(0, 3, 0)
+    end
+    for _, d in ipairs(plot:GetDescendants()) do
+        if d.Name == "GridCenter" and d:IsA("BasePart") then
+            return d.Position + Vector3.new(0, 3, 0)
+        end
+    end
+    return getPlotCenter()
+end
+
 local function isAtBase()
     local plot = getMyPlot()
     if not plot then return false end
@@ -349,6 +405,123 @@ local function getAreaEggs()
     local ok, data = invokeRemote("Eggs: RequestAreaEggSnapshot")
     if not ok or type(data) ~= "table" then return {} end
     return data.Records or {}
+end
+
+local BaseFullNotice = nil
+
+local function getBaseCapacity()
+    local plot = getMyPlot()
+    local lvl = plot and plot:GetAttribute("BaseUpgradeLevel")
+    local ok, Bases = pcall(function() return require(ReplicatedStorage.Directory.Bases) end)
+    if ok and Bases and Bases.GetAssetEquipCapacity and lvl then
+        local okCap, cap = pcall(Bases.GetAssetEquipCapacity, lvl)
+        if okCap and type(cap) == "number" then return cap, lvl end
+    end
+    return nil, lvl
+end
+
+local function readActiveLabel()
+    local gui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not gui then return nil, nil end
+    for _, t in ipairs(gui:GetDescendants()) do
+        if t:IsA("TextLabel") and type(t.Text) == "string" then
+            local cur, max = t.Text:match("^(%d+)%s*/%s*(%d+)%s+Active")
+            if cur and max then
+                return tonumber(cur), tonumber(max)
+            end
+        end
+    end
+    return nil, nil
+end
+
+local function isBaseFull()
+    local cur, max = readActiveLabel()
+    if cur and max then
+        if cur >= max then
+            BaseFullNotice = string.format("Base full %d/%d - sell or hatch to free a slot", cur, max)
+            return true, cur, max
+        end
+        BaseFullNotice = nil
+        return false, cur, max
+    end
+    local cap, lvl = getBaseCapacity()
+    if cap then
+        BaseFullNotice = nil
+        return false, nil, cap
+    end
+    return false, nil, nil
+end
+
+local function groundAt(pos)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local exclude = { LocalPlayer.Character }
+    local objects = workspace:FindFirstChild("__OBJECTS")
+    local areas = objects and objects:FindFirstChild("Areas")
+    local guardAreas = areas and areas:FindFirstChild("GuardAreas")
+    if guardAreas then
+        for _, area in ipairs(guardAreas:GetChildren()) do
+            local nests = area:FindFirstChild("Nests")
+            if nests then table.insert(exclude, nests) end
+            local guard = area:FindFirstChild("Guard")
+            if guard then table.insert(exclude, guard) end
+        end
+    end
+    params.FilterDescendantsInstances = exclude
+    local hit = workspace:Raycast(pos + Vector3.new(0, 60, 0), Vector3.new(0, -600, 0), params)
+    if hit then return hit.Position + Vector3.new(0, 3.2, 0) end
+    return pos + Vector3.new(0, 3, 0)
+end
+
+local PromptPatchConn = nil
+
+local function patchPrompt(prompt)
+    if prompt:IsA("ProximityPrompt") then
+        pcall(function()
+            prompt.HoldDuration = 0
+            prompt.RequiresLineOfSight = false
+            prompt.MaxActivationDistance = math.max(prompt.MaxActivationDistance, 25)
+        end)
+    end
+end
+
+local function setInstantPrompts(on)
+    Flags.InstantPrompts = on
+    if PromptPatchConn then
+        pcall(function() PromptPatchConn:Disconnect() end)
+        PromptPatchConn = nil
+    end
+    if not on then return end
+    for _, d in ipairs(workspace:GetDescendants()) do
+        patchPrompt(d)
+    end
+    PromptPatchConn = workspace.DescendantAdded:Connect(function(d)
+        if Flags.InstantPrompts then
+            task.defer(patchPrompt, d)
+        end
+    end)
+end
+
+local function protectFromDeath(char)
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
+    pcall(function() hum.BreakJointsOnDeath = false end)
+end
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(0.2)
+    if Flags.AntiDie then protectFromDeath(char) end
+    if Flags.InstantPrompts then setInstantPrompts(true) end
+end)
+
+local function stillCarryingAreaEgg()
+    for _, egg in pairs(getAreaEggs()) do
+        if egg.State == "Carried" and egg.CarrierUserId == LocalPlayer.UserId then
+            return true
+        end
+    end
+    return false
 end
 
 local function getMyEggs()
@@ -594,7 +767,7 @@ local function cancelTravel()
     end
 end
 
-local TRAVEL_SPEED_RATIO = 1.4
+local TRAVEL_SPEED_RATIO = 1.0
 local TRAVEL_LEG_STUDS = 90
 
 local function travelSpeed()
@@ -1592,13 +1765,54 @@ StealOptGB:AddToggle("TweenTeleport", {
 
 StealOptGB:AddSlider("TravelSpeed", {
     Text = "Travel Speed",
-    Tooltip = "Studs per second while tweening. Capped near your real WalkSpeed to stay under the server's movement checks.",
+    Tooltip = "Studs per second while tweening. Hard capped at your real WalkSpeed - the server rejects anything faster and the grab then fails.",
     Min = 50,
-    Max = 700,
-    Default = 300,
+    Max = 300,
+    Default = 200,
     Rounding = 0,
     Callback = function(val)
         Flags.TravelSpeed = val
+    end,
+})
+
+StealOptGB:AddToggle("ShopRoute", {
+    Text = "Route Through Shop",
+    Tooltip = "Tweens to the shop first, out to the egg from there, then carries the egg back to the shop before dropping it at your pen. Keeps every long run starting and ending from the same spot instead of cutting across the map.",
+    Default = true,
+    Callback = function(val)
+        Flags.ShopRoute = val
+    end,
+})
+
+StealOptGB:AddDropdown("ShopAnchor", {
+    Text = "Shop Waypoint",
+    Tooltip = "Which shop to stage from. Sell Shop sits closest to the plot pens.",
+    Values = { "Sell Shop", "Gear Shop", "Trail Shop", "Upgrade Shop", "Skin Shop" },
+    Default = "Sell Shop",
+    Multi = false,
+    Callback = function(val)
+        if type(val) == "string" and val ~= "" then Flags.ShopAnchor = val end
+    end,
+})
+
+StealOptGB:AddButton("Tween To Shop", function()
+    task.spawn(function()
+        local anchor = getShopAnchor()
+        if anchor then
+            travelTo(anchor, function() return true end)
+            showToast("Lumin Hub", "At the shop waypoint")
+        else
+            showToast("Lumin Hub", "Shop waypoint not found")
+        end
+    end)
+end)
+
+StealOptGB:AddToggle("InstantPrompts", {
+    Text = "Instant Interact (Prompts)",
+    Tooltip = "Sets every ProximityPrompt hold time to 0 and drops the line-of-sight requirement, so grabbing and selling is instant. Re-applies to prompts the game spawns later.",
+    Default = true,
+    Callback = function(val)
+        setInstantPrompts(val)
     end,
 })
 
@@ -1687,10 +1901,17 @@ StealOptGB:AddToggle("AutoSteal", {
                 if not root then task.wait(0.5) return end
                 local plotCenter = getPlotCenter()
                 if not plotCenter then task.wait(0.5) return end
-                
+
+                local full, curActive, maxActive = isBaseFull()
+                if full then
+                    LastStealResult = BaseFullNotice or "Base full - sell or hatch to free a slot"
+                    task.wait(3)
+                    return
+                end
+
                 local areaEggs = getAreaEggs()
                 local target = nil
-                
+
                 if usePriority then
                     local sorted = sortEggsByPriority(areaEggs, bigOnly)
                     for _, egg in ipairs(sorted) do
@@ -1723,7 +1944,7 @@ StealOptGB:AddToggle("AutoSteal", {
                         end
                     end
                 end
-                
+
                 if target then
                     local targetArea = target.AreaId
                     if isGuardAwakeInArea(targetArea) then
@@ -1736,12 +1957,26 @@ StealOptGB:AddToggle("AutoSteal", {
                     if typeof(targetCFrame) ~= "CFrame" then task.wait(0.3) return end
                     local targetPos = targetCFrame.Position + Vector3.new(0, 3, 0)
 
+                    local shopAnchor = getShopAnchor()
                     local aborted = false
-                    travelTo(targetPos, function()
+
+                    local function keepGoing()
                         if not Flags.AutoSteal then aborted = true return false end
                         if isGuardAwakeInArea(targetArea) then aborted = true return false end
                         return true
-                    end)
+                    end
+
+                    if Flags.ShopRoute and shopAnchor then
+                        local r = getRoot()
+                        if r and (r.Position - shopAnchor).Magnitude > 25 then
+                            LastStealResult = "Routing via shop"
+                            travelTo(shopAnchor, keepGoing)
+                        end
+                    end
+
+                    if not aborted then
+                        travelTo(groundAt(targetPos), keepGoing)
+                    end
 
                     if aborted then
                         LastStealResult = "Aborted - guard woke in " .. tostring(targetArea)
@@ -1763,12 +1998,34 @@ StealOptGB:AddToggle("AutoSteal", {
                         task.wait(0.15)
                     end
 
+                    if not carried then
+                        local f2, c2, m2 = isBaseFull()
+                        if f2 then
+                            LastStealResult = BaseFullNotice or "Base full - grab refused"
+                        else
+                            LastStealResult = "Grab refused by server for " .. (target.AssetCategory or "?")
+                        end
+                    end
+
                     if carried then
-                        LastStealResult = "Carrying " .. (target.AssetCategory or "?") .. " home"
-                        travelTo(plotCenter, function()
+                        local keepCarrying = function()
                             return Flags.AutoSteal == true
-                        end)
-                        invokeRemote("Eggs: RequestAreaEggDrop", {})
+                        end
+
+                        if Flags.ShopRoute and shopAnchor then
+                            LastStealResult = "Carrying " .. (target.AssetCategory or "?") .. " back to shop"
+                            travelTo(shopAnchor, keepCarrying)
+                        end
+
+                        LastStealResult = "Delivering " .. (target.AssetCategory or "?") .. " to your pen"
+                        local pen = getPlotPen() or plotCenter
+                        travelTo(pen, keepCarrying)
+                        task.wait(0.6)
+
+                        if stillCarryingAreaEgg() then
+                            travelTo(pen, keepCarrying)
+                            task.wait(0.6)
+                        end
                         task.wait(0.3)
 
                         if Flags.AutoPlaceAfterSteal and PlaceCooldown < os.clock() then
@@ -2664,7 +2921,7 @@ end)
 Flags.StealRarities = { "Rare", "Epic", "Legendary", "Mythic", "Cosmic", "Secret", "Eternal", "Divine" }
 Flags.StealZones = {}
 Flags.SellRarities = { "Common", "Uncommon" }
-Flags.TravelSpeed = 300
+Flags.TravelSpeed = 200
 Flags.TweenTeleport = true
 Flags.NeverSellMutated = true
 Flags.NeverSellEquipped = true
@@ -2673,6 +2930,9 @@ Flags.JumpPower = 50
 Flags.AntiDie = true
 Flags.AutoSellConfirm = true
 Flags.AutoPlaceAfterSteal = true
+Flags.ShopRoute = true
+Flags.ShopAnchor = "Sell Shop"
+Flags.InstantPrompts = true
 Flags.StealBigOnly = false
 Flags.PrioritySystem = true
 Flags.AutoDeleteOwnPets = false
