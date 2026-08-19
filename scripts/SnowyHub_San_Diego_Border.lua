@@ -11,7 +11,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
@@ -128,6 +127,65 @@ local function comma(n)
     n = tostring(math.floor(tonumber(n) or 0))
     local out = n:reverse():gsub("(%d%d%d)", "%1,"):reverse()
     return (out:gsub("^,", ""))
+end
+
+local CollectionService = game:GetService("CollectionService")
+
+local Game = { ok = false, reason = "not initialised" }
+
+local function safeRequire(inst)
+    if not inst then return nil end
+    local ok, res = pcall(require, inst)
+    if ok then return res end
+    return nil
+end
+
+local function initGame()
+    local shared = ReplicatedStorage:FindFirstChild("SharedModules")
+    if not shared then return false, "SharedModules missing" end
+
+    local pronghorn = shared:FindFirstChild("Pronghorn")
+    local remotesMod = pronghorn and pronghorn:FindFirstChild("Remotes")
+    local remotes = safeRequire(remotesMod)
+    if not remotes or not remotes.Client then return false, "Pronghorn remotes missing" end
+
+    local configs = shared:FindFirstChild("Configs")
+
+    Game.Remotes = remotes.Client
+    Game.ToolInfo = safeRequire(shared:FindFirstChild("ToolInfo")) or {}
+    Game.TruckMissions = configs and safeRequire(configs:FindFirstChild("TruckMissions"))
+    Game.BoatMissions = configs and safeRequire(configs:FindFirstChild("BoatMissions"))
+    Game.VehicleInfo = configs and safeRequire(configs:FindFirstChild("VehicleInfo")) or {}
+    Game.BoatInfo = configs and safeRequire(configs:FindFirstChild("BoatInfo")) or {}
+    Game.GunConfig = configs and safeRequire(configs:FindFirstChild("GunConfig"))
+
+    local client = ReplicatedStorage:FindFirstChild("ClientModules")
+    Game.Movement = client and safeRequire(client:FindFirstChild("MovementController"))
+    Game.PlayerData = client and safeRequire(client:FindFirstChild("PlayerDataController"))
+
+    Game.ok = true
+    Game.reason = "ready"
+    return true
+end
+
+do
+    local ok, err = pcall(initGame)
+    if not ok then
+        Game.ok = false
+        Game.reason = tostring(err)
+    end
+end
+
+local function svcCall(serviceName, remoteName, ...)
+    if not Game.ok then return false, Game.reason end
+    local svc = Game.Remotes[serviceName]
+    if not svc then return false, "no service " .. serviceName end
+    local fn = svc[remoteName]
+    if not fn then return false, "no remote " .. remoteName end
+    local args = table.pack(...)
+    return pcall(function()
+        return svc[remoteName](svc, table.unpack(args, 1, args.n))
+    end)
 end
 
 local COLORS = {
@@ -797,60 +855,123 @@ local function cancelTravel()
     Travel.label = "cancelled"
 end
 
-local TRAVEL_SPEED_CAP = 400
+local FOOT_LEG_MAX = 500
+local VEHICLE_SPEED_CAP = 300
+
+local function groundAt(pos, ignore)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = { ignore, Workspace:FindFirstChild("Vehicles"), EspFolder }
+    local hit = Workspace:Raycast(pos + Vector3.new(0, 500, 0), Vector3.new(0, -3000, 0), params)
+    if hit then return hit.Position + Vector3.new(0, 3.5, 0) end
+    return nil
+end
+
+local function seatedVehicle()
+    local h = humanoid()
+    local seat = h and h.SeatPart
+    if not seat then return nil end
+    local model = seat:FindFirstAncestorOfClass("Model")
+    while model and model.Parent and model.Parent ~= Workspace do
+        model = model.Parent
+    end
+    if model and (model.Parent == Workspace:FindFirstChild("Vehicles")
+        or model.Parent == Workspace:FindFirstChild("Boats") or model.Parent == Workspace) then
+        return model
+    end
+    return model
+end
+
+local function vehiclePivot(model)
+    if not model then return nil end
+    local ok, cf = pcall(function() return model:GetPivot() end)
+    return ok and cf or nil
+end
+
+local function driveVehicleTo(model, targetPos, speed)
+    if not model or not model.Parent or not targetPos then return false end
+    speed = math.clamp(speed or Flags.VehicleTravelSpeed or 250, 20, VEHICLE_SPEED_CAP)
+
+    local done = false
+    local conn = RunService.Heartbeat:Connect(function(dt)
+        if not model.Parent then done = true return end
+        local cf = vehiclePivot(model)
+        if not cf then done = true return end
+        local delta = targetPos - cf.Position
+        if delta.Magnitude < 18 then done = true return end
+        local step = math.min(speed * dt, delta.Magnitude)
+        local want = cf.Position + delta.Unit * step
+        local g = groundAt(want, model) or want
+        pcall(function()
+            model:PivotTo(CFrame.new(g, g + Vector3.new(delta.Unit.X, 0, delta.Unit.Z)))
+        end)
+    end)
+
+    local cf0 = vehiclePivot(model)
+    local total = cf0 and (targetPos - cf0.Position).Magnitude or 0
+    local deadline = os.clock() + (total / speed) + 25
+    while not done and not Travel.cancel and os.clock() < deadline do
+        task.wait(0.1)
+    end
+    conn:Disconnect()
+    return done
+end
+
+local function footMoveTo(pos)
+    local mc = Game.Movement
+    if not mc then return false end
+    local ok, res = pcall(function() return mc:MoveTo(CFrame.new(pos)) end)
+    return ok and res == true
+end
 
 local function travelTo(targetPos, speed, tag)
     if Travel.active then return false, "busy" end
     local root = rootPart()
-    local h = humanoid()
-    if not root or not h then return false, "no character" end
+    if not root then return false, "no character" end
 
     Travel.active = true
     Travel.cancel = false
     Travel.label = tag or "travelling"
 
-    speed = math.clamp(speed or Flags.TravelSpeed or 180, 16, TRAVEL_SPEED_CAP)
-
-    local start = root.Position
-    local total = (targetPos - start).Magnitude
-    if total < 1 then
+    local car = seatedVehicle()
+    if car then
+        Travel.label = (tag or "travelling") .. " (driving)"
+        local ok = driveVehicleTo(car, targetPos, speed)
         Travel.active = false
-        Travel.label = "arrived"
-        return true
+        Travel.label = Travel.cancel and "cancelled" or (ok and "arrived" or "stopped short")
+        return ok and not Travel.cancel
     end
 
-    local dir = (targetPos - start).Unit
-    local travelled = 0
-    local finished = false
-
-    local conn = RunService.Heartbeat:Connect(function(dt)
+    local legs = 0
+    while legs < 40 do
+        if Travel.cancel then break end
         local r = rootPart()
-        if not r then finished = true return end
-        local step = math.min(speed * dt, total - travelled)
-        if step <= 0 then finished = true return end
-        travelled = travelled + step
-        r.CFrame = CFrame.new(r.Position + dir * step, r.Position + dir * step + dir)
-    end)
-
-    local deadline = os.clock() + (total / speed) + 8
-    while not finished and not Travel.cancel and os.clock() < deadline do
-        task.wait(0.05)
+        if not r then break end
+        local delta = targetPos - r.Position
+        if delta.Magnitude < 14 then
+            Travel.active = false
+            Travel.label = "arrived"
+            return true
+        end
+        local want = r.Position + delta.Unit * math.min(FOOT_LEG_MAX, delta.Magnitude)
+        local g = groundAt(want, character()) or want
+        local before = r.Position
+        footMoveTo(g)
+        legs = legs + 1
+        local r2 = rootPart()
+        if r2 and (r2.Position - before).Magnitude < 6 then
+            Travel.active = false
+            Travel.label = "blocked on foot"
+            return false
+        end
+        task.wait(0.1)
     end
-    conn:Disconnect()
 
     Travel.active = false
-    Travel.label = Travel.cancel and "cancelled" or "arrived"
-    return not Travel.cancel
+    Travel.label = Travel.cancel and "cancelled" or "gave up"
+    return false
 end
 
-local function travelToPart(part, offset, speed, tag)
-    if not part then return false, "no target" end
-    local pos = (part:IsA("BasePart") and part.Position)
-        or (part:IsA("Model") and part:GetPivot().Position)
-        or nil
-    if not pos then return false, "no position" end
-    return travelTo(pos + (offset or Vector3.new(0, 4, 0)), speed, tag)
-end
 
 local RainbowName = { hue = 0, original = nil }
 
@@ -1035,12 +1156,17 @@ local function setRemoveSpeedLimit(on)
     return count
 end
 
+local BASE_WALK_SPEED = 12
+
 local function applyWalkSpeed()
     local h = humanoid()
     if not h then return end
+    local mc = Game.Movement
     if Flags.SpeedBoost then
         local want = Flags.WalkSpeed or 32
-        if math.abs(h.WalkSpeed - want) > 0.01 then
+        if mc then
+            pcall(function() mc:SetWalkSpeedModifier("SnowyHub", want - BASE_WALK_SPEED) end)
+        elseif math.abs(h.WalkSpeed - want) > 0.01 then
             h.WalkSpeed = want
         end
     end
@@ -1053,21 +1179,36 @@ local function applyWalkSpeed()
     end
 end
 
-local function applyStamina()
-    if not Flags.InfiniteStamina then return end
-    for _, name in ipairs({ "Stamina", "Sprinting" }) do
-        local v = LocalPlayer:FindFirstChild(name)
-        if v and v:IsA("NumberValue") then v.Value = 100 end
+local function clearWalkSpeed()
+    local mc = Game.Movement
+    if mc then
+        pcall(function() mc:SetWalkSpeedModifier("SnowyHub", nil) end)
     end
-    if LocalPlayer:GetAttribute("Stamina") ~= nil then
-        LocalPlayer:SetAttribute("Stamina", 100)
+    local h = humanoid()
+    if h then pcall(function() h.WalkSpeed = BASE_WALK_SPEED end) end
+end
+
+local StaminaHook = { saved = nil }
+
+local function setInfiniteStamina(on)
+    local mc = Game.Movement
+    if not mc then return false end
+    if on then
+        if StaminaHook.saved then return true end
+        StaminaHook.saved = {
+            ConsumeStamina = mc.ConsumeStamina,
+            DrainStamina = mc.DrainStamina,
+        }
+        mc.ConsumeStamina = function() return true end
+        mc.DrainStamina = function() return true end
+        return true
     end
-    local c = character()
-    if c then
-        local sv = c:FindFirstChild("Stamina")
-        if sv and sv:IsA("NumberValue") then sv.Value = sv:GetAttribute("Max") or 100 end
-        if c:GetAttribute("Stamina") ~= nil then c:SetAttribute("Stamina", 100) end
+    if StaminaHook.saved then
+        mc.ConsumeStamina = StaminaHook.saved.ConsumeStamina
+        mc.DrainStamina = StaminaHook.saved.DrainStamina
+        StaminaHook.saved = nil
     end
+    return true
 end
 
 local Recoil = { hooked = false, saved = {} }
@@ -1144,7 +1285,6 @@ end
 
 local function onHeartbeat()
     pcall(applyWalkSpeed)
-    pcall(applyStamina)
     pcall(noclipStep)
     pcall(flyStep)
     if Flags.VehicleNoCollide then pcall(setVehicleNoCollide, true) end
@@ -1291,61 +1431,6 @@ local function locationOptions()
     return t
 end
 
-local CollectionService = game:GetService("CollectionService")
-
-local Game = { ok = false, reason = "not initialised" }
-
-local function safeRequire(inst)
-    if not inst then return nil end
-    local ok, res = pcall(require, inst)
-    if ok then return res end
-    return nil
-end
-
-local function initGame()
-    local shared = ReplicatedStorage:FindFirstChild("SharedModules")
-    if not shared then return false, "SharedModules missing" end
-
-    local pronghorn = shared:FindFirstChild("Pronghorn")
-    local remotesMod = pronghorn and pronghorn:FindFirstChild("Remotes")
-    local remotes = safeRequire(remotesMod)
-    if not remotes or not remotes.Client then return false, "Pronghorn remotes missing" end
-
-    local configs = shared:FindFirstChild("Configs")
-
-    Game.Remotes = remotes.Client
-    Game.ToolInfo = safeRequire(shared:FindFirstChild("ToolInfo")) or {}
-    Game.TruckMissions = configs and safeRequire(configs:FindFirstChild("TruckMissions"))
-    Game.BoatMissions = configs and safeRequire(configs:FindFirstChild("BoatMissions"))
-    Game.VehicleInfo = configs and safeRequire(configs:FindFirstChild("VehicleInfo")) or {}
-    Game.BoatInfo = configs and safeRequire(configs:FindFirstChild("BoatInfo")) or {}
-    Game.GunConfig = configs and safeRequire(configs:FindFirstChild("GunConfig"))
-
-    Game.ok = true
-    Game.reason = "ready"
-    return true
-end
-
-do
-    local ok, err = pcall(initGame)
-    if not ok then
-        Game.ok = false
-        Game.reason = tostring(err)
-    end
-end
-
-local function svcCall(serviceName, remoteName, ...)
-    if not Game.ok then return false, Game.reason end
-    local svc = Game.Remotes[serviceName]
-    if not svc then return false, "no service " .. serviceName end
-    local fn = svc[remoteName]
-    if not fn then return false, "no remote " .. remoteName end
-    local args = table.pack(...)
-    return pcall(function()
-        return svc[remoteName](svc, table.unpack(args, 1, args.n))
-    end)
-end
-
 local function tagged(tag)
     local ok, list = pcall(function() return CollectionService:GetTagged(tag) end)
     return ok and list or {}
@@ -1465,7 +1550,21 @@ local function equipTool(tool)
     return true
 end
 
+local function moneyValue()
+    local pd = Game.PlayerData
+    if pd then
+        local ok, data = pcall(function() return pd:GetPlayerData() end)
+        if ok and type(data) == "table" and type(data.Currency) == "table"
+            and type(data.Currency.Money) == "number" then
+            return data.Currency.Money
+        end
+    end
+    return nil
+end
+
 local function readMoney()
+    local n = moneyValue()
+    if n then return "$" .. comma(n) end
     local stats = LocalPlayer:FindFirstChild("ReplicatedStats")
     local money = stats and stats:FindFirstChild("Money")
     return money and money.Value or "?"
@@ -1479,6 +1578,7 @@ local Stats = {
     TruckRuns = 0,
     BoatRuns = 0,
     Failed = 0,
+    LastSale = 0,
     Started = os.clock(),
     Last = "idle",
 }
@@ -1497,6 +1597,144 @@ local function waitFor(predicate, timeout, step)
     return nil
 end
 
+local function civilianSpawners()
+    local out = {}
+    local folder = Workspace:FindFirstChild("VehicleSpawners")
+    if not folder then return out end
+    for _, sp in ipairs(folder:GetChildren()) do
+        if sp:GetAttribute("Boats") ~= true and sp:GetAttribute("Authority") ~= true then
+            table.insert(out, sp)
+        end
+    end
+    return out
+end
+
+local function nearestCivilianSpawner()
+    local from = rootPart() and rootPart().Position or Vector3.zero
+    local best, bestDist
+    for _, sp in ipairs(civilianSpawners()) do
+        local p = instancePosition(sp)
+        if p then
+            local d = (p - from).Magnitude
+            if not bestDist or d < bestDist then bestDist = d best = sp end
+        end
+    end
+    return best, bestDist
+end
+
+local function myVehicles()
+    local out = {}
+    for _, folderName in ipairs({ "Vehicles", "Boats" }) do
+        local folder = Workspace:FindFirstChild(folderName)
+        if folder then
+            for _, model in ipairs(folder:GetChildren()) do
+                local owner = model:GetAttribute("Owner") or model:GetAttribute("OwnerUserId")
+                    or model:GetAttribute("OwnerId")
+                if owner == LocalPlayer.UserId or owner == LocalPlayer.Name then
+                    table.insert(out, model)
+                end
+            end
+        end
+    end
+    return out
+end
+
+local function findSeat(model)
+    if not model then return nil end
+    local seat = model:FindFirstChildWhichIsA("VehicleSeat", true)
+    if seat then return seat end
+    for _, d in ipairs(model:GetDescendants()) do
+        if d:IsA("Seat") then return d end
+    end
+    return nil
+end
+
+local function boardVehicle(model)
+    local seat = findSeat(model)
+    local h = humanoid()
+    local root = rootPart()
+    if not seat or not h or not root then return false end
+    if h.SeatPart == seat then return true end
+    root.CFrame = CFrame.new(seat.Position + Vector3.new(0, 3, 0))
+    task.wait(0.6)
+    pcall(function() seat:Sit(h) end)
+    return waitFor(function()
+        local hh = humanoid()
+        return hh and hh.SeatPart ~= nil
+    end, 4) ~= nil
+end
+
+local function leaveVehicle()
+    local h = humanoid()
+    if h and h.SeatPart then
+        pcall(function() h.Sit = false end)
+        task.wait(0.8)
+    end
+end
+
+local function spawnVehicleNear(name, wantBoat)
+    if not Game.ok then return nil, "bridge down" end
+    local sp, dist = nearestCivilianSpawner()
+    if wantBoat then
+        local folder = Workspace:FindFirstChild("VehicleSpawners")
+        sp, dist = nil, nil
+        if folder then
+            local from = rootPart() and rootPart().Position or Vector3.zero
+            for _, cand in ipairs(folder:GetChildren()) do
+                if cand:GetAttribute("Boats") == true then
+                    local p = instancePosition(cand)
+                    if p then
+                        local d = (p - from).Magnitude
+                        if not dist or d < dist then dist = d sp = cand end
+                    end
+                end
+            end
+        end
+    end
+    if not sp then return nil, "no spawner" end
+
+    local target = instancePosition(sp)
+    if target and dist and dist > 22 then
+        setStatus("driving to spawner")
+        travelTo(target + Vector3.new(0, 4, 0), Flags.TravelSpeed, "spawner")
+    end
+
+    local remote = wantBoat and "SpawnBoatFromSpawner" or "SpawnVehicleFromSpawner"
+    local ok, res = svcCall("VehicleSpawnerService", remote, sp, name)
+    if not (ok and res == true) then
+        svcCall("VehicleSpawnerService", "PurchaseVehicle", sp, name)
+        task.wait(1.2)
+        ok, res = svcCall("VehicleSpawnerService", remote, sp, name)
+    end
+    if not (ok and res == true) then return nil, "server refused " .. tostring(name) end
+
+    local model = waitFor(function()
+        local mine = myVehicles()
+        if #mine > 0 then return mine[1] end
+        local folder = Workspace:FindFirstChild(wantBoat and "Boats" or "Vehicles")
+        if folder then
+            for _, m in ipairs(folder:GetChildren()) do
+                if m.Name == name then return m end
+            end
+        end
+        return nil
+    end, 8)
+    return model, model and "ok" or "spawned but not found"
+end
+
+local function ensureVehicle()
+    local car = seatedVehicle()
+    if car then return car end
+    local mine = myVehicles()
+    if #mine > 0 then
+        if boardVehicle(mine[1]) then return mine[1] end
+    end
+    if not Flags.FarmAutoSpawn then return nil end
+    local model = spawnVehicleNear(Flags.FarmVehicle or "Prius2", false)
+    if model and boardVehicle(model) then return model end
+    return nil
+end
+
 local function chosenSeller()
     local name = Flags.SellSpot
     if name and name ~= "Nearest" then
@@ -1511,66 +1749,124 @@ local function chosenLaunder()
     return (nearestTagged("LaunderPromptPart"))
 end
 
+local function briefcaseTool()
+    return anyToolNamed("Briefcase")
+end
+
+local function briefcaseValue()
+    local bc = briefcaseTool()
+    if not bc then return 0 end
+    return bc:GetAttribute("SmuggleValue") or 0
+end
+
+local function approach(inst, tag)
+    local pos = instancePosition(inst)
+    if not pos then return false end
+    local root = rootPart()
+    if not root then return false end
+    local dist = (pos - root.Position).Magnitude
+    if dist > 700 and Flags.FarmAutoSpawn then
+        setStatus("getting a car")
+        ensureVehicle()
+    end
+    if dist > 60 then
+        travelTo(pos + Vector3.new(0, 4, 0), Flags.TravelSpeed, tag)
+        if Travel.cancel then return false end
+    end
+    leaveVehicle()
+    local r = rootPart()
+    if r then
+        local step = pos + Vector3.new(0, 4, 0)
+        local g = groundAt(step, character()) or step
+        r.CFrame = CFrame.new(g)
+        task.wait(0.5)
+    end
+    local r2 = rootPart()
+    return r2 ~= nil and (instancePosition(inst) - r2.Position).Magnitude < 30
+end
+
 local function itemFarmStep()
     if not Game.ok then setStatus("game bridge failed") return end
-    if not alive() then setStatus("waiting for respawn") return end
+    if not alive() then setStatus("waiting for respawn") task.wait(1) return end
 
     local itemName = Flags.FarmItem
     if not itemName or itemName == "" then setStatus("pick an item") return end
 
-    local speed = Flags.TravelSpeed or 180
-
-    if Flags.AutoLaunder then
-        local case = anyToolNamed("Briefcase")
-        if case then
-            local part = chosenLaunder()
-            if part then
-                setStatus("laundering")
-                equipTool(case)
-                travelToPart(part, Vector3.new(0, 4, 0), speed, "launder")
-                if Travel.cancel then return end
-                svcCall("SmuggleService", "LaunderBriefcase", part)
-                if waitFor(function() return anyToolNamed("Briefcase") == nil end, 4) then
-                    Stats.Laundered = Stats.Laundered + 1
-                end
-                task.wait(Flags.FarmDelay or 0.5)
-                return
-            end
+    local case = briefcaseTool()
+    if case then
+        local part = chosenLaunder()
+        if not part then setStatus("no launder point found") task.wait(2) return end
+        setStatus(("laundering $%s"):format(comma(briefcaseValue())))
+        equipTool(case)
+        if not approach(part, "launder") then
+            setStatus("could not reach launder point")
+            return
         end
-    end
-
-    local held = holdingTool(itemName)
-    if not held then
-        local model = nearestBuyable(itemName)
-        if not model then setStatus("no shop stocks " .. itemName) return end
-        setStatus("buying " .. itemName)
-        travelToPart(model, Vector3.new(0, 4, 0), speed, "buy")
-        if Travel.cancel then return end
-        local ok = svcCall("WorldBuyableItemService", "PurchaseWorldBuyableItem", model)
-        if not ok then Stats.Failed = Stats.Failed + 1 end
-        if waitFor(function() return holdingTool(itemName) end, 5) then
-            Stats.Bought = Stats.Bought + 1
+        equipTool(briefcaseTool())
+        task.wait(0.3)
+        local before = moneyValue() or 0
+        svcCall("SmuggleService", "LaunderBriefcase", part)
+        local landed = waitFor(function()
+            if briefcaseTool() == nil then return true end
+            local now = moneyValue()
+            return now ~= nil and now > before
+        end, 8)
+        if landed then
+            Stats.Laundered = Stats.Laundered + 1
         else
             Stats.Failed = Stats.Failed + 1
-            setStatus("purchase did not land (money?)")
+            setStatus("launder rejected")
         end
         task.wait(Flags.FarmDelay or 0.5)
         return
     end
 
-    local seller = chosenSeller()
-    if not seller then setStatus("no seller found") return end
+    local held = holdingTool(itemName)
+    if held then
+        local seller = chosenSeller()
+        if not seller then setStatus("no seller found") task.wait(2) return end
+        setStatus("selling " .. itemName)
+        equipTool(held)
+        if not approach(seller, "sell") then
+            setStatus("could not reach seller")
+            return
+        end
+        equipTool(holdingTool(itemName))
+        task.wait(0.3)
+        svcCall("SmuggleService", "SellSmuggledGoods", seller)
+        if waitFor(function() return briefcaseTool() ~= nil end, 8) then
+            Stats.Sold = Stats.Sold + 1
+            Stats.LastSale = briefcaseValue()
+        else
+            Stats.Failed = Stats.Failed + 1
+            setStatus("sell rejected")
+        end
+        task.wait(Flags.FarmDelay or 0.5)
+        return
+    end
 
-    setStatus("selling " .. itemName)
-    equipTool(held)
-    travelToPart(seller, Vector3.new(0, 4, 0), speed, "sell")
-    if Travel.cancel then return end
-    svcCall("SmuggleService", "SellSmuggledGoods", seller)
-    if waitFor(function() return holdingTool(itemName) == nil end, 5) then
-        Stats.Sold = Stats.Sold + 1
+    local model = nearestBuyable(itemName)
+    if not model then setStatus("no shop stocks " .. itemName) task.wait(2) return end
+
+    local price = (Game.ToolInfo[itemName] or {}).Price or 0
+    local money = moneyValue()
+    if money and price > 0 and money < price then
+        setStatus(("need $%s, have $%s"):format(comma(price), comma(money)))
+        task.wait(2)
+        return
+    end
+
+    setStatus("buying " .. itemName)
+    if not approach(model, "buy") then
+        setStatus("could not reach the shop")
+        return
+    end
+    svcCall("WorldBuyableItemService", "PurchaseWorldBuyableItem", model)
+    if waitFor(function() return holdingTool(itemName) end, 6) then
+        Stats.Bought = Stats.Bought + 1
     else
         Stats.Failed = Stats.Failed + 1
-        setStatus("sell rejected")
+        setStatus("purchase refused at the shop")
     end
     task.wait(Flags.FarmDelay or 0.5)
 end
@@ -1583,13 +1879,11 @@ local function boxFarmStep()
     local deliver = tagged("BoxDeliverPrompt")[1]
     if not fetch or not deliver then setStatus("box job prompts missing") return end
 
-    local speed = Flags.TravelSpeed or 180
     local box = anyToolNamed("Box")
 
     if not box then
         setStatus("fetching box")
-        travelToPart(fetch, Vector3.new(0, 4, 0), speed, "box fetch")
-        if Travel.cancel then return end
+        if not approach(fetch, "box fetch") then setStatus("could not reach the box stack") return end
         svcCall("BoxJobService", "FetchBox", fetch)
         if not waitFor(function() return anyToolNamed("Box") end, 5) then
             Stats.Failed = Stats.Failed + 1
@@ -1601,8 +1895,8 @@ local function boxFarmStep()
 
     setStatus("delivering box")
     equipTool(box)
-    travelToPart(deliver, Vector3.new(0, 4, 0), speed, "box deliver")
-    if Travel.cancel then return end
+    if not approach(deliver, "box deliver") then setStatus("could not reach the drop point") return end
+    equipTool(anyToolNamed("Box"))
     svcCall("BoxJobService", "DeliverBox", deliver)
     if waitFor(function() return anyToolNamed("Box") == nil end, 5) then
         Stats.Boxes = Stats.Boxes + 1
@@ -1736,30 +2030,6 @@ local function findOwnedVehicle(vehicleType)
     return best, bestDist
 end
 
-local function seatIn(model)
-    if not model then return false end
-    local seat
-    for _, d in ipairs(model:GetDescendants()) do
-        if d:IsA("VehicleSeat") or (d:IsA("Seat") and d.Name:lower():find("driver")) then
-            seat = d
-            break
-        end
-    end
-    if not seat then
-        seat = model:FindFirstChildWhichIsA("VehicleSeat", true)
-    end
-    if not seat then return false end
-    local root = rootPart()
-    if not root then return false end
-    travelTo(seat.Position + Vector3.new(0, 3, 0), Flags.TravelSpeed or 180, "board")
-    task.wait(0.2)
-    pcall(function() seat:Sit(humanoid()) end)
-    return waitFor(function()
-        local h = humanoid()
-        return h and h.SeatPart ~= nil
-    end, 3) ~= nil
-end
-
 local function waypointPositions()
     local out = {}
     for _, w in ipairs(Mission.waypoints or {}) do
@@ -1779,31 +2049,6 @@ local function waypointPositions()
     return out
 end
 
-local function driveVehicleTo(model, targetPos, speed)
-    local part = vehicleRoot(model)
-    if not part or not targetPos then return false end
-    speed = math.clamp(speed or Flags.VehicleTravelSpeed or 120, 16, 1200)
-
-    local dist = (targetPos - part.Position).Magnitude
-    local duration = math.max(dist / speed, 0.1)
-    local goal = CFrame.new(targetPos, targetPos + part.CFrame.LookVector)
-
-    local prevAnchored = part.Anchored
-    part.Anchored = true
-    local tween = TweenService:Create(part, TweenInfo.new(duration, Enum.EasingStyle.Linear), { CFrame = goal })
-    tween:Play()
-    local done = false
-    local conn = tween.Completed:Connect(function() done = true end)
-    local deadline = os.clock() + duration + 5
-    while not done and not Travel.cancel and os.clock() < deadline do
-        task.wait(0.05)
-    end
-    conn:Disconnect()
-    if part and part.Parent then
-        pcall(function() part.Anchored = prevAnchored end)
-    end
-    return done
-end
 
 local function playerData()
     local mod = ReplicatedStorage:FindFirstChild("ClientModules")
@@ -1891,7 +2136,7 @@ local function truckFarmStep()
     end
 
     setStatus("boarding truck")
-    if not seatIn(truck) then
+    if not boardVehicle(truck) then
         setStatus("could not board truck")
         task.wait(1)
         return
@@ -1954,7 +2199,7 @@ local function boatFarmStep()
     end
 
     setStatus("boarding boat")
-    if not seatIn(boat) then
+    if not boardVehicle(boat) then
         setStatus("could not board boat")
         task.wait(1)
         return
@@ -2216,6 +2461,26 @@ TabFarm:CreateSlider({
     SaveId = "sdb_farm_delay",
     Side = 1,
     Callback = function(v) Flags.FarmDelay = v end,
+})
+
+TabFarm:CreateToggle({
+    Title = "Use A Car For The Run",
+    Description = "Spawns and drives a car between the shop, the seller and the launder point",
+    Icon = ICONS.rocket,
+    Default = true,
+    SaveId = "sdb_farm_car",
+    Side = 1,
+    Callback = function(v) Flags.FarmAutoSpawn = v end,
+})
+
+TabFarm:CreateDropdown({
+    Title = "Farm Car",
+    Icon = ICONS.rocket,
+    Options = vehicleOptions(),
+    Default = "Prius2",
+    SaveId = "sdb_farm_vehicle",
+    Side = 1,
+    Callback = function(v) if type(v) == "string" then Flags.FarmVehicle = v end end,
 })
 
 TabFarm:CreateSlider({
@@ -3025,10 +3290,7 @@ TabCharacter:CreateToggle({
     Side = 1,
     Callback = function(v)
         Flags.SpeedBoost = v
-        if not v then
-            local h = humanoid()
-            if h then pcall(function() h.WalkSpeed = 12 end) end
-        end
+        if not v then clearWalkSpeed() end
     end,
 })
 
@@ -3073,12 +3335,42 @@ TabCharacter:CreateSlider({
 
 TabCharacter:CreateToggle({
     Title = "Infinite Stamina",
-    Description = "Keeps the sprint meter topped up so you never drop out of a run",
+    Description = "Stops the sprint meter draining so you never drop out of a run",
     Icon = ICONS.heart,
     Default = false,
     SaveId = "sdb_inf_stamina",
     Side = 1,
-    Callback = function(v) Flags.InfiniteStamina = v end,
+    Callback = function(v)
+        Flags.InfiniteStamina = v
+        if not setInfiniteStamina(v) then
+            notify("Stamina", "Movement controller not reachable.", 4)
+        end
+    end,
+})
+
+TabCharacter:CreateToggle({
+    Title = "Fast Run",
+    Description = "Holds the sprint state on through the game's own movement controller",
+    Icon = ICONS.zap,
+    Default = false,
+    SaveId = "sdb_fast_run",
+    Side = 1,
+    Callback = function(v)
+        Flags.FastRun = v
+        local mc = Game.Movement
+        if not mc then notify("Fast Run", "Movement controller not reachable.", 4) return end
+        if v then
+            spawnLoop("fast_run", 0.5, function()
+                local m = Game.Movement
+                if not m then return end
+                local ok, sprinting = pcall(function() return m:GetIsSprinting() end)
+                if ok and not sprinting then pcall(function() m:StartSprinting() end) end
+            end)
+        else
+            stopLoop("fast_run")
+            pcall(function() mc:StopSprinting() end)
+        end
+    end,
 })
 
 TabCharacter:CreateSection({ Text = "Flight", Icon = ICONS.rocket, Side = 1 })
