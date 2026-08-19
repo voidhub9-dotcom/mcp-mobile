@@ -132,3 +132,60 @@ server-side. None of this is bypassed by the script.
 - The MCP connector serialises each returned string at ~500 chars; chunk to <=470.
 - `decompile()` on large controllers (GunController, VehicleShopGui) hangs/disconnects the
   Delta client. Decompile small modules only, or slice with `get-script-content`.
+
+## Movement — what the anti-cheat actually allows (measured)
+
+| Method | Result |
+|---|---|
+| Anchored root + CFrame tween | reverted by `AntiTp.ApplyRollbackCFrame` past ~400 studs, at any speed |
+| Unanchored per-Heartbeat root CFrame | held 1500 studs once, then rolled back; character sits in Freefall |
+| Repeated short hops (300 studs, 2-4s settle) | roughly one hop in two is accepted, then a lockout - does not accumulate |
+| `MovementController:MoveTo(CFrame)` | **accepted**. Blocking. Walks up to ~600-750 studs per call, returns false past its range but still moves. Chain legs for distance. |
+| `car:PivotTo()` per Heartbeat, seated | **accepted**. 6400 studs in 26s at 250 studs/s, player rides along, no rollback. 500 studs/s gets fought; 250 is the sweet spot. |
+
+So: drive for distance, `MoveTo` legs on foot, and never raw-teleport the character more than a few studs.
+
+## Other client APIs worth knowing
+
+`require(ReplicatedStorage.ClientModules.MovementController)`:
+`SetWalkSpeedModifier(name, delta)` (the controller overwrites direct `Humanoid.WalkSpeed`
+every frame, so this is the only way that sticks), `GetWalkSpeed()`, `GetStamina()`,
+`GetMaxStamina()` = 200, `ConsumeStamina`, `DrainStamina`, `StartSprinting`, `StopSprinting`,
+`ToggleMobileSprint`, `MoveTo`, `LockMovementFor`, `SetMovementLock`, `GetIsSprinting`,
+`GetIsCrouching`, `StartCrouching`, `StopCrouching`, `IsInAir`.
+
+`require(ReplicatedStorage.ClientModules.PlayerDataController):GetPlayerData()` — full save
+data. `Currency.Money` is the integer balance; `Players.<name>.ReplicatedStats.Money` is only
+the formatted HUD string ("10.2K").
+
+`Configs.GunConfig[<gun>].Stats` — real keys are `FirstPersonCameraRecoilFactor`,
+`ThirdPersonCameraRecoilFactor`, `BulletSpreadDegrees`, `ShotgunSpreadDegrees`,
+`EquipShootDelay`, `RPM`, `Damage`, `MagSize`, `Range`. There is no reload-time key; reload is
+animation driven.
+
+`Configs.RegionSpeedLimits` — `Regions.BorderSpeedLimitRegion = {MaxMPH = 21,
+BrakeTorqueMultiplier = 1.75}` plus `MinimumBrakeInput`, `FullBrakeOverSpeedMPH`. There are no
+`SpeedLimit` attributes anywhere in Workspace.
+
+Vehicles carry `OwnerUserId` / `OwnerName` / `VehicleType` / `VehicleId` attributes.
+`PurchaseVehicle` and `SpawnVehicleFromSpawner` both require the player within ~20 studs of the
+spawner.
+
+## The smuggling loop, as actually implemented by the game
+
+1. Buy the good in Mexico (CivilianArea ~6810,17,15 or El Capo ~6600,64,-440).
+2. Drive it to a `SmuggledGoodsSeller` in the US and fire `SellSmuggledGoods` — this does **not**
+   pay cash, it hands you a `Briefcase` tool carrying a `SmuggleValue` attribute and
+   `SmuggleCashContainer = true`.
+3. Drive the briefcase back to a `LaunderPromptPart` in Mexico and fire `LaunderBriefcase` —
+   that is when `Currency.Money` goes up.
+
+Measured with Mona Lisa Painting: buy -$3,750, launder +$5,537, about 110s per round trip.
+Crate Of Avacados: buy -$150, launder +$501.
+
+Job NPCs `Workspace.NPC.TruckerNPC` and `Workspace.NPC.BoatNPC` gate `StartMission` at 18 studds.
+Neither was present in the server tested, so both mission runners refuse until you are at the
+depot/marina.
+
+Box job: `BoxFetchPrompt` (-30,18,-72) and `BoxDeliverPrompt` (5,16,-62) are 36 studs apart, so
+it needs no driving at all - measured 6 deliveries in 13 seconds.
