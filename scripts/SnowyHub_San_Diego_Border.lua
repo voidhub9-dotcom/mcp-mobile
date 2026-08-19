@@ -1149,7 +1149,22 @@ local function setRemoveSpeedLimit(on)
     return count
 end
 
-local BASE_WALK_SPEED = 12
+local Walk = { base = nil }
+
+local function walkBase()
+    if Walk.base then return Walk.base end
+    local mc = Game.Movement
+    if mc then
+        pcall(function() mc:SetWalkSpeedModifier("SnowyHub", nil) end)
+        local ok, v = pcall(function() return mc:GetWalkSpeed() end)
+        if ok and type(v) == "number" and v > 0 then
+            Walk.base = v
+            return v
+        end
+    end
+    Walk.base = 12
+    return 12
+end
 
 local function applyWalkSpeed()
     local h = humanoid()
@@ -1158,7 +1173,7 @@ local function applyWalkSpeed()
     if Flags.SpeedBoost then
         local want = Flags.WalkSpeed or 32
         if mc then
-            pcall(function() mc:SetWalkSpeedModifier("SnowyHub", want - BASE_WALK_SPEED) end)
+            pcall(function() mc:SetWalkSpeedModifier("SnowyHub", want - walkBase()) end)
         elseif math.abs(h.WalkSpeed - want) > 0.01 then
             h.WalkSpeed = want
         end
@@ -1177,8 +1192,6 @@ local function clearWalkSpeed()
     if mc then
         pcall(function() mc:SetWalkSpeedModifier("SnowyHub", nil) end)
     end
-    local h = humanoid()
-    if h then pcall(function() h.WalkSpeed = BASE_WALK_SPEED end) end
 end
 
 local StaminaHook = { saved = nil }
@@ -4130,6 +4143,10 @@ if getgenv then
         Cancel = cancelTravel,
         Call = svcCall,
         Locations = function() return Locations end,
+        Esp = Esp,
+        Aim = Aim,
+        TravelState = Travel,
+        Fps = Fps,
         Sellable = function() return SELLABLE end,
         Steps = {
             Item = itemFarmStep,
