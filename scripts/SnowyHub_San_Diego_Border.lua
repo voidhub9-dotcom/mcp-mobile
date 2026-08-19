@@ -3805,6 +3805,22 @@ if getgenv then
         Flags = Flags,
         Stats = Stats,
         Game = Game,
+        Panic = panic,
+        Start = spawnLoop,
+        Stop = stopLoop,
+        Loops = Loops,
+        Travel = travelTo,
+        Cancel = cancelTravel,
+        Call = svcCall,
+        Locations = function() return Locations end,
+        Sellable = function() return SELLABLE end,
+        Steps = {
+            Item = itemFarmStep,
+            Box = boxFarmStep,
+            Truck = truckFarmStep,
+            Boat = boatFarmStep,
+            Collect = collectStep,
+        },
     }
 end
 
