@@ -879,19 +879,28 @@ local function groundAt(pos, ignore)
     return nil
 end
 
+local function vehicleModelFor(inst)
+    if not inst then return nil end
+    for _, folderName in ipairs({ "Vehicles", "Boats" }) do
+        local folder = Workspace:FindFirstChild(folderName)
+        if folder and inst:IsDescendantOf(folder) then
+            local node = inst
+            while node and node.Parent ~= folder do
+                node = node.Parent
+            end
+            if node and node:IsA("Model") then return node end
+        end
+    end
+    local model = inst:FindFirstAncestorOfClass("Model")
+    if model and model:IsA("Model") and model ~= Workspace then return model end
+    return nil
+end
+
 local function seatedVehicle()
     local h = humanoid()
     local seat = h and h.SeatPart
     if not seat then return nil end
-    local model = seat:FindFirstAncestorOfClass("Model")
-    while model and model.Parent and model.Parent ~= Workspace do
-        model = model.Parent
-    end
-    if model and (model.Parent == Workspace:FindFirstChild("Vehicles")
-        or model.Parent == Workspace:FindFirstChild("Boats") or model.Parent == Workspace) then
-        return model
-    end
-    return model
+    return vehicleModelFor(seat)
 end
 
 local function vehiclePivot(model)
@@ -902,6 +911,7 @@ end
 
 local function driveVehicleTo(model, targetPos, speed)
     if not model or not model.Parent or not targetPos then return false end
+    if not model:IsA("Model") then return false end
     speed = math.clamp(speed or Flags.VehicleTravelSpeed or 250, 20, VEHICLE_SPEED_CAP)
 
     local done = false
@@ -1091,18 +1101,9 @@ local Fps = { count = 0, value = 0, last = os.clock() }
 
 local function currentVehicle()
     local h = humanoid()
-    if not h then return nil end
-    local seat = h.SeatPart
+    local seat = h and h.SeatPart
     if not seat then return nil end
-    local model = seat:FindFirstAncestorOfClass("Model")
-    while model and model.Parent and model.Parent ~= Workspace do
-        local p = model.Parent
-        if p == Workspace:FindFirstChild("Vehicles") or p == Workspace:FindFirstChild("Boats") then
-            break
-        end
-        model = p
-    end
-    return model, seat
+    return vehicleModelFor(seat), seat
 end
 
 
@@ -2196,6 +2197,13 @@ local function truckFarmStep()
     local list = truckMissionList()
     if #list == 0 then setStatus("no truck missions") return end
     local data = playerData()
+
+    local npcFolder = Workspace:FindFirstChild("NPC")
+    if not (npcFolder and npcFolder:FindFirstChild("TruckerNPC")) then
+        setStatus("trucker NPC is not loaded, drive to the trucker depot first")
+        task.wait(4)
+        return
+    end
 
     if not Mission.truckActive then
         local m = pickMission(list, Flags.TruckMission, data, Game.TruckMissions)
