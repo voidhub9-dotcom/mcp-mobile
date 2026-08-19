@@ -104,6 +104,16 @@ local function stopLoop(name)
     Threads[name] = nil
 end
 
+local function waitFor(predicate, timeout, step)
+    local deadline = os.clock() + (timeout or 5)
+    while os.clock() < deadline do
+        local ok, res = pcall(predicate)
+        if ok and res then return res end
+        task.wait(step or 0.15)
+    end
+    return nil
+end
+
 local function character()
     return LocalPlayer.Character
 end
@@ -909,6 +919,39 @@ local function vehiclePivot(model)
     return ok and cf or nil
 end
 
+local function findSeat(model)
+    if not model then return nil end
+    local seat = model:FindFirstChildWhichIsA("VehicleSeat", true)
+    if seat then return seat end
+    for _, d in ipairs(model:GetDescendants()) do
+        if d:IsA("Seat") then return d end
+    end
+    return nil
+end
+
+local function boardVehicle(model)
+    local seat = findSeat(model)
+    local h = humanoid()
+    local root = rootPart()
+    if not seat or not h or not root then return false end
+    if h.SeatPart == seat then return true end
+    root.CFrame = CFrame.new(seat.Position + Vector3.new(0, 3, 0))
+    task.wait(0.6)
+    pcall(function() seat:Sit(h) end)
+    return waitFor(function()
+        local hh = humanoid()
+        return hh and hh.SeatPart ~= nil
+    end, 4) ~= nil
+end
+
+local function leaveVehicle()
+    local h = humanoid()
+    if h and h.SeatPart then
+        pcall(function() h.Sit = false end)
+        task.wait(0.8)
+    end
+end
+
 local function driveVehicleTo(model, targetPos, speed)
     if not model or not model.Parent or not targetPos then return false end
     if not model:IsA("Model") then return false end
@@ -958,10 +1001,20 @@ local function travelTo(targetPos, speed, tag)
     local car = seatedVehicle()
     if car then
         Travel.label = (tag or "travelling") .. " (driving)"
-        local ok = driveVehicleTo(car, targetPos, speed)
-        Travel.active = false
-        Travel.label = Travel.cancel and "cancelled" or (ok and "arrived" or "stopped short")
-        return ok and not Travel.cancel
+        driveVehicleTo(car, targetPos, speed)
+        local r = rootPart()
+        if r and (targetPos - r.Position).Magnitude < 20 then
+            Travel.active = false
+            Travel.label = "arrived"
+            return true
+        end
+        if Travel.cancel then
+            Travel.active = false
+            Travel.label = "cancelled"
+            return false
+        end
+        Travel.label = (tag or "travelling") .. " (on foot)"
+        leaveVehicle()
     end
 
     local legs = 0
@@ -1639,15 +1692,6 @@ local function setStatus(text)
     Stats.Last = text
 end
 
-local function waitFor(predicate, timeout, step)
-    local deadline = os.clock() + (timeout or 5)
-    while os.clock() < deadline do
-        local ok, res = pcall(predicate)
-        if ok and res then return res end
-        task.wait(step or 0.15)
-    end
-    return nil
-end
 
 local function civilianSpawners()
     local out = {}
@@ -1697,39 +1741,6 @@ local function myVehicles()
     local models = {}
     for _, e in ipairs(out) do table.insert(models, e.Model) end
     return models
-end
-
-local function findSeat(model)
-    if not model then return nil end
-    local seat = model:FindFirstChildWhichIsA("VehicleSeat", true)
-    if seat then return seat end
-    for _, d in ipairs(model:GetDescendants()) do
-        if d:IsA("Seat") then return d end
-    end
-    return nil
-end
-
-local function boardVehicle(model)
-    local seat = findSeat(model)
-    local h = humanoid()
-    local root = rootPart()
-    if not seat or not h or not root then return false end
-    if h.SeatPart == seat then return true end
-    root.CFrame = CFrame.new(seat.Position + Vector3.new(0, 3, 0))
-    task.wait(0.6)
-    pcall(function() seat:Sit(h) end)
-    return waitFor(function()
-        local hh = humanoid()
-        return hh and hh.SeatPart ~= nil
-    end, 4) ~= nil
-end
-
-local function leaveVehicle()
-    local h = humanoid()
-    if h and h.SeatPart then
-        pcall(function() h.Sit = false end)
-        task.wait(0.8)
-    end
 end
 
 local function spawnVehicleNear(name, wantBoat)
@@ -2269,6 +2280,13 @@ local function boatFarmStep()
     local list = boatMissionList()
     if #list == 0 then setStatus("no boat missions") return end
     local data = playerData()
+
+    local npcFolder = Workspace:FindFirstChild("NPC")
+    if not (npcFolder and npcFolder:FindFirstChild("BoatNPC")) then
+        setStatus("boat NPC is not loaded, drive to the marina first")
+        task.wait(4)
+        return
+    end
 
     if not Mission.boatActive then
         local m = pickMission(list, Flags.BoatMission, data, Game.BoatMissions)
