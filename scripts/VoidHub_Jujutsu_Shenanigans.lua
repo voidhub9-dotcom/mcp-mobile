@@ -511,39 +511,102 @@ TabCharacter:CreateSection({ Text = "Character Mods", Icon = ICONS.ghost })
 local InvisibilityEnabled = false
 local InvisibilityKeybind = Enum.KeyCode.V
 local OriginalTransparency = {}
+local InvisibilityConnections = {}
+
+local function invisCharacter()
+    local charsFolder = workspace:FindFirstChild("Characters")
+    if charsFolder then
+        local m = charsFolder:FindFirstChild(LocalPlayer.Name)
+        if m and m:IsA("Model") then return m end
+    end
+    return LocalPlayer.Character
+end
+
+local function invisHideOne(d)
+    if d:IsA("BasePart") then
+        d.LocalTransparencyModifier = 1
+    elseif d:IsA("Decal") or d:IsA("Texture") then
+        if OriginalTransparency[d] == nil then OriginalTransparency[d] = d.Transparency end
+        d.Transparency = 1
+    elseif d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam")
+        or d:IsA("Smoke") or d:IsA("Fire") or d:IsA("Sparkles") then
+        if OriginalTransparency[d] == nil then OriginalTransparency[d] = d.Enabled end
+        d.Enabled = false
+    elseif d:IsA("BillboardGui") then
+        if OriginalTransparency[d] == nil then OriginalTransparency[d] = d.Enabled end
+        d.Enabled = false
+    end
+end
+
+local function invisApplyAll()
+    local char = invisCharacter()
+    if not char then return end
+    for _, d in ipairs(char:GetDescendants()) do
+        pcall(invisHideOne, d)
+    end
+end
+
+local function invisRestoreAll()
+    local char = invisCharacter()
+    if char then
+        for _, d in ipairs(char:GetDescendants()) do
+            if d:IsA("BasePart") then
+                pcall(function() d.LocalTransparencyModifier = 0 end)
+            end
+        end
+    end
+    for obj, orig in pairs(OriginalTransparency) do
+        if obj and obj.Parent then
+            pcall(function()
+                if typeof(orig) == "boolean" then obj.Enabled = orig else obj.Transparency = orig end
+            end)
+        end
+    end
+    OriginalTransparency = {}
+end
+
+local function setInvisibility(on)
+    InvisibilityEnabled = on
+    for _, conn in ipairs(InvisibilityConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    table.clear(InvisibilityConnections)
+
+    if not on then
+        invisRestoreAll()
+        return
+    end
+
+    invisApplyAll()
+
+    table.insert(InvisibilityConnections, RunService.Heartbeat:Connect(function()
+        if not InvisibilityEnabled then return end
+        local char = invisCharacter()
+        if not char then return end
+        for _, d in ipairs(char:GetDescendants()) do
+            if d:IsA("BasePart") and d.LocalTransparencyModifier ~= 1 then
+                pcall(function() d.LocalTransparencyModifier = 1 end)
+            end
+        end
+    end))
+
+    local char = invisCharacter()
+    if char then
+        table.insert(InvisibilityConnections, char.DescendantAdded:Connect(function(d)
+            if not InvisibilityEnabled then return end
+            task.defer(function()
+                if InvisibilityEnabled then pcall(invisHideOne, d) end
+            end)
+        end))
+    end
+end
 
 TabCharacter:CreateToggle({
     Title = "Invisibility",
-    Description = "Makes your character transparent (client-side)",
+    Description = "Hides your own character on your screen using LocalTransparencyModifier, so the game cannot overwrite it and turning it off restores the exact original look. Covers particles, trails, decals and nameplates, and keeps hiding parts the game adds mid-skill. Other players still see you - only the server can change that.",
     Default = false,
     SaveId = "invisibility",
-    Callback = function(v)
-        InvisibilityEnabled = v
-        local char = LocalPlayer.Character
-        if not char then return end
-        if v then
-            OriginalTransparency = {}
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    OriginalTransparency[part] = part.Transparency
-                    part.Transparency = 1
-                end
-            end
-            for _, acc in pairs(char:GetDescendants()) do
-                if acc:IsA("Decal") or acc:IsA("Texture") then
-                    OriginalTransparency[acc] = acc.Transparency
-                    acc.Transparency = 1
-                end
-            end
-        else
-            for obj, orig in pairs(OriginalTransparency) do
-                if obj and obj.Parent then
-                    pcall(function() obj.Transparency = orig end)
-                end
-            end
-            OriginalTransparency = {}
-        end
-    end,
+    Callback = function(v) setInvisibility(v) end,
 })
 
 local AutoRespawnEnabled = false
@@ -1503,7 +1566,7 @@ TabInfo:CreateSection({ Text = "Changelog v1.2", Icon = ICONS.trendingup })
 TabInfo:CreateParagraph({
     Title = "What\'s New",
     Icon = ICONS.zap,
-    Description = "New in v1.2:\n- Skills tab: auto rotation across slots 1-8 using each skill's own cooldown\n- Auto Awaken / Ultimate on a charge threshold\n- Auto Special (R) and Auto Dash (Q)\n- Combo Builder with a custom sequence and loop\n- Live moveset panel with per-skill cooldowns\n- Progress tab: daily and weekly quests, account panel, ranked mode detection\n- Ranked area teleport and code redemption\n- Detects when the game blocks your input (Wakeup / InSkill) and says so instead of silently firing nothing\n- Fixed: text ESP never rendered because CreateText returned an undefined value\n\nFrom v1.1:\n- Invisibility, Auto M1, No Jump Cooldown, No Sprint Lock, No Skill Lock\n- Full Bright, No Fog, Auto Respawn, ESP colour picker and distance",
+    Description = "New in v1.2:\n- Skills tab: auto rotation across slots 1-8 using each skill's own cooldown\n- Auto Awaken / Ultimate on a charge threshold\n- Auto Special (R) and Auto Dash (Q)\n- Combo Builder with a custom sequence and loop\n- Live moveset panel with per-skill cooldowns\n- Progress tab: daily and weekly quests, account panel, ranked mode detection\n- Ranked area teleport and code redemption\n- Detects when the game blocks your input (Wakeup / InSkill) and says so instead of silently firing nothing\n- Rewrote Invisibility: uses LocalTransparencyModifier, hides particles/trails/decals/nameplates, keeps hiding parts added mid-skill, survives respawn and restores exactly\n- Fixed: text ESP never rendered because CreateText returned an undefined value\n\nFrom v1.1:\n- Invisibility, Auto M1, No Jump Cooldown, No Sprint Lock, No Skill Lock\n- Full Bright, No Fog, Auto Respawn, ESP colour picker and distance",
 })
 
 TabInfo:CreateSection({ Text = "Community", Icon = ICONS.globe })
@@ -1520,7 +1583,7 @@ TabInfo:CreateDiscordInvite({
 TabInfo:CreateParagraph({
     Title = "Quick Tips",
     Icon = ICONS.zap,
-    Description = "- Use keybinds for quick toggles (V = Invis, R = Auto M1)\n- Auto Block works best with Prediction Mode\n- ESP can be taxing on low-end devices\n- Adjust ranges to your playstyle\n- Invisibility is client-side only (you appear normal to others)",
+    Description = "- Use keybinds for quick toggles (V = Invis, R = Auto M1)\n- Auto Block works best with Prediction Mode\n- ESP can be taxing on low-end devices\n- Adjust ranges to your playstyle\n- Invisibility only hides you on your own screen, other players still see you normally",
 })
 
 local function getLocalPlayerHRP()
@@ -1681,35 +1744,12 @@ end
 LocalPlayer.CharacterAdded:Connect(setupJumpBoost)
 if LocalPlayer.Character then setupJumpBoost(LocalPlayer.Character) end
 
-LocalPlayer.CharacterAdded:Connect(function(char)
+LocalPlayer.CharacterAdded:Connect(function()
+    if not InvisibilityEnabled then return end
     task.wait(0.5)
     if InvisibilityEnabled then
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                OriginalTransparency[part] = part.Transparency
-                part.Transparency = 1
-            end
-        end
-        for _, acc in pairs(char:GetDescendants()) do
-            if acc:IsA("Decal") or acc:IsA("Texture") then
-                OriginalTransparency[acc] = acc.Transparency
-                acc.Transparency = 1
-            end
-        end
-    end
-end)
-
-LocalPlayer.CharacterAdded:Connect(function(char)
-    if InvisibilityEnabled then
-        task.wait(0.3)
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                if OriginalTransparency[part] == nil then
-                    OriginalTransparency[part] = part.Transparency
-                end
-                part.Transparency = 1
-            end
-        end
+        OriginalTransparency = {}
+        setInvisibility(true)
     end
 end)
 
@@ -3062,32 +3102,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
                 end
                 Window:Notify({ Title = "Show Block Zones", Text = ShowBlockBox and "Enabled" or "Disabled", Duration = 2 })
             elseif bindName == "Invisibility" then
-                InvisibilityEnabled = not InvisibilityEnabled
-                local character = LocalPlayer.Character
-                if character then
-                    if InvisibilityEnabled then
-                        OriginalTransparency = {}
-                        for _, part in pairs(character:GetDescendants()) do
-                            if part:IsA("BasePart") then
-                                OriginalTransparency[part] = part.Transparency
-                                part.Transparency = 1
-                            end
-                        end
-                        for _, acc in pairs(character:GetDescendants()) do
-                            if acc:IsA("Decal") or acc:IsA("Texture") then
-                                OriginalTransparency[acc] = acc.Transparency
-                                acc.Transparency = 1
-                            end
-                        end
-                    else
-                        for obj, orig in pairs(OriginalTransparency) do
-                            if obj and obj.Parent then
-                                pcall(function() obj.Transparency = orig end)
-                            end
-                        end
-                        OriginalTransparency = {}
-                    end
-                end
+                setInvisibility(not InvisibilityEnabled)
                 Window:Notify({ Title = "Invisibility", Text = InvisibilityEnabled and "Enabled" or "Disabled", Duration = 2 })
             elseif bindName == "AutoM1" then
                 AutoM1Enabled = not AutoM1Enabled
