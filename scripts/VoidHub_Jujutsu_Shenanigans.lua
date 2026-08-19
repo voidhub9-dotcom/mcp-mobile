@@ -851,6 +851,18 @@ local function amAlive()
     return h ~= nil and h.Health > 0
 end
 
+local INPUT_BLOCK_FLAGS = { "Wakeup", "InSkill", "Stun", "Ragdoll", "Downed" }
+
+local function inputBlockedBy()
+    local c = myCharacter()
+    local info = c and c:FindFirstChild("Info")
+    if not info then return nil end
+    for _, name in ipairs(INPUT_BLOCK_FLAGS) do
+        if info:FindFirstChild(name) then return name end
+    end
+    return nil
+end
+
 local function movesetFolder()
     local c = myCharacter()
     return c and c:FindFirstChild("Moveset") or nil
@@ -1186,6 +1198,11 @@ task.spawn(function()
                     SkillStatus = "Waiting for a target"
                     return
                 end
+                local blocked = inputBlockedBy()
+                if blocked then
+                    SkillStatus = "Input blocked by game state (" .. blocked .. ")"
+                    return
+                end
                 local used = false
                 for _, slotStr in ipairs(AutoSkillSlots) do
                     local slot = tonumber(slotStr)
@@ -1399,6 +1416,10 @@ task.spawn(function()
                             left > 0 and string.format("  (%.1fs left)", left) or "  READY"))
                     end
                 end
+                local blocked = inputBlockedBy()
+                if blocked then
+                    table.insert(lines, "BLOCKED: game state " .. blocked .. " - inputs are ignored until it clears")
+                end
                 table.insert(lines, "Status: " .. SkillStatus)
                 table.insert(lines, "Skills used: " .. SkillsUsed)
                 skillInfoPara:SetDescription(table.concat(lines, "\n"))
@@ -1482,7 +1503,7 @@ TabInfo:CreateSection({ Text = "Changelog v1.2", Icon = ICONS.trendingup })
 TabInfo:CreateParagraph({
     Title = "What\'s New",
     Icon = ICONS.zap,
-    Description = "New in v1.2:\n- Skills tab: auto rotation across slots 1-8 using each skill's own cooldown\n- Auto Awaken / Ultimate on a charge threshold\n- Auto Special (R) and Auto Dash (Q)\n- Combo Builder with a custom sequence and loop\n- Live moveset panel with per-skill cooldowns\n- Progress tab: daily and weekly quests, account panel, ranked mode detection\n- Ranked area teleport and code redemption\n- Fixed: text ESP never rendered because CreateText returned an undefined value\n\nFrom v1.1:\n- Invisibility, Auto M1, No Jump Cooldown, No Sprint Lock, No Skill Lock\n- Full Bright, No Fog, Auto Respawn, ESP colour picker and distance",
+    Description = "New in v1.2:\n- Skills tab: auto rotation across slots 1-8 using each skill's own cooldown\n- Auto Awaken / Ultimate on a charge threshold\n- Auto Special (R) and Auto Dash (Q)\n- Combo Builder with a custom sequence and loop\n- Live moveset panel with per-skill cooldowns\n- Progress tab: daily and weekly quests, account panel, ranked mode detection\n- Ranked area teleport and code redemption\n- Detects when the game blocks your input (Wakeup / InSkill) and says so instead of silently firing nothing\n- Fixed: text ESP never rendered because CreateText returned an undefined value\n\nFrom v1.1:\n- Invisibility, Auto M1, No Jump Cooldown, No Sprint Lock, No Skill Lock\n- Full Bright, No Fog, Auto Respawn, ESP colour picker and distance",
 })
 
 TabInfo:CreateSection({ Text = "Community", Icon = ICONS.globe })
