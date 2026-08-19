@@ -789,21 +789,15 @@ local function setNoRender(on)
     end
 end
 
-local Travel = { active = false, cancel = false, tween = nil, label = "idle" }
+local Travel = { active = false, cancel = false, label = "idle" }
 
 local function cancelTravel()
     Travel.cancel = true
-    if Travel.tween then
-        pcall(function() Travel.tween:Cancel() end)
-        Travel.tween = nil
-    end
-    local root = rootPart()
-    if root then
-        pcall(function() root.Anchored = false end)
-    end
     Travel.active = false
     Travel.label = "cancelled"
 end
+
+local TRAVEL_SPEED_CAP = 400
 
 local function travelTo(targetPos, speed, tag)
     if Travel.active then return false, "busy" end
@@ -815,42 +809,35 @@ local function travelTo(targetPos, speed, tag)
     Travel.cancel = false
     Travel.label = tag or "travelling"
 
-    speed = math.clamp(speed or Flags.TravelSpeed or 180, 16, 2000)
+    speed = math.clamp(speed or Flags.TravelSpeed or 180, 16, TRAVEL_SPEED_CAP)
 
-    local startCf = root.CFrame
-    local goal = CFrame.new(targetPos, targetPos + startCf.LookVector)
-    local dist = (targetPos - startCf.Position).Magnitude
-    local duration = math.max(dist / speed, 0.05)
+    local start = root.Position
+    local total = (targetPos - start).Magnitude
+    if total < 1 then
+        Travel.active = false
+        Travel.label = "arrived"
+        return true
+    end
 
-    local prevAnchored = root.Anchored
-    pcall(function() h:ChangeState(Enum.HumanoidStateType.Physics) end)
-    root.Anchored = true
-
-    local info = TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
-    local tween = TweenService:Create(root, info, { CFrame = goal })
-    Travel.tween = tween
-    tween:Play()
-
+    local dir = (targetPos - start).Unit
+    local travelled = 0
     local finished = false
-    local conn
-    conn = tween.Completed:Connect(function() finished = true end)
 
-    local deadline = os.clock() + duration + 5
+    local conn = RunService.Heartbeat:Connect(function(dt)
+        local r = rootPart()
+        if not r then finished = true return end
+        local step = math.min(speed * dt, total - travelled)
+        if step <= 0 then finished = true return end
+        travelled = travelled + step
+        r.CFrame = CFrame.new(r.Position + dir * step, r.Position + dir * step + dir)
+    end)
+
+    local deadline = os.clock() + (total / speed) + 8
     while not finished and not Travel.cancel and os.clock() < deadline do
-        if not rootPart() then break end
         task.wait(0.05)
     end
-    if conn then conn:Disconnect() end
+    conn:Disconnect()
 
-    local r = rootPart()
-    if r then
-        pcall(function() r.Anchored = prevAnchored end)
-    end
-    local hh = humanoid()
-    if hh then
-        pcall(function() hh:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-    end
-    Travel.tween = nil
     Travel.active = false
     Travel.label = Travel.cancel and "cancelled" or "arrived"
     return not Travel.cancel
@@ -2233,11 +2220,11 @@ TabFarm:CreateSlider({
 
 TabFarm:CreateSlider({
     Title = "Travel Speed",
-    Description = "Studs per second used by every auto route and teleport",
+    Description = "Studs per second. Above 400 the server rolls your position back",
     Icon = ICONS.gauge,
     Min = 20,
-    Max = 600,
-    Default = 180,
+    Max = 400,
+    Default = 200,
     Decimals = 0,
     SaveId = "sdb_travel_speed",
     Side = 1,
@@ -2460,11 +2447,11 @@ TabTeleport:CreateButton({
 
 TabTeleport:CreateSlider({
     Title = "Teleport Speed",
-    Description = "Studs per second for manual teleports",
+    Description = "Studs per second. Above 400 the server rolls your position back",
     Icon = ICONS.gauge,
     Min = 20,
-    Max = 800,
-    Default = 250,
+    Max = 400,
+    Default = 300,
     Decimals = 0,
     SaveId = "sdb_tp_speed",
     Side = 1,
