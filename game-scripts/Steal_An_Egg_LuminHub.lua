@@ -433,6 +433,7 @@ end
 
 local Move = {
     cancel    = false,
+    moving    = false,   -- true while the hub is deliberately relocating us
     speed     = nil,   -- current adaptive speed, nil = use the slider value
     rollbacks = 0,
     lastNote  = "",
@@ -480,21 +481,22 @@ end
 -- tells us the rate is too high.
 function Move:Attempt(targetPos, timeout)
     local root = getRoot()
-    if not root then return false, false end
+    if not root then self.moving = false return false, false end
+    self.moving = true
 
     local speed  = self:CurrentSpeed()
     local start  = os.clock()
     local stalls = 0
 
     while os.clock() - start < timeout do
-        if self.cancel then return false, false end
+        if self.cancel then self.moving = false return false, false end
         root = getRoot()
-        if not root then return false, false end
+        if not root then self.moving = false return false, false end
 
         local here = root.Position
         local toGo = targetPos - here
         local dist = toGo.Magnitude
-        if dist <= 5 then return true, false end
+        if dist <= 5 then self.moving = false return true, false end
 
         local dt   = RunService.Heartbeat:Wait()
         local step = math.min(speed * dt, dist)
@@ -504,14 +506,14 @@ function Move:Attempt(targetPos, timeout)
         RunService.Heartbeat:Wait()
 
         root = getRoot()
-        if not root then return false, false end
+        if not root then self.moving = false return false, false end
 
         -- How much of the step actually survived?
         local moved = (root.Position - here).Magnitude
         if moved < step * 0.35 then
             stalls = stalls + 1
             -- three consecutive rejected steps is a rollback, not a hiccup
-            if stalls >= 3 then return false, true end
+            if stalls >= 3 then self.moving = false return false, true end
         else
             stalls = 0
         end
@@ -519,6 +521,7 @@ function Move:Attempt(targetPos, timeout)
 
     root = getRoot()
     local arrived = root and (root.Position - targetPos).Magnitude <= 12
+    self.moving = false
     return arrived or false, not arrived
 end
 
@@ -530,16 +533,18 @@ function Move:To(targetPos, timeoutSeconds)
     if Flags.InstantMove then
         local root = getRoot()
         if not root then return false end
+        self.moving = true
         local deadline = os.clock() + math.min(timeout, 2)
         while os.clock() < deadline do
             if self.cancel then return false end
             root = getRoot()
             if not root then return false end
             root.CFrame = CFrame.new(targetPos)
-            if (root.Position - targetPos).Magnitude < 6 then return true end
+            if (root.Position - targetPos).Magnitude < 6 then self.moving = false return true end
             task.wait(0.05)
         end
         root = getRoot()
+        self.moving = false
         return (root and (root.Position - targetPos).Magnitude < 12) or false
     end
 
@@ -1143,13 +1148,64 @@ local God = {
     regrabs         = 0,
     lastHit         = 0,
     regrabbing      = false,
+    flings          = 0,
     lastRegrab      = 0,
     burst           = 0,
     burstStart      = 0,
 }
 
 -- Anything above this is a knockback, not running.
-local FLING_VELOCITY = 90
+local FLING_VELOCITY = 60
+-- A single frame never legitimately moves you this far on foot.
+local FLING_STEP     = 10
+-- How long to pin the character after a hit lands.
+local FLING_LOCK     = 1.25
+
+-- Position lock. The knockback is applied server-side -- there is no
+-- client code doing it, so clamping our own velocity happens after the
+-- displacement has already replicated. Instead we remember where we were
+-- standing and, the moment a frame moves us further than walking could,
+-- put us straight back and hold there. This cancels the fling whatever
+-- mechanism produced it: velocity, impulse, or a server CFrame write.
+local Fling = { lastPos = nil, lockUntil = 0, anchor = nil }
+
+local function godAntiFling()
+    local root = getRoot()
+    if not root then Fling.lastPos = nil return end
+
+    local now = os.clock()
+
+    -- Never fight our own movement.
+    if Move.moving or Flags.Fly then
+        Fling.lastPos   = root.Position
+        Fling.lockUntil = 0
+        return
+    end
+
+    if now < Fling.lockUntil and Fling.anchor then
+        root.CFrame                 = CFrame.new(Fling.anchor)
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        return
+    end
+
+    local pos = root.Position
+    if Fling.lastPos then
+        local step = (pos - Fling.lastPos).Magnitude
+        local vel  = root.AssemblyLinearVelocity.Magnitude
+        if step > FLING_STEP or vel > FLING_VELOCITY then
+            Fling.anchor    = Fling.lastPos
+            Fling.lockUntil = now + FLING_LOCK
+            God.lastHit     = now
+            God.flings      = (God.flings or 0) + 1
+            root.CFrame                 = CFrame.new(Fling.anchor)
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+            return
+        end
+    end
+    Fling.lastPos = pos
+end
 
 local function godStripMovers(char)
     if not char then return end
@@ -2862,6 +2918,12 @@ PlayerGB:AddToggle("GodMode", {
         if val then
             godHardenHumanoid(getCharacter())
             godStripMovers(getCharacter())
+            -- PreSimulation runs before the physics step, so the lock
+            -- lands ahead of the knockback rather than chasing it.
+            Flags._godStep = trackConn(RunService.Stepped:Connect(function()
+                if not Flags.GodMode then return end
+                godAntiFling()
+            end))
             startLoop("GodMode", function()
                 godCalmCharacter()
                 RunService.Heartbeat:Wait()
@@ -3527,9 +3589,10 @@ spawnTracked(function()
             if Flags.GodMode then
                 local since = os.clock() - (God.lastHit or 0)
                 GodStatus:SetText(string.format(
-                    "GodMode: on | carrying %s | re-grabs %d | last hit %s",
+                    "GodMode: on | carrying %s | re-grabs %d | flings blocked %d | last hit %s",
                     God.carrying and (God.carryUid and God.carryUid:sub(1, 6) or "yes") or "no",
                     God.regrabs,
+                    God.flings or 0,
                     God.lastHit > 0 and string.format("%.0fs ago", since) or "none"))
             else
                 GodStatus:SetText("GodMode: off")
