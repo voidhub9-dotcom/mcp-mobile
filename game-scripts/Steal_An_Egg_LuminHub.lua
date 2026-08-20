@@ -1396,9 +1396,14 @@ local function predictRanked(minRarity, limit)
             }
         end
     end
+    -- With few samples the "overdue" figure is mostly noise, so fall back
+    -- to ranking by how seldom the egg has actually been seen.
     table.sort(rows, function(a, b)
-        if a.due ~= b.due then return a.due > b.due end
-        return a.rate < b.rate
+        if a.samples >= 2 and b.samples >= 2 and a.due ~= b.due then
+            return a.due > b.due
+        end
+        if a.rate ~= b.rate then return a.rate < b.rate end
+        return (a.cat or "") < (b.cat or "")
     end)
     local out = {}
     for i = 1, math.min(limit or 8, #rows) do out[#out + 1] = rows[i] end
@@ -1526,6 +1531,13 @@ do
 
         table.insert(characterConnections, humanoid.StateChanged:Connect(function(_, state)
             if not God.active or state ~= Enum.HumanoidStateType.Physics then return end
+            -- Travel phases through geometry, which drops the humanoid
+            -- into Physics. That is not a guard hit, and anchoring for it
+            -- pins the character mid-flight and stalls the move.
+            if Move.moving then
+                clearPhysics()
+                return
+            end
             hitAt       = os.clock()
             anchor      = trailAnchor(root.CFrame)
             lockUntil   = hitAt + 0.45
@@ -1547,6 +1559,11 @@ do
             if not anchor and not Move.moving
                 and humanoid:GetState() ~= Enum.HumanoidStateType.Physics then
                 pushTrail(root.CFrame)
+            end
+
+            if Move.moving then
+                anchor = nil
+                return
             end
 
             if anchor and os.clock() < lockUntil then
@@ -2876,6 +2893,9 @@ RankGB:AddDropdown("PredictMinRarity", {
 
 local rankLabel = RankGB:AddLabel("Collecting data...", true)
 
+local LiveGB = Tabs.Predict:AddLeftGroupbox("Field Right Now", "egg")
+local liveLabel = LiveGB:AddLabel("Reading field...", true)
+
 local RevealGB = Tabs.Predict:AddLeftGroupbox("Rare Spawn Reveal", "sparkle")
 RevealGB:AddLabel("Rare eggs the server announces for the coming reset.", true)
 local revealLabel = RevealGB:AddLabel("None announced yet", true)
@@ -4032,9 +4052,35 @@ spawnTracked(function()
                 or "Next reset: --")
             resetsLabel:SetText("Resets observed: " .. Predict.resets)
 
-            if Predict.resets < 3 then
+            -- Live field: useful from the first second, no history needed.
+            do
+                local best, bestScore, byRarity, total = nil, -1, {}, 0
+                for _, egg in pairs(getAreaEggs()) do
+                    local cat = egg.AssetCategory
+                    local info = cat and AssetInfo[cat]
+                    if info then
+                        total = total + 1
+                        byRarity[info.rarity] = (byRarity[info.rarity] or 0) + 1
+                        local sc = info.rarityNum * 1e9 + getEggWeight(egg)
+                        if sc > bestScore then
+                            bestScore = sc
+                            best = string.format("%s [%s] %.0fkg in %s",
+                                cat, info.rarity, getEggWeight(egg), tostring(egg.AreaId))
+                        end
+                    end
+                end
+                local parts = {}
+                for i = #RarityOrder, 1, -1 do
+                    local r = RarityOrder[i]
+                    if byRarity[r] then parts[#parts + 1] = string.format("%s x%d", r, byRarity[r]) end
+                end
+                liveLabel:SetText(string.format("%d eggs up\nBest: %s\n%s",
+                    total, best or "none", table.concat(parts, "  ")))
+            end
+
+            if Predict.resets < 2 then
                 rankLabel:SetText(string.format(
-                    "Collecting data - %d reset%s recorded.\nRates need a few samples before they mean anything.",
+                    "Collecting data - %d reset%s recorded.\nRates appear after the next field reset.",
                     Predict.resets, Predict.resets == 1 and "" or "s"))
             else
                 local rows = predictRanked(Flags.PredictMinRarity, 8)
