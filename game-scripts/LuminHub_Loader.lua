@@ -1,6 +1,3 @@
--- Lumin Hub autoloader (Steal An Egg)
--- Put this in your executor's auto-execute list so the hub comes back
--- by itself after a kick, rejoin, or server hop.
 if game.PlaceId ~= 107778070777162 then return end
 task.spawn(function()
     if not game:IsLoaded() then game.Loaded:Wait() end

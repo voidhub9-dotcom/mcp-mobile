@@ -1,11 +1,3 @@
---[[
-    Lumin Hub - Steal An Egg
-    Rewrite: fixes + expanded feature set.
-
-    All game data paths in this file were verified live against
-    PlaceId 107778070777162 (Steal An Egg, PlaceVersion 373).
-]]
-
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 if _G.LuminHubShutdown then pcall(_G.LuminHubShutdown) end
@@ -13,14 +5,10 @@ if _G.LuminHubShutdown then pcall(_G.LuminHubShutdown) end
 local ScriptGeneration = (_G.LuminHubGeneration or 0) + 1
 _G.LuminHubGeneration = ScriptGeneration
 
---=====================================================================
--- Lifecycle registry
---=====================================================================
-
-local Running      = {}   -- loopName -> bool
-local Connections  = {}   -- tracked RBXScriptConnections
-local Threads      = {}   -- tracked spawned threads (flag tables)
-local Visuals      = {}   -- key -> Instance (ESP, body movers, gui)
+local Running      = {}
+local Connections  = {}
+local Threads      = {}
+local Visuals      = {}
 
 local function trackConn(conn)
     if conn then table.insert(Connections, conn) end
@@ -53,10 +41,6 @@ _G.LuminHubShutdown = function()
     disconnectAll()
     destroyVisuals(nil)
 
-    -- Always hand the character back usable. An older build could be
-    -- holding an anchor when this tears it down, and with its loops gone
-    -- nothing would ever release it -- which left the player frozen in
-    -- place with no hub running.
     pcall(function()
         local char = Players.LocalPlayer.Character
         if not char then return end
@@ -70,10 +54,6 @@ _G.LuminHubShutdown = function()
         if hum then hum.PlatformStand = false end
     end)
 
-    -- Unload off the caller's thread and drop the globals immediately.
-    -- If a previous load died partway, its Library is half-built and
-    -- Unload() can block forever; doing it inline wedges every later
-    -- reload, which is exactly what happened during testing.
     local stale = _G.LuminHubLibrary
     _G.LuminHubLibrary  = nil
     _G.LuminHubDebug    = nil
@@ -82,10 +62,6 @@ _G.LuminHubShutdown = function()
         task.spawn(function() pcall(function() stale:Unload() end) end)
     end
 end
-
---=====================================================================
--- Config
---=====================================================================
 
 local TemplateConfig = {
     Branding = {
@@ -111,10 +87,6 @@ local TemplateConfig = {
     Dependencies = { LibraryUrl = "https://luminon.top/testing/Library.lua" },
     Loading      = { Title = "Lumin Hub", TotalSteps = 4 },
 }
-
---=====================================================================
--- Executor / service resolution  (all locals - no global leaks)
---=====================================================================
 
 local function resolveFunction(candidate, fallback)
     if type(candidate) == "function" then return candidate end
@@ -143,13 +115,7 @@ local Stats              = cloneref(game:GetService("Stats"))
 
 local LocalPlayer = Players.LocalPlayer
 
--- ESP host: prefer the executor's hidden container so ESP objects are not
--- parented into the game's own instance tree.
 local GuiHost = (gethui and gethui()) or CoreGui
-
---=====================================================================
--- Library + loading screen
---=====================================================================
 
 local function resolveLuminIcon()
     local b = TemplateConfig.Branding
@@ -184,10 +150,6 @@ local SaveManager  = loadstring(game:HttpGet(repo .. "Addons/SaveManager.lua"))(
 Loading:SetCurrentStep(2)
 Loading:SetDescription("Loading game data...")
 
---=====================================================================
--- Game data
---=====================================================================
-
 local Network   = ReplicatedStorage:WaitForChild("Network")
 local Directory = ReplicatedStorage:WaitForChild("Directory")
 
@@ -200,22 +162,16 @@ pcall(function()
     TrailConfig   = require(Directory.Trails)
 end)
 
--- Verified live: workspace.__OBJECTS.Areas.GuardAreas children are named
--- "<Area> Guard" and each holds a "Guard" model carrying an AreaId attribute.
 local ZoneList = {
     "Abyss Ocean", "Cosmic", "Desert", "Forest", "Jungle",
     "Lake", "Prehistoric", "Snow", "Volcano",
 }
 
--- Rarity tables ------------------------------------------------------
--- Built once. The old code rescanned AssetConfig.ByRarity (84 entries,
--- nested) on every single egg on every loop tick.
-
-local RarityNumber   = {}   -- canonical rarity name -> number
-local RarityColour   = {}   -- canonical rarity name -> Color3
-local RarityOrder    = {}   -- ascending list of canonical rarity names
-local AssetInfo      = {}   -- category -> { rarity, rarityNum, weight, earn, display }
-local DisplayToAsset = {}   -- "Name [Rarity]" -> category
+local RarityNumber   = {}
+local RarityColour   = {}
+local RarityOrder    = {}
+local AssetInfo      = {}
+local DisplayToAsset = {}
 
 do
     local seen = {}
@@ -237,7 +193,6 @@ do
         end
     end
 
-    -- Only rarities that eggs actually roll (AssetConfig.ByRarity keys).
     local pool = {}
     if AssetConfig and AssetConfig.ByRarity then
         for rarityName in pairs(AssetConfig.ByRarity) do
@@ -301,10 +256,6 @@ local function assetRarity(category)
     return info and info.rarity or nil
 end
 
---=====================================================================
--- State
---=====================================================================
-
 local Flags = {}
 _G.LuminHubRunning = Running
 
@@ -316,8 +267,6 @@ local Status = {
     Farm  = "Idle",
 }
 
--- Forward declaration: the Settings tab wires a button to this before
--- the watchdog section defines it.
 local doRejoin
 
 local CarryCooldowns, CarryFails = {}, {}
@@ -328,13 +277,6 @@ local InventoryFullCount  = 0
 local SnipeQueue          = {}
 local WebhookSent         = {}
 
---=====================================================================
--- Remote helpers
---=====================================================================
-
--- The old invokeRemote returned only pcall's success flag, so every
--- "if ok then" treated a server-side rejection as a success.
--- This returns (transportOk, serverResult) and callers check both.
 local function invokeRemote(name, ...)
     local remote = Network:FindFirstChild(name)
     if not (remote and remote:IsA("RemoteFunction")) then return false, nil end
@@ -346,7 +288,6 @@ local function invokeRemote(name, ...)
     return true, res
 end
 
--- true only when the transport worked AND the server did not return false/nil
 local function remoteSucceeded(name, ...)
     local ok, res = invokeRemote(name, ...)
     if not ok then return false end
@@ -361,10 +302,6 @@ local function fireRemote(name, ...)
     pcall(function() remote:FireServer(table.unpack(args, 1, args.n)) end)
     return true
 end
-
---=====================================================================
--- Character helpers
---=====================================================================
 
 local function getCharacter() return LocalPlayer.Character end
 
@@ -381,8 +318,7 @@ local function getHumanoid()
 end
 
 local function getSpeedStat()
-    -- Verified: "Get Stats" returns an empty table in this build.
-    -- The live values live on leaderstats.
+
     local ls = LocalPlayer:FindFirstChild("leaderstats")
     if not ls then return 0 end
     local speed = ls:FindFirstChild("Speed")
@@ -396,13 +332,6 @@ local function getMoneyStat()
     return m and tonumber(m.Value) or 0
 end
 
---=====================================================================
--- Anti-death  (keeps the character alive across tweens)
---=====================================================================
-
--- The game runs death/fall handling from RunService connections owned by
--- its AnalyticsDebug script. Tweening the root trips those handlers, so
--- they get disabled; everything else on those signals is left alone.
 local function killACConns()
     for _, signal in ipairs({ "PreSimulation", "PostSimulation", "Heartbeat", "Stepped" }) do
         local ok, conns = pcall(function() return getconnections(RunService[signal]) end)
@@ -428,8 +357,6 @@ local function protectChar(char)
     pcall(function() hum.MaxHealth = math.huge hum.Health = math.huge end)
 end
 
--- Lands the player on solid ground instead of inside an egg nest or in
--- mid-air, which is what makes a tween arrival survivable.
 local function groundAt(pos)
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude
@@ -450,15 +377,11 @@ local function groundAt(pos)
     return hit and (hit.Position + Vector3.new(0, 3.2, 0)) or (pos + Vector3.new(0, 3, 0))
 end
 
---=====================================================================
--- Movement  (Smart Tween / Instant)
---=====================================================================
-
 local Move = {
     cancel    = false,
     lastFail  = nil,
-    moving    = false,   -- true while the hub is deliberately relocating us
-    speed     = nil,   -- current adaptive speed, nil = use the slider value
+    moving    = false,
+    speed     = nil,
     rollbacks = 0,
     lastNote  = "",
 }
@@ -471,22 +394,15 @@ function Move:CurrentSpeed()
     return math.clamp(self.speed or self:BaseSpeed(), 20, 2000)
 end
 
--- The server rolled us back: it rejected the per-tick displacement.
--- Drop the rate and try again -- repeated backoff converges on whatever
--- this server actually tolerates.
 function Move:Penalise()
     if Flags.AdaptiveSpeed == false then return end
     local now = self:CurrentSpeed()
-    -- Floor this well above zero. Below roughly 60 studs/s each frame's
-    -- step is sub-stud, physics jitter swamps the progress check, and the
-    -- backoff feeds on its own false positives all the way down.
+
     self.speed = math.max(60, math.floor(now * 0.65))
     self.rollbacks = self.rollbacks + 1
     self.lastNote = string.format("rolled back, speed %d -> %d", now, self.speed)
 end
 
--- Clean arrival: creep back toward the slider value so a one-off stall
--- does not pin us slow forever.
 function Move:Reward()
     local base = self:BaseSpeed()
     if self.speed and self.speed < base then
@@ -502,20 +418,6 @@ function Move:Stop()
     if root and root.Anchored then root.Anchored = false end
 end
 
--- One movement attempt. Rather than tweening the whole distance in one
--- go (which this game's character replication reverts), the root is
--- advanced in per-frame increments of speed*dt. Each step is small
--- enough to survive validation, and a step that fails to land is what
--- tells us the rate is too high.
--- One movement attempt.
---
--- Measured on a live server: a single hard teleport gets rolled back, and
--- per-frame stepping alone only crawls (1532 studs, 91 frames, still 600
--- short). Zeroing AssemblyLinearVelocity after each write is what makes
--- it stick -- accumulated momentum fights the CFrame and drags the
--- character back. With it, the same trip lands in 9 frames at 800 studs/s
--- and a frame at 2000, with no stalls at any speed. So there is no reason
--- to throttle: speed is whatever the slider says.
 function Move:Attempt(targetPos, timeout)
     local root = getRoot()
     if not root then return false, false end
@@ -528,9 +430,6 @@ function Move:Attempt(targetPos, timeout)
     local frames = 0
     local closest = math.huge
 
-    -- At high speed the character rams world geometry and each step gets
-    -- refused, which reads as a rollback. Travel phases through instead;
-    -- collisions are restored the moment the move ends.
     local restore = {}
     local char = getCharacter()
     if char then
@@ -565,7 +464,7 @@ function Move:Attempt(targetPos, timeout)
         root = getRoot()
         if not root then self.lastFail = string.format("lost character after %d frames", frames) self.moving = false releaseCollisions() return false, false end
         root.CFrame = CFrame.new(here + toGo.Unit * step)
-        -- the part that actually makes it stick
+
         root.AssemblyLinearVelocity  = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
 
@@ -573,9 +472,6 @@ function Move:Attempt(targetPos, timeout)
         root = getRoot()
         if not root then self.lastFail = string.format("lost character after %d frames", frames) self.moving = false releaseCollisions() return false, false end
 
-        -- Only treat it as blocked when we make no headway at all for a
-        -- sustained run of frames. The old 35%-of-step test tripped on
-        -- ordinary frame-time jitter and throttled a working move to zero.
         frames = frames + 1
 
         local progressed = (root.Position - here).Magnitude
@@ -603,9 +499,6 @@ function Move:Attempt(targetPos, timeout)
     return arrived or false, not arrived
 end
 
--- Walk mode: ordinary humanoid movement. The server never rolls this
--- back because it is not a teleport, and walk speed here is 163 studs/s,
--- so it is not much slower than a tween that keeps getting rejected.
 function Move:Walk(targetPos, timeout)
     local hum, root = getHumanoid(), getRoot()
     if not (hum and root) then return false end
@@ -632,7 +525,7 @@ function Move:Walk(targetPos, timeout)
             if (root.Position - lastPos).Magnitude > 5 then
                 lastPos, lastProgress = root.Position, os.clock()
             elseif os.clock() - lastProgress > 3 then
-                -- snagged on geometry: hop and re-aim
+
                 pcall(function() hum.Jump = true end)
                 lastProgress = os.clock()
             end
@@ -651,12 +544,6 @@ function Move:To(targetPos, timeoutSeconds)
     local root0 = getRoot()
     local dist0 = root0 and (root0.Position - targetPos).Magnitude or 0
 
-    -- The server resets the character on sustained fast movement.
-    -- Measured across runs: a trip that finished in 57 frames arrived
-    -- fine, while 72 and 87 frame runs were both killed mid-flight, and
-    -- pausing between bursts did not help. So tween only the distances
-    -- that finish well inside that budget and walk the long hauls, which
-    -- the server never objects to.
     local hopLimit = tonumber(Flags.TweenMaxDistance) or 700
     if mode == "Tween" and dist0 > hopLimit then
         mode = "Walk"
@@ -665,20 +552,17 @@ function Move:To(targetPos, timeoutSeconds)
     if mode == "Walk" then
         local hum = getHumanoid()
         local ws  = (hum and hum.WalkSpeed) or 16
-        -- allow the trip plus slack for terrain
+
         local budget = timeoutSeconds or math.clamp(dist0 / math.max(ws, 8) * 2 + 4, 5, 45)
         return self:Walk(targetPos, budget)
     end
 
-    -- Scale with distance: a flat timeout aborts long trips halfway and
-    -- the abort reads as a rollback.
     local timeout = timeoutSeconds
     if not timeout then
         local sp = self:CurrentSpeed()
         timeout = math.clamp(dist0 / math.max(sp, 20) * 3 + 3, 4, 30)
     end
 
-    -- Instant mode keeps the old snap behaviour for anyone who wants it.
     if Flags.InstantMove then
         local root = getRoot()
         if not root then return false end
@@ -712,10 +596,6 @@ function Move:To(targetPos, timeoutSeconds)
     end
     return false
 end
-
---=====================================================================
--- Plot helpers
---=====================================================================
 
 local CachedPlot, CachedPlotAt = nil, 0
 
@@ -757,13 +637,6 @@ local function isAtBase()
     return (root.Position - center).Magnitude < 150
 end
 
---=====================================================================
--- Selection helpers
---=====================================================================
-
--- Multi-select dropdowns hand back a set ({Forest = true}), single-select
--- ones hand back a bare string, and a cleared dropdown hands back nil.
--- Normalise all three into a set, or nil meaning "no filter".
 local function listToSet(value)
     if value == nil then return nil end
 
@@ -775,14 +648,14 @@ local function listToSet(value)
     if type(value) ~= "table" then return nil end
 
     local set, count = {}, 0
-    -- array form: { "Forest", "Desert" }
+
     for _, v in ipairs(value) do
         if type(v) == "string" then
             set[v] = true
             count = count + 1
         end
     end
-    -- set form: { Forest = true, Desert = false }
+
     if count == 0 then
         for k, v in pairs(value) do
             if v == true and type(k) == "string" then
@@ -796,10 +669,6 @@ local function listToSet(value)
     return set
 end
 
---=====================================================================
--- Guards
---=====================================================================
-
 local function getGuardAreas()
     local objs = Workspace:FindFirstChild("__OBJECTS")
     if not objs then return nil end
@@ -808,7 +677,6 @@ local function getGuardAreas()
     return areas:FindFirstChild("GuardAreas")
 end
 
--- Returns a list of { areaId, awake, state, distance }.
 local function getGuardReport()
     local report = {}
     local container = getGuardAreas()
@@ -817,8 +685,7 @@ local function getGuardReport()
     for _, area in ipairs(container:GetChildren()) do
         local guard = area:FindFirstChild("Guard")
         if guard then
-            -- The model is named "<Area> Guard"; the AreaId attribute holds
-            -- the bare zone name that egg records use.
+
             local areaId = guard:GetAttribute("AreaId")
                 or (area.Name:gsub("%s*Guard$", ""))
             local sleeping = guard:GetAttribute("Sleeping")
@@ -839,15 +706,13 @@ local function getGuardReport()
     return report
 end
 
--- Reads the guard's AreaId attribute rather than the container's name, so
--- the zone match survives any renaming of the GuardAreas children.
 local function isGuardAwake(selectedZones)
     local zoneFilter = listToSet(selectedZones)
     for _, g in ipairs(getGuardReport()) do
         if (not zoneFilter) or zoneFilter[g.areaId] then
             if g.awake then
                 if Flags.ForestGuardBypass and g.areaId == "Forest" then
-                    -- Forest guard is deposit-based, not a kill guard.
+
                 else
                     return true, g.areaId
                 end
@@ -856,10 +721,6 @@ local function isGuardAwake(selectedZones)
     end
     return false
 end
-
---=====================================================================
--- Egg / pet data
---=====================================================================
 
 local function getAreaEggs()
     local ok, data = invokeRemote("Eggs: RequestAreaEggSnapshot")
@@ -921,7 +782,6 @@ local function getEquippedCategories()
     return equipped
 end
 
--- "Weight" is the asset's ModelWeight scaled by the rolled AssetScale.
 local function getEggWeight(egg)
     local info = AssetInfo[egg.AssetCategory]
     local base = info and info.weight or 0
@@ -937,10 +797,6 @@ local function getEggMutations(egg)
     return out
 end
 
---=====================================================================
--- Egg filtering
---=====================================================================
-
 local function eggPassesFilters(egg)
     if egg.State ~= "Slot" and not Flags.SnipeDropped then return false end
     if string.find(egg.Uid or "", "FirstAreaEgg") then return false end
@@ -948,28 +804,23 @@ local function eggPassesFilters(egg)
     local category = egg.AssetCategory
     if not category then return false end
 
-    -- zone
     local zoneSet = listToSet(Flags.StealZones)
     if zoneSet and egg.AreaId and not zoneSet[egg.AreaId] then return false end
 
-    -- minimum rarity
     local minR = Flags.FarmMinRarity
     if minR and minR ~= "" then
         if rarityNum(assetRarity(category)) < rarityNum(minR) then return false end
     end
 
-    -- explicit rarity multi-select (exact match, when used)
     local rarSet = listToSet(Flags.StealRarities)
     if rarSet and not rarSet[assetRarity(category)] then return false end
 
-    -- explicit egg multi-select
     local eggSet = listToSet(Flags.SelectEggs)
     if eggSet then
         local info = AssetInfo[category]
         if not (info and eggSet[info.display]) then return false end
     end
 
-    -- mutation multi-select
     local mutSet = listToSet(Flags.SelectMutations)
     if mutSet then
         local found = false
@@ -979,7 +830,6 @@ local function eggPassesFilters(egg)
         if not found then return false end
     end
 
-    -- weight floor
     local minW = tonumber(Flags.MinEggWeight) or 0
     if minW > 0 and getEggWeight(egg) < minW then return false end
 
@@ -1027,10 +877,6 @@ local function pickTargetEgg(eggs)
     return candidates[1]
 end
 
---=====================================================================
--- Carry cooldown bookkeeping
---=====================================================================
-
 local function markCarryFail(uid)
     local fails = (CarryFails[uid] or 0) + 1
     CarryFails[uid] = fails
@@ -1044,10 +890,6 @@ local function clearCarryFail(uid)
     CarryFails[uid] = nil
     CarryCooldowns[uid] = nil
 end
-
---=====================================================================
--- Loop scheduler
---=====================================================================
 
 local function startLoop(name, func)
     if Running[name] then return end
@@ -1065,8 +907,6 @@ end
 
 local function stopLoop(name) Running[name] = false end
 
--- A generation-guarded spawn for one-off background threads, so they die
--- on unload instead of surviving into the next execution.
 local function spawnTracked(fn)
     local handle = { alive = true }
     table.insert(Threads, handle)
@@ -1085,10 +925,6 @@ local function showToast(title, desc)
         Library:Notify({ Title = title, Description = desc or "", Time = 3 })
     end)
 end
-
---=====================================================================
--- UI confirmation clicking
---=====================================================================
 
 local function clickGuiButton(button)
     if not (button and button:IsA("GuiButton")) then return false end
@@ -1123,16 +959,6 @@ local function clickYesButton()
     return clickGuiButton(yes)
 end
 
---=====================================================================
--- ESP
---=====================================================================
-
--- ESP ----------------------------------------------------------------
--- Everything is parented to the executor GUI host and adorned, so no
--- objects are inserted into the game's own tree. Each entry owns a
--- Highlight, a BillboardGui and an optional tracer, tracked under one
--- key so cleanup can never leak.
-
 local Camera = Workspace.CurrentCamera
 
 local function resolvePart(inst)
@@ -1147,7 +973,7 @@ local function resolvePart(inst)
     return nil
 end
 
-local EspEntries = {}   -- key -> { part, gui, label, highlight, tracer }
+local EspEntries = {}
 
 local function espDestroy(key)
     local e = EspEntries[key]
@@ -1165,7 +991,6 @@ local function espClear(prefix)
     end
 end
 
--- opts: colour, text, highlight (bool), tracer (bool), maxDistance
 local function espUpsert(key, adornee, opts)
     local part = resolvePart(adornee)
     if not part then espDestroy(key) return end
@@ -1209,7 +1034,6 @@ local function espUpsert(key, adornee, opts)
 
     local colour = opts.colour or Color3.new(1, 1, 1)
 
-    -- highlight
     if opts.highlight then
         if not e.highlight then
             local hl = Instance.new("Highlight")
@@ -1228,7 +1052,6 @@ local function espUpsert(key, adornee, opts)
         e.highlight = nil
     end
 
-    -- tracer from the bottom of the screen
     if opts.tracer then
         if not e.tracer and Drawing then
             local ok, line = pcall(function() return Drawing.new("Line") end)
@@ -1276,24 +1099,9 @@ local function espUpsert(key, adornee, opts)
     end
 end
 
---=====================================================================
--- Egg prediction
---=====================================================================
---
--- The game publishes no spawn schedule, and Directory DropWeight is NOT
--- the area-egg table: it rates Cave Dragon at 59.7% and gives Orca and
--- Alabaster Whale zero, yet both spawn in the field. Odds derived from
--- it would be fiction, so nothing here uses it.
---
--- Instead every field reset is recorded and predictions come from what
--- this account has actually seen: how often an egg appears per reset,
--- how long since it last appeared, and how that compares with its own
--- average gap. History persists to disk so it survives the AFK
--- rotation, and every figure is reported with the sample size behind it.
-
 local Predict = {
-    resets      = 0,      -- resets observed
-    seen        = {},     -- category -> { count, lastResetIndex, lastClock, gaps = {} }
+    resets      = 0,
+    seen        = {},
     lastUids    = nil,
     lastReset   = 0,
     nextResetAt = nil,
@@ -1336,7 +1144,6 @@ local function predictSave()
     end)
 end
 
--- Record the field as it stands right after a reset.
 local function predictRecordReset(records)
     Predict.resets   = Predict.resets + 1
     Predict.lastReset = os.clock()
@@ -1355,7 +1162,7 @@ local function predictRecordReset(records)
         if rec.lastResetIndex > 0 then
             local gap = Predict.resets - rec.lastResetIndex
             table.insert(rec.gaps, gap)
-            -- keep the window bounded so old behaviour ages out
+
             while #rec.gaps > 40 do table.remove(rec.gaps, 1) end
         end
         rec.count = rec.count + 1
@@ -1364,7 +1171,6 @@ local function predictRecordReset(records)
     predictSave()
 end
 
--- A reset is a wholesale turnover of the field's Uids.
 local function predictCheckReset(records)
     local uids, n = {}, 0
     for _, egg in pairs(records) do
@@ -1385,7 +1191,6 @@ local function predictCheckReset(records)
     Predict.lastUids = uids
     if prev == 0 then return false end
 
-    -- more than 70% of the field replaced at once
     if (kept / prev) < 0.3 then
         predictRecordReset(records)
         return true
@@ -1393,7 +1198,6 @@ local function predictCheckReset(records)
     return false
 end
 
--- Seconds until the next field reset, read from the game's own timer.
 local function predictNextReset()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     local gui = pg and pg:FindFirstChild("GameResetTimer")
@@ -1409,14 +1213,13 @@ local function predictNextReset()
                 local only = d.Text:match("(%d+)s")
                 if only then total = tonumber(only) end
             end
-            -- the largest reading is the field reset; the small one is a sub-timer
+
             if total and (not best or total > best) then best = total end
         end
     end
     return best
 end
 
--- Ranked by how overdue each egg is against its own measured gap.
 local function predictRanked(minRarity, limit)
     local rows = {}
     for cat, rec in pairs(Predict.seen) do
@@ -1438,8 +1241,7 @@ local function predictRanked(minRarity, limit)
             }
         end
     end
-    -- With few samples the "overdue" figure is mostly noise, so fall back
-    -- to ranking by how seldom the egg has actually been seen.
+
     table.sort(rows, function(a, b)
         if a.samples >= 2 and b.samples >= 2 and a.due ~= b.due then
             return a.due > b.due
@@ -1451,24 +1253,6 @@ local function predictRanked(minRarity, limit)
     for i = 1, math.min(limit or 8, #rows) do out[#out + 1] = rows[i] end
     return out
 end
-
---=====================================================================
--- GodMode
---=====================================================================
---
--- Guard hits fling you, ragdoll you, and knock the egg loose. This
--- cancels all three.
---
--- Two things make it work where earlier attempts did not. It clears the
--- ragdoll through the game's own Library.Modules.Ragdoll.ClearClientRagdoll
--- rather than fighting humanoid states, and it tells a guard hit from a
--- deliberate drop by correlating the egg going to State "Dropped" with a
--- Physics state change in the same 0.2s window -- so no flag has to be
--- set by the rest of the hub, and a delivery at the plot is never
--- mistaken for a hit.
---
--- Carry requests go through EggCmds.RequestCarryAreaEgg, which also
--- handles the FirstAreaEgg_ case that needs an AreaId:NestId key.
 
 local God = {
     regrabs   = 0,
@@ -1489,14 +1273,6 @@ do
     local regrabBusy, lastTriedToken = false, 0
     local EggCmds, Ragdoll
 
-    -- Rolling trail of recent positions.
-    --
-    -- The lock arms on the Physics state change, but a knockback can land
-    -- a frame or two before that fires; measured, velocity arriving 30ms
-    -- early leaked 31 studs because the anchor was captured after the
-    -- shove. Anchoring to where we were just before the hit closes that,
-    -- without any velocity threshold -- which is what previously froze
-    -- the character during ordinary running.
     local trail, TRAIL_BACK = {}, 0.18
 
     local function pushTrail(cf)
@@ -1518,9 +1294,6 @@ do
         table.clear(list)
     end
 
-    -- The game's character-correction path can leave the root anchored.
-    -- Nothing in the hub anchors, so any anchor found here is not ours
-    -- and would otherwise strand the player in place.
     local function releaseGameAnchor()
         if not root then return end
         if root.Anchored then
@@ -1583,22 +1356,12 @@ do
         root      = newCharacter:WaitForChild("HumanoidRootPart", 10)
         if not (humanoid and root) then return end
 
-        -- Travel was killing the player outright: the humanoid died 0.4s
-        -- into a move and the respawn reset the farm loop's corridor
-        -- entry, so it restarted forever. Clearing the ragdoll does not
-        -- keep anyone alive, so GodMode pins survival itself rather than
-        -- depending on the separate AntiDie toggle being on.
         protectChar(newCharacter)
         killACConns()
 
         table.insert(characterConnections, humanoid.StateChanged:Connect(function(_, state)
             if not God.active or state ~= Enum.HumanoidStateType.Physics then return end
-            -- Travel phases through geometry, which drops the humanoid
-            -- into Physics constantly. That is not a guard hit. Do not
-            -- even clear physics here: ClearClientRagdoll restores the
-            -- character's position, so calling it every frame of a move
-            -- drags it backwards -- measured as 118 frames of ~85-stud
-            -- steps ending 2215 studs short of the target.
+
             if Move.moving then return end
             hitAt       = os.clock()
             anchor      = trailAnchor(root.CFrame)
@@ -1617,7 +1380,6 @@ do
         table.insert(characterConnections, RunService.PostSimulation:Connect(function()
             if not God.active or not root then return end
 
-            -- only record positions we arrived at legitimately
             if not anchor and not Move.moving
                 and humanoid:GetState() ~= Enum.HumanoidStateType.Physics then
                 pushTrail(root.CFrame)
@@ -1642,7 +1404,6 @@ do
             end
         end))
 
-        -- pick up an egg we are already carrying
         pcall(function()
             local snapshot = EggCmds.GetAreaEggSnapshot()
             for _, record in pairs((snapshot and snapshot.Records) or {}) do
@@ -1667,8 +1428,6 @@ do
             task.wait(0.4)
         end)
 
-        -- EggCmds fetches the egg snapshot at init behind its own retry
-        -- loop, so it is required here rather than on the hub's load path.
         local okE, cmds = pcall(function()
             return require(ReplicatedStorage.Library.Client.EggCmds)
         end)
@@ -1690,7 +1449,7 @@ do
                 God.carrying = true
                 God.carryUid = carriedUid
             elseif carriedUid then
-                -- keep the uid briefly so a hit-drop can still be recovered
+
                 uidUntil     = os.clock() + 1
                 God.carrying = false
             end
@@ -1707,8 +1466,6 @@ do
             dropAt       = os.clock()
             local token  = pendingToken
 
-            -- Only a drop that lands alongside a hit gets re-grabbed; a
-            -- delivery at the plot has no Physics state next to it.
             if math.abs(dropAt - hitAt) <= 0.2 then
                 tryRegrab(record, token)
             else
@@ -1740,10 +1497,6 @@ do
     end
 end
 
---=====================================================================
--- Pet actions
---=====================================================================
-
 local function sellPetsByFilter(minKeepRarity, exactSet)
     local equipped = getEquippedCategories()
     local sold = 0
@@ -1764,7 +1517,7 @@ local function sellPetsByFilter(minKeepRarity, exactSet)
             if exactSet then
                 shouldSell = exactSet[rar] == true
             else
-                -- keep anything at or above the keep threshold
+
                 shouldSell = rarityNum(rar) < rarityNum(minKeepRarity)
             end
             if shouldSell then
@@ -1793,8 +1546,6 @@ local function deleteOwnPets()
     return count
 end
 
--- BUG FIX: the old version fired StartFuse before inserting mobs, and its
--- retry used "i = i - 1" inside a numeric for loop, which does nothing.
 local function autoFusePets(maxPairs)
     local pets = getBestPets()
     local fused = 0
@@ -1819,7 +1570,7 @@ local function autoFusePets(maxPairs)
                     fused = fused + 1
                 end
             end
-            -- always clear the machine so a failed pair does not jam it
+
             invokeRemote("FuseMachine: RemoveMob", p1.uid)
             invokeRemote("FuseMachine: RemoveMob", p2.uid)
             task.wait(0.6)
@@ -1828,15 +1579,6 @@ local function autoFusePets(maxPairs)
     return fused
 end
 
---=====================================================================
--- Steal cycle
---=====================================================================
-
--- The server tracks whether you have entered the play corridor, and it
--- only registers when you cross the entry plane under humanoid control --
--- teleporting straight to an egg is refused with "Enter the gameplay area
--- first" no matter how close you land. Verified live: after this routine
--- the identical carry request returns true.
 local GameplayEntered = false
 
 local function enterGameplayArea()
@@ -1894,7 +1636,7 @@ local function stealOnce(target)
 
     local targetCFrame = target.BoundsCFrame or target.BottomCFrame
     if typeof(targetCFrame) ~= "CFrame" then return false end
-    -- Land on the ground beside the nest rather than inside it.
+
     local targetPos = groundAt(targetCFrame.Position)
 
     Status.Steal = "Travelling to " .. (target.AssetCategory or "?")
@@ -1903,18 +1645,11 @@ local function stealOnce(target)
         return false
     end
 
-    -- Hold position while the carry request resolves. The prompt's
-    -- MaxActivationDistance is 8 studs in this build.
-    --
-    -- The remote answers (ok, reason): the server hands back a readable
-    -- string such as "Enter the gameplay area first" when it refuses.
-    -- Surfacing it beats retrying blindly into a cooldown.
     local carried, reason = false, nil
     for _ = 1, 6 do
         root = getRoot()
         if not root then break end
-        -- pin us on the nest while the request resolves; without zeroing
-        -- velocity the character drifts out of pickup range mid-call
+
         root.CFrame = CFrame.new(targetPos)
         root.AssemblyLinearVelocity  = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
@@ -1923,7 +1658,7 @@ local function stealOnce(target)
         local ok, res, why = pcall(function()
             return remote:InvokeServer({
                 Uid = target.Uid,
-                -- FirstAreaEgg nests are keyed by area and nest id
+
                 FirstAreaSlotKey = (tostring(target.Uid):sub(1, 13) == "FirstAreaEgg_"
                     and target.AreaId and target.NestId)
                     and (tostring(target.AreaId) .. ":" .. tostring(target.NestId))
@@ -1943,8 +1678,7 @@ local function stealOnce(target)
         markCarryFail(target.Uid)
         if reason then
             Status.Steal = "Blocked: " .. reason
-            -- This refusal is about the player, not the egg, so it would hit
-            -- every egg in turn. Re-enter the corridor and clear the strike.
+
             if reason:lower():find("gameplay area") then
                 GameplayEntered = false
                 clearCarryFail(target.Uid)
@@ -1962,7 +1696,7 @@ local function stealOnce(target)
     task.wait(0.25)
 
     if Flags.AutoPlaceAfterSteal and PlaceCooldown < os.clock() then
-        -- Instant Place empties the whole inventory; otherwise place one.
+
         local placed = placeHeldEggs(if Flags.InstantPlace then nil else 1)
         if placed > 0 then
             Status.Steal = "Stole + placed " .. (target.AssetCategory or "?")
@@ -1974,10 +1708,6 @@ local function stealOnce(target)
     end
     return true
 end
-
---=====================================================================
--- Webhook
---=====================================================================
 
 local function sendWebhook(egg)
     local url = Flags.WebhookUrl
@@ -2008,10 +1738,6 @@ local function sendWebhook(egg)
         })
     end)
 end
-
---=====================================================================
--- Interface
---=====================================================================
 
 Loading:SetCurrentStep(3)
 Loading:SetDescription("Building interface...")
@@ -2061,10 +1787,6 @@ do
         Tabs.Home:UpdateWarningBox({ Visible = false })
     end
 end
-
---=====================================================================
--- HOME
---=====================================================================
 
 do
     local totalSeconds    = tonumber(LRM_SecondsLeft) or 0
@@ -2141,8 +1863,6 @@ do
     local VersionBox = Tabs.Home:AddRightGroupbox("Version", "hash")
     VersionBox:AddLabel("Script Version: " .. tostring(LRM_ScriptVersion or "v2.0"))
 
-    -- BUG FIX: this used a bare `while task.wait(1)` loop that survived
-    -- unload and stacked one extra loop per re-execution.
     spawnTracked(function()
         task.wait(1)
         local t = Workspace.DistributedGameTime
@@ -2168,10 +1888,6 @@ do
         if text then Support:AddLabel(tostring(text), true) end
     end)
 end
-
---=====================================================================
--- FARM
---=====================================================================
 
 local FilterGB = Tabs.Farm:AddLeftGroupbox("Filters", "filter")
 
@@ -2368,7 +2084,6 @@ StealGB:AddToggle("AutoSteal", {
         startLoop("AutoSteal", function()
             local zones = Flags.StealZones or {}
 
-            -- Register with the corridor once per life before farming.
             if not GameplayEntered then
                 enterGameplayArea()
                 task.wait(0.3)
@@ -2395,9 +2110,6 @@ StealGB:AddToggle("AutoSteal", {
                 end
             end
 
-            -- Spawn sniper queue takes precedence over the normal scan.
-            -- The area snapshot's Records is a plain array, so a sniped uid
-            -- has to be found by scanning rather than indexed directly.
             local snapshot = getAreaEggs()
             local target = table.remove(SnipeQueue, 1)
             if target then
@@ -2510,10 +2222,6 @@ ActionsGB:AddToggle("AutoReturnBase", {
     end,
 })
 
---=====================================================================
--- AUTOMATION
---=====================================================================
-
 local EggsGB = Tabs.Automation:AddLeftGroupbox("Eggs", "egg")
 
 EggsGB:AddToggle("AutoHatch", {
@@ -2616,10 +2324,6 @@ EggsGB:AddDropdown("FavoriteMinRarity", {
 
 local ProgGB = Tabs.Automation:AddRightGroupbox("Progression", "trending-up")
 
--- BUG FIX: the old Auto Rebirth read speed from the "Get Stats" remote,
--- which returns an empty table in this build, so its `speedPower > 0`
--- guard was never satisfied and the feature never fired. Speed lives on
--- leaderstats; the Rebirth GUI's ProgressText carries the live threshold.
 local function getRebirthProgress()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     local gui = pg and pg:FindFirstChild("Rebirth")
@@ -2631,7 +2335,7 @@ local function getRebirthProgress()
             end
         end
     end
-    -- fall back to the rebirth requirement table
+
     local speed = getSpeedStat()
     if RebirthConfig then
         for i = 1, 30 do
@@ -2721,8 +2425,6 @@ ProgGB:AddToggle("AFKTreadmill", {
     end,
 })
 
--- BUG FIX: the old Auto Buy Trails hardcoded "GoldenTrail"/"SecretTrail".
--- The real directory holds 10 trails; buy/equip the best one available.
 ProgGB:AddDropdown("TrailChoice", {
     Text      = "Trail",
     Values    = TrailList,
@@ -2774,8 +2476,6 @@ end
 
 local CodesGB = Tabs.Automation:AddRightGroupbox("Codes", "ticket")
 
--- Verified path: PlayerGui.Codes.Frame.Input.Input (TextBox) and
--- PlayerGui.Codes.Frame.Bottom.Claim (button). There is no codes remote.
 local function redeemCode(code)
     local pg  = LocalPlayer:FindFirstChild("PlayerGui")
     local gui = pg and pg:FindFirstChild("Codes")
@@ -2812,10 +2512,6 @@ CodesGB:AddButton("Redeem Codes", function()
     end
     showToast("Lumin Hub", "Submitted " .. n .. " codes")
 end)
-
---=====================================================================
--- SELL
---=====================================================================
 
 local SellGB = Tabs.Sell:AddLeftGroupbox("Auto Sell", "coins")
 
@@ -2931,14 +2627,6 @@ DeleteGB:AddButton("Delete All Own Pets", function()
     local n = deleteOwnPets()
     showToast("Lumin Hub", "Deleted " .. n .. " pets")
 end)
-
---=====================================================================
--- VISUAL
---=====================================================================
-
---=====================================================================
--- PREDICT
---=====================================================================
 
 local ResetGB = Tabs.Predict:AddLeftGroupbox("Field Reset", "timer")
 local resetLabel   = ResetGB:AddLabel("Next reset: --", true)
@@ -3067,8 +2755,6 @@ ESPGB:AddToggle("EggESP", {
     end,
 })
 
--- Guards live under __OBJECTS.Areas.GuardAreas.<Area>.Guard;
--- workspace._Guards exists but is always empty in this build.
 ESPGB:AddToggle("GuardESP", {
     Text = "Guard ESP", Default = false,
     Callback = function(val)
@@ -3281,8 +2967,6 @@ MoveGB2:AddSlider("JumpPower", {
     end,
 })
 
--- BUG FIX: the old toggle created a brand new JumpRequest connection on
--- every enable and never disconnected it, so N toggles meant N handlers.
 MoveGB2:AddToggle("InfiniteJump", {
     Text = "Infinite Jump", Default = false,
     Callback = function(v) Flags.InfiniteJump = v end,
@@ -3308,9 +2992,6 @@ MoveGB2:AddSlider("FlySpeed", {
     Callback = function(v) Flags.FlySpeed = v end,
 })
 
--- The old Fly read WASD only, which is dead weight on a mobile executor.
--- This version follows the camera and uses the humanoid's MoveDirection,
--- so the on-screen thumbstick drives it too.
 MoveGB2:AddToggle("Fly", {
     Text = "Fly", Default = false,
     Callback = function(val)
@@ -3372,10 +3053,6 @@ MoveGB2:AddToggle("FlyUp",   { Text = "Fly Up (hold)",   Default = false,
 MoveGB2:AddToggle("FlyDown", { Text = "Fly Down (hold)", Default = false,
     Callback = function(v) Flags.FlyDown = v end })
 
---=====================================================================
--- UTILITY
---=====================================================================
-
 local PlayerGB = Tabs.Utility:AddLeftGroupbox("Player", "user")
 
 PlayerGB:AddToggle("GodMode", {
@@ -3413,8 +3090,6 @@ PlayerGB:AddToggle("AntiAFK", {
     Callback = function(v) Flags.AntiAFK = v end,
 })
 
--- The player carries a RagdollEndTime attribute; clearing PlatformStand
--- and restoring the humanoid state shortens the knockdown.
 PlayerGB:AddToggle("AntiRagdoll", {
     Text = "Anti Ragdoll", Default = false,
     Callback = function(val)
@@ -3436,8 +3111,6 @@ PlayerGB:AddToggle("AntiRagdoll", {
     end,
 })
 
--- Client-side only: it keeps the local humanoid topped up so you are not
--- yanked back by local death handling. The server still owns real damage.
 PlayerGB:AddToggle("AntiDie", {
     Text    = "Anti Die",
     Tooltip = "Keeps the local humanoid alive and runs home when a guard closes in.",
@@ -3457,8 +3130,7 @@ PlayerGB:AddToggle("AntiDie", {
                 task.wait(0.5)
             end)
         else
-            -- BUG FIX: the old code called stopLoop("AntiDie") for a loop
-            -- that never existed, so Anti Die could not be switched off.
+
             stopLoop("AntiDie")
         end
     end,
@@ -3515,8 +3187,6 @@ end):AddButton("Copy JobId", function()
     end
 end)
 
--- BUG FIX: the old Rejoin kicked the player first, which killed the
--- teleport that was supposed to follow it.
 ServerGB:AddButton("Rejoin", function()
     showToast("Lumin Hub", "Rejoining...")
     TeleportService:Teleport(game.PlaceId, LocalPlayer)
@@ -3529,8 +3199,6 @@ ServerGB:AddDropdown("HopMethod", {
     Callback = function(v) Flags.HopMethod = v end,
 })
 
--- BUG FIX: the old hop had no pagination, did not exclude full servers,
--- and could pick the server you are already in.
 local function serverHop()
     if not httprequest then
         showToast("Lumin Hub", "Executor has no HTTP request function")
@@ -3622,7 +3290,7 @@ PerfGB:AddToggle("FPSBoost", {
                     v.Lifetime = NumberRange.new(0)
                 end
             end
-            -- tracked so it is disconnected on unload
+
             Flags._fpsConn = trackConn(Workspace.DescendantAdded:Connect(function(child)
                 if not Flags.FPSBoost then return end
                 if child:IsA("ForceField") or child:IsA("Sparkles") or child:IsA("Smoke")
@@ -3678,10 +3346,6 @@ PerfGB:AddToggle("BlackScreen", {
         end
     end,
 })
-
---=====================================================================
--- SETTINGS
---=====================================================================
 
 local menuGroup = Tabs.Config:AddLeftGroupbox("Menu", "text-align-center")
 
@@ -3777,10 +3441,6 @@ menuGroup:AddButton("Unload", function()
     Library:Unload()
 end)
 
---=====================================================================
--- Import / Export
---=====================================================================
-
 do
     local ImEx = Tabs.Config:AddRightGroupbox("Import / Export", "file-input")
     local importFile, importName = "File-Link", "LuminFileName"
@@ -3855,14 +3515,6 @@ do
     end)
 end
 
---=====================================================================
--- Rejoin watchdog
---=====================================================================
-
--- Kicks and disconnects surface as Roblox's own error prompt in CoreGui.
--- Watching for it lets us teleport straight back instead of sitting on
--- the "Leave"/"Reconnect" screen. The loader is queued first so the hub
--- comes back up by itself on the new server.
 local LOADER_SOURCE = [[
 loadstring(game:HttpGet("]] .. (getgenv().LuminHubSource
     or "https://raw.githubusercontent.com/voidhub9-dotcom/mcp-mobile/main/game-scripts/Steal_An_Egg_LuminHub.lua")
@@ -3890,15 +3542,13 @@ function doRejoin(why)
                 TeleportService:Teleport(game.PlaceId, LocalPlayer)
             end)
             if ok then task.wait(6) else task.wait(2) end
-            -- exponential-ish backoff if the teleport was rejected
+
             task.wait(math.min(2 ^ attempt, 20))
         end
         Rejoining = false
     end)
 end
 
--- Roblox's disconnect UI lives at CoreGui.RobloxPromptGui.promptOverlay
--- and gains an ErrorPrompt child when the client is kicked or drops.
 local function watchForKick()
     local prompt = CoreGui:FindFirstChild("RobloxPromptGui")
     local overlay = prompt and prompt:FindFirstChild("promptOverlay")
@@ -3914,7 +3564,6 @@ end
 
 predictLoad()
 
--- Watch the field for the wholesale Uid turnover that marks a reset.
 startLoop("PredictWatch", function()
     if Flags.PredictEnabled ~= false then
         local records = getAreaEggs()
@@ -3927,10 +3576,6 @@ startLoop("PredictWatch", function()
     task.wait(3)
 end)
 
--- The server announces rare spawns for the coming reset.
--- Requiring EggCmds is done off the startup path: that module fetches the
--- area egg snapshot at init with its own retry loop, so requiring it
--- inline blocks the whole hub from finishing load.
 task.spawn(function()
     local ok, cmds = pcall(function()
         return require(ReplicatedStorage.Library.Client.EggCmds)
@@ -3962,11 +3607,6 @@ end)
 
 watchForKick()
 
---=====================================================================
--- Runtime wiring
---=====================================================================
-
--- Anti idle (tracked, so it dies on unload)
 trackConn(LocalPlayer.Idled:Connect(function()
     if Flags.AntiAFK == false then return end
     pcall(function()
@@ -3975,15 +3615,12 @@ trackConn(LocalPlayer.Idled:Connect(function()
     end)
 end))
 
--- Single infinite-jump handler, gated by the flag instead of by
--- creating a new connection per toggle.
 trackConn(UserInputService.JumpRequest:Connect(function()
     if not Flags.InfiniteJump then return end
     local hum = getHumanoid()
     if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
 end))
 
--- NoClip on Stepped (one handler, flag gated)
 trackConn(RunService.Stepped:Connect(function()
     if not Flags.NoClip then return end
     local char = getCharacter()
@@ -3993,9 +3630,8 @@ trackConn(RunService.Stepped:Connect(function()
     end
 end))
 
--- Re-apply movement stats after a respawn
 trackConn(LocalPlayer.CharacterAdded:Connect(function(char)
-    -- A respawn drops the server's record of corridor entry.
+
     GameplayEntered = false
     task.wait(0.2)
     if Flags.AntiDie then
@@ -4011,13 +3647,11 @@ trackConn(LocalPlayer.CharacterAdded:Connect(function(char)
     if Flags.JumpPower and Flags.JumpPower > 50 then hum.JumpPower = Flags.JumpPower end
 end))
 
--- Sell confirmation watcher
 startLoop("SellConfirmWatcher", function()
     if Flags.AutoSellConfirm then clickYesButton() end
     task.wait(0.25)
 end)
 
--- Spawn sniper + webhook: react to egg updates instead of polling.
 local function considerNewEgg(record)
     if type(record) ~= "table" or not record.AssetCategory then return end
     local rarity = assetRarity(record.AssetCategory)
@@ -4057,7 +3691,6 @@ do
     end
 end
 
--- Guard wake handler: bail home when a guard wakes and targets us.
 do
     local wake = Network:FindFirstChild("Guards: WakeUp")
     if wake and wake:IsA("RemoteEvent") then
@@ -4077,8 +3710,6 @@ do
     end
 end
 
--- BUG FIX: the old status labels were written once at build time and then
--- never touched, so "Last Steal / Last Sell / Last Fuse" were always Idle.
 spawnTracked(function()
     task.wait(0.5)
     pcall(function()
@@ -4128,7 +3759,6 @@ spawnTracked(function()
         end
         intelLabel:SetText("Players (" .. #players .. "):\n" .. table.concat(rows, "\n"))
 
-        -- Predict tab
         do
             local secs = predictNextReset()
             resetLabel:SetText(secs
@@ -4136,7 +3766,6 @@ spawnTracked(function()
                 or "Next reset: --")
             resetsLabel:SetText("Resets observed: " .. Predict.resets)
 
-            -- Live field: useful from the first second, no history needed.
             do
                 local best, bestScore, byRarity, total = nil, -1, {}, 0
                 for _, egg in pairs(getAreaEggs()) do
@@ -4211,10 +3840,6 @@ spawnTracked(function()
     end)
 end)
 
---=====================================================================
--- Defaults
---=====================================================================
-
 Flags.StealZones        = {}
 Flags.StealRarities     = {}
 Flags.SelectEggs        = {}
@@ -4261,10 +3886,6 @@ _G.LuminHubDebug = function()
     }
 end
 
---=====================================================================
--- Watermark + unload
---=====================================================================
-
 do
     local frameTimer, frameCounter, fps = tick(), 0, 60
     trackConn(RunService.RenderStepped:Connect(function()
@@ -4282,7 +3903,7 @@ end
 
 Library:OnUnload(function()
     UserInputService.MouseIconEnabled = true
-    -- never leave the character frozen behind us
+
     local r = getRoot()
     if r and r.Anchored then r.Anchored = false end
     pcall(function() RunService:UnbindFromRenderStep("ShowCursor") end)
@@ -4301,13 +3922,6 @@ Library:OnUnload(function()
     _G.LuminHubLibrary = nil
 end)
 
--- Survive the game's AFK rotation.
---
--- This game moves idle players to a new server every few minutes. That is
--- a teleport, not a disconnect, so queue_on_teleport carries a payload
--- across it. Queuing the loader at startup -- not only when the rejoin
--- watchdog fires -- means the hub comes back by itself on the new server
--- with the same toggles, instead of dying every rotation.
 local function queueSelfForTeleport()
     if type(queue_on_teleport) ~= "function" then return end
     local source = getgenv().LuminHubSource
@@ -4345,15 +3959,11 @@ local function queueSelfForTeleport()
     pcall(queue_on_teleport, payload)
 end
 
--- Re-queue periodically so the payload always carries the toggles as they
--- stand now, not as they were at load.
 startLoop("TeleportPersist", function()
     queueSelfForTeleport()
     task.wait(15)
 end)
 
--- GodMode defaults on, so start it explicitly rather than relying on the
--- toggle's initial callback firing.
 task.spawn(function()
     task.wait(1)
     if Flags.GodMode ~= false then
