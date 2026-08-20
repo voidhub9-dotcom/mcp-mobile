@@ -907,6 +907,9 @@ local function cancelTravel()
     Travel.cancel = true
     Travel.active = false
     Travel.label = "cancelled"
+    task.delay(0.5, function()
+        if not Travel.active then Travel.cancel = false end
+    end)
 end
 
 local FOOT_LEG_MAX = 500
@@ -1820,6 +1823,7 @@ local function exclusive(name, fn)
     return function(...)
         if Busy[name] then return end
         Busy[name] = true
+        Travel.cancel = false
         local ok, err = pcall(fn, ...)
         Busy[name] = nil
         if not ok then error(err, 0) end
