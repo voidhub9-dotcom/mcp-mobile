@@ -114,6 +114,20 @@ local function waitFor(predicate, timeout, step)
     return nil
 end
 
+local Stats = {
+    Bought = 0,
+    Sold = 0,
+    Laundered = 0,
+    Boxes = 0,
+    TruckRuns = 0,
+    BoatRuns = 0,
+    Failed = 0,
+    Deaths = 0,
+    LastSale = 0,
+    Started = os.clock(),
+    Last = "idle",
+}
+
 local function character()
     return LocalPlayer.Character
 end
@@ -957,28 +971,67 @@ local function driveVehicleTo(model, targetPos, speed)
     if not model:IsA("Model") then return false end
     speed = math.clamp(speed or Flags.VehicleTravelSpeed or 250, 20, VEHICLE_SPEED_CAP)
 
-    local done = false
+    local cruise = math.max(Flags.CruiseHeight or 60, 0)
+    local landingRange = 180
+    local done, lost = false, false
+
     local conn = RunService.Heartbeat:Connect(function(dt)
         if not model.Parent then done = true return end
+        local h = humanoid()
+        if not h or h.Health <= 0 or h.SeatPart == nil then lost = true done = true return end
+
         local cf = vehiclePivot(model)
         if not cf then done = true return end
         local delta = targetPos - cf.Position
         if delta.Magnitude < 18 then done = true return end
+        local flat = Vector3.new(delta.X, 0, delta.Z)
+
         local step = math.min(speed * dt, delta.Magnitude)
         local want = cf.Position + delta.Unit * step
-        local g = groundAt(want, model) or want
-        pcall(function()
-            model:PivotTo(CFrame.new(g, g + Vector3.new(delta.Unit.X, 0, delta.Unit.Z)))
-        end)
+        local base = groundAt(want, model) or want
+        local lift = 0
+        if cruise > 0 then
+            if flat.Magnitude > landingRange then
+                lift = cruise
+            else
+                lift = cruise * math.clamp((flat.Magnitude - 40) / (landingRange - 40), 0, 1)
+            end
+        end
+        local goal = base + Vector3.new(0, lift, 0)
+        local face = flat.Magnitude > 1 and flat.Unit or cf.LookVector
+        pcall(function() model:PivotTo(CFrame.new(goal, goal + face)) end)
     end)
 
     local cf0 = vehiclePivot(model)
     local total = cf0 and (targetPos - cf0.Position).Magnitude or 0
     local deadline = os.clock() + (total / speed) + 25
+    local lastPos = cf0 and cf0.Position
+    local lastMove = os.clock()
+
     while not done and not Travel.cancel and os.clock() < deadline do
-        task.wait(0.1)
+        task.wait(0.25)
+        local cf = vehiclePivot(model)
+        if cf then
+            if lastPos and (cf.Position - lastPos).Magnitude > 6 then
+                lastMove = os.clock()
+                lastPos = cf.Position
+            elseif os.clock() - lastMove > 8 then
+                break
+            end
+        end
     end
     conn:Disconnect()
+
+    if lost then return false end
+
+    local cfEnd = vehiclePivot(model)
+    if cfEnd and cruise > 0 then
+        local ground = groundAt(cfEnd.Position, model)
+        if ground then
+            pcall(function() model:PivotTo(CFrame.new(ground, ground + cfEnd.LookVector)) end)
+            task.wait(0.4)
+        end
+    end
     return done
 end
 
@@ -1432,7 +1485,11 @@ track(UserInputService.InputEnded:Connect(function(input)
 end))
 
 track(LocalPlayer.CharacterAdded:Connect(function(char)
+    Stats.Deaths = Stats.Deaths + 1
+    Travel.cancel = true
+    Travel.active = false
     task.wait(1)
+    Travel.cancel = false
     Camera = Workspace.CurrentCamera
     if Flags.Fly then startFly() end
     if Flags.Stretch then setStretch(true, Flags.StretchAmount) end
@@ -1690,18 +1747,6 @@ local function readMoney()
     return money and money.Value or "?"
 end
 
-local Stats = {
-    Bought = 0,
-    Sold = 0,
-    Laundered = 0,
-    Boxes = 0,
-    TruckRuns = 0,
-    BoatRuns = 0,
-    Failed = 0,
-    LastSale = 0,
-    Started = os.clock(),
-    Last = "idle",
-}
 
 local function setStatus(text)
     Stats.Last = text
@@ -3800,6 +3845,19 @@ TabVehicle:CreateToggle({
 })
 
 TabVehicle:CreateSlider({
+    Title = "Cruise Height",
+    Description = "How high the farm lifts the car over the map on long routes. 0 keeps it on the road",
+    Icon = ICONS.rocket,
+    Min = 0,
+    Max = 250,
+    Default = 60,
+    Decimals = 0,
+    SaveId = "sdb_cruise_height",
+    Side = 2,
+    Callback = function(v) Flags.CruiseHeight = v end,
+})
+
+TabVehicle:CreateSlider({
     Title = "Vehicle Travel Speed",
     Description = "Speed used when the farm drives a truck or boat for you",
     Icon = ICONS.gauge,
@@ -4117,7 +4175,7 @@ spawnLoop("status", 0.5, function()
     setPara(farmStatusPara, table.concat({
         "Money: " .. tostring(readMoney()),
         ("Bought %d | Sold %d | Laundered %d"):format(Stats.Bought, Stats.Sold, Stats.Laundered),
-        ("Boxes %d | Truck %d | Boat %d"):format(Stats.Boxes, Stats.TruckRuns, Stats.BoatRuns),
+        ("Boxes %d | Truck %d | Boat %d | Deaths %d"):format(Stats.Boxes, Stats.TruckRuns, Stats.BoatRuns, Stats.Deaths),
         ("Sales/hr %d | Failed %d"):format(perHour(Stats.Sold), Stats.Failed),
         "State: " .. tostring(Stats.Last),
     }, "\n"))
