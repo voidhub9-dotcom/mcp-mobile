@@ -1814,6 +1814,18 @@ local function readMoney()
 end
 
 
+local Busy = {}
+
+local function exclusive(name, fn)
+    return function(...)
+        if Busy[name] then return end
+        Busy[name] = true
+        local ok, err = pcall(fn, ...)
+        Busy[name] = nil
+        if not ok then error(err, 0) end
+    end
+end
+
 local function setStatus(text)
     Stats.Last = text
 end
@@ -2681,7 +2693,7 @@ UI.Tabs.TabFarm:CreateToggle({
     Side = 1,
     Callback = function(v)
         Flags.ItemFarm = v
-        if v then spawnLoop("item_farm", 0.1, itemFarmStep) else stopLoop("item_farm") end
+        if v then spawnLoop("item_farm", 0.1, exclusive("farm", itemFarmStep)) else stopLoop("item_farm") end
     end,
 })
 
@@ -2777,7 +2789,7 @@ UI.Tabs.TabFarm:CreateToggle({
     Side = 1,
     Callback = function(v)
         Flags.BoxFarm = v
-        if v then spawnLoop("box_farm", 0.1, boxFarmStep) else stopLoop("box_farm") end
+        if v then spawnLoop("box_farm", 0.1, exclusive("farm", boxFarmStep)) else stopLoop("box_farm") end
     end,
 })
 
@@ -2802,7 +2814,7 @@ UI.Tabs.TabFarm:CreateToggle({
     Side = 1,
     Callback = function(v)
         Flags.AutoCollect = v
-        if v then spawnLoop("auto_collect", 0.3, collectStep) else stopLoop("auto_collect") end
+        if v then spawnLoop("auto_collect", 0.3, exclusive("farm", collectStep)) else stopLoop("auto_collect") end
     end,
 })
 
@@ -2829,7 +2841,7 @@ UI.Tabs.TabFarm:CreateToggle({
     Side = 2,
     Callback = function(v)
         Flags.TruckFarm = v
-        if v then spawnLoop("truck_farm", 0.2, truckFarmStep) else stopLoop("truck_farm") end
+        if v then spawnLoop("truck_farm", 0.2, exclusive("farm", truckFarmStep)) else stopLoop("truck_farm") end
     end,
 })
 
@@ -2879,7 +2891,7 @@ UI.Tabs.TabFarm:CreateToggle({
     Side = 2,
     Callback = function(v)
         Flags.BoatFarm = v
-        if v then spawnLoop("boat_farm", 0.2, boatFarmStep) else stopLoop("boat_farm") end
+        if v then spawnLoop("boat_farm", 0.2, exclusive("farm", boatFarmStep)) else stopLoop("boat_farm") end
     end,
 })
 
@@ -4232,6 +4244,7 @@ local function setPara(para, text)
 end
 
 local function panic()
+    for name in pairs(Busy) do Busy[name] = nil end
     for name in pairs(Loops) do stopLoop(name) end
     cancelTravel()
     Flags.Aimbot = false
@@ -4344,6 +4357,7 @@ spawnLoop("printer_cache", 5, function()
 end)
 
 local function unload()
+    for name in pairs(Busy) do Busy[name] = nil end
     for name in pairs(Loops) do stopLoop(name) end
     cancelTravel()
     stopFly()
@@ -4425,11 +4439,11 @@ if getgenv then
             ClearWalkSpeed = clearWalkSpeed,
         },
         Steps = {
-            Item = itemFarmStep,
-            Box = boxFarmStep,
-            Truck = truckFarmStep,
-            Boat = boatFarmStep,
-            Collect = collectStep,
+            Item = exclusive("farm", itemFarmStep),
+            Box = exclusive("farm", boxFarmStep),
+            Truck = exclusive("farm", truckFarmStep),
+            Boat = exclusive("farm", boatFarmStep),
+            Collect = exclusive("farm", collectStep),
         },
     }
 end
