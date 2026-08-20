@@ -1570,6 +1570,14 @@ do
         root      = newCharacter:WaitForChild("HumanoidRootPart", 10)
         if not (humanoid and root) then return end
 
+        -- Travel was killing the player outright: the humanoid died 0.4s
+        -- into a move and the respawn reset the farm loop's corridor
+        -- entry, so it restarted forever. Clearing the ragdoll does not
+        -- keep anyone alive, so GodMode pins survival itself rather than
+        -- depending on the separate AntiDie toggle being on.
+        protectChar(newCharacter)
+        killACConns()
+
         table.insert(characterConnections, humanoid.StateChanged:Connect(function(_, state)
             if not God.active or state ~= Enum.HumanoidStateType.Physics then return end
             -- Travel phases through geometry, which drops the humanoid
@@ -1639,6 +1647,13 @@ do
     function LuminGod:Start()
         if God.active then return true end
 
+        startLoop("GodAlive", function()
+            if God.active and humanoid and humanoid.Health < humanoid.MaxHealth then
+                pcall(function() humanoid.Health = humanoid.MaxHealth end)
+            end
+            task.wait(0.4)
+        end)
+
         -- EggCmds fetches the egg snapshot at init behind its own retry
         -- loop, so it is required here rather than on the hub's load path.
         local okE, cmds = pcall(function()
@@ -1704,6 +1719,7 @@ do
 
     function LuminGod:Stop()
         God.active = false
+        stopLoop("GodAlive")
         clearPhysics()
         disconnectList(characterConnections)
         disconnectList(connections)
