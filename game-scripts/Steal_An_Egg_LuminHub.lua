@@ -1150,6 +1150,8 @@ local God = {
     regrabbing      = false,
     flings          = 0,
     anchored        = false,
+    lastDrift       = 0,
+    worstDrift      = 0,
     lastRegrab      = 0,
     burst           = 0,
     burstStart      = 0,
@@ -1249,6 +1251,41 @@ local RAGDOLL_STATES = {
     [Enum.HumanoidStateType.FallingDown] = true,
 }
 
+-- Every real hit measures itself and the result is appended to
+-- LuminHub/hits.log, which survives the reconnects this game's AFK
+-- rotation causes. "drift" is how far the knockback actually moved us:
+-- the number that says whether GodMode held.
+local function godRecordHit(startPos, carriedBefore)
+    task.spawn(function()
+        local peak = 0
+        local t0 = os.clock()
+        while os.clock() - t0 < 2 do
+            local r = getRoot()
+            if r then
+                local d = (r.Position - startPos).Magnitude
+                if d > peak then peak = d end
+            end
+            task.wait(0.05)
+        end
+        God.lastDrift = peak
+        if peak > (God.worstDrift or 0) then God.worstDrift = peak end
+
+        if not (writefile and appendfile) then return end
+        local line = string.format(
+            "%s drift=%.1f carriedBefore=%s carriedAfter=%s regrabs=%d hold=%.2f\n",
+            os.date("%H:%M:%S"), peak, tostring(carriedBefore),
+            tostring(God.carrying), God.regrabs, FLING_HOLD)
+        pcall(function()
+            if not isfolder("LuminHub") then makefolder("LuminHub") end
+            if isfile("LuminHub/hits.log") then
+                appendfile("LuminHub/hits.log", line)
+            else
+                writefile("LuminHub/hits.log", line)
+            end
+        end)
+    end)
+end
+
 local function godOnStateChanged(_, new)
     if not Flags.GodMode then return end
     if not RAGDOLL_STATES[new] then return end
@@ -1260,6 +1297,7 @@ local function godOnStateChanged(_, new)
 
     local root = getRoot()
     if root then
+        godRecordHit(root.Position, God.carrying)
         root.AssemblyLinearVelocity  = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
         if not root.Anchored then
@@ -3641,10 +3679,12 @@ spawnTracked(function()
             if Flags.GodMode then
                 local since = os.clock() - (God.lastHit or 0)
                 GodStatus:SetText(string.format(
-                    "GodMode: on | carrying %s | re-grabs %d | flings %d | last hit %s",
+                    "GodMode: on | carrying %s | re-grabs %d | flings %d\nlast drift %.0f | worst %.0f | last hit %s",
                     God.carrying and (God.carryUid and God.carryUid:sub(1, 6) or "yes") or "no",
                     God.regrabs,
                     God.flings or 0,
+                    God.lastDrift or 0,
+                    God.worstDrift or 0,
                     God.lastHit > 0 and string.format("%.0fs ago", since) or "none"))
             else
                 GodStatus:SetText("GodMode: off")
