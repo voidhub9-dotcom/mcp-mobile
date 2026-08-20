@@ -708,13 +708,31 @@ local function flyStep()
     Movement.flyGyro.CFrame = cf
 end
 
+local FarmNoclip = { depth = 0 }
+
 local function noclipStep()
-    if not Flags.Noclip then return end
+    if not Flags.Noclip and FarmNoclip.depth <= 0 then return end
     local c = character()
     if not c then return end
     for _, part in ipairs(c:GetDescendants()) do
         if part:IsA("BasePart") and part.CanCollide then
             part.CanCollide = false
+        end
+    end
+end
+
+function FarmNoclip.push()
+    FarmNoclip.depth = FarmNoclip.depth + 1
+end
+
+function FarmNoclip.pop()
+    FarmNoclip.depth = math.max(FarmNoclip.depth - 1, 0)
+    if FarmNoclip.depth > 0 or Flags.Noclip then return end
+    local c = character()
+    if not c then return end
+    for _, part in ipairs(c:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            pcall(function() part.CanCollide = true end)
         end
     end
 end
@@ -960,10 +978,38 @@ end
 
 local function leaveVehicle()
     local h = humanoid()
-    if h and h.SeatPart then
-        pcall(function() h.Sit = false end)
-        task.wait(0.8)
+    if not h or not h.SeatPart then return true end
+
+    local seat = h.SeatPart
+    pcall(function() seat:SetAttribute("Occupant", nil) end)
+    pcall(function() h.Sit = false end)
+    pcall(function() h.Jump = true end)
+
+    local deadline = os.clock() + 1.2
+    while os.clock() < deadline do
+        local hh = humanoid()
+        if not hh or hh.SeatPart == nil then return true end
+        task.wait(0.05)
     end
+
+    local hh = humanoid()
+    if hh and hh.SeatPart then
+        local weld = hh.SeatPart:FindFirstChild("SeatWeld")
+        if weld then pcall(function() weld:Destroy() end) end
+        pcall(function() hh.Sit = false end)
+        pcall(function() hh:ChangeState(Enum.HumanoidStateType.Jumping) end)
+        local root = rootPart()
+        if root then
+            root.CFrame = root.CFrame + Vector3.new(0, 5, 0)
+        end
+        local retry = os.clock() + 0.8
+        while os.clock() < retry do
+            local h3 = humanoid()
+            if not h3 or h3.SeatPart == nil then return true end
+            task.wait(0.05)
+        end
+    end
+    return humanoid() == nil or humanoid().SeatPart == nil
 end
 
 local function driveVehicleTo(model, targetPos, speed)
@@ -1933,21 +1979,24 @@ local function nearEnough(inst, radius)
     return (pos - root.Position).Magnitude <= (radius or 12)
 end
 local function tryInteract(inst, radius, fire, confirm, attempts)
+    FarmNoclip.push()
+    local ok = false
     for attempt = 1, (attempts or 3) do
-        if Travel.cancel then return false end
+        if Travel.cancel then break end
         if not nearEnough(inst, radius) then
             local here = instancePosition(inst)
             local r = rootPart()
-            if not here or not r then return false end
+            if not here or not r then break end
             r.CFrame = CFrame.new(here + Vector3.new(0, 2.5, 0))
-            task.wait(0.5)
-            if not nearEnough(inst, radius) then return false end
+            task.wait(0.25)
+            if not nearEnough(inst, radius) then break end
         end
         fire()
-        if waitFor(confirm, 6) then return true end
-        task.wait(0.6 * attempt)
+        if waitFor(confirm, 6) then ok = true break end
+        task.wait(0.4 * attempt)
     end
-    return false
+    FarmNoclip.pop()
+    return ok
 end
 
 
@@ -1977,19 +2026,24 @@ local function approach(inst, tag)
         return false
     end
 
+    FarmNoclip.push()
     leaveVehicle()
 
-    for _ = 1, 5 do
-        if Travel.cancel then return false end
-        if nearEnough(inst, 12) then return true end
+    local landed = false
+    for _ = 1, 8 do
+        if Travel.cancel then break end
+        if nearEnough(inst, 12) then landed = true break end
         local r = rootPart()
         local here = instancePosition(inst)
-        if not r or not here then return false end
+        if not r or not here then break end
+        local h = humanoid()
+        if h and h.SeatPart then leaveVehicle() end
         r.CFrame = CFrame.new(here + Vector3.new(0, 2.5, 0))
-        task.wait(0.45)
+        task.wait(0.12)
     end
-
-    return nearEnough(inst, 12)
+    if not landed then landed = nearEnough(inst, 12) end
+    FarmNoclip.pop()
+    return landed
 end
 
 local function itemFarmStep()
@@ -2605,18 +2659,20 @@ if not Game.ok then
     })
 end
 
+local UI = { Tabs = {}, Para = {} }
+
 Window:CreateSeparator({ Text = "FARM" })
 
-local TabFarm = Window:CreateTab({
+UI.Tabs.TabFarm = Window:CreateTab({
     Title = "Farm",
     Subtitle = "Money & Jobs",
     Icon = ICONS.coins,
     Double = true,
 })
 
-TabFarm:CreateSection({ Text = "Item Smuggling", Icon = ICONS.package, Side = 1 })
+UI.Tabs.TabFarm:CreateSection({ Text = "Item Smuggling", Icon = ICONS.package, Side = 1 })
 
-TabFarm:CreateToggle({
+UI.Tabs.TabFarm:CreateToggle({
     Title = "Auto Item Farm",
     Description = "Buys the chosen good, runs it to the seller, sells it, repeats",
     Icon = ICONS.coins,
@@ -2629,7 +2685,7 @@ TabFarm:CreateToggle({
     end,
 })
 
-TabFarm:CreateDropdown({
+UI.Tabs.TabFarm:CreateDropdown({
     Title = "Item",
     Description = "Sorted by profit per run",
     Icon = ICONS.gem,
@@ -2640,7 +2696,7 @@ TabFarm:CreateDropdown({
     Callback = function(v) if type(v) == "string" then Flags.FarmItem = v end end,
 })
 
-TabFarm:CreateDropdown({
+UI.Tabs.TabFarm:CreateDropdown({
     Title = "Sell Spot",
     Icon = ICONS.mappin,
     Options = {
@@ -2654,7 +2710,7 @@ TabFarm:CreateDropdown({
     Callback = function(v) if type(v) == "string" then Flags.SellSpot = v end end,
 })
 
-TabFarm:CreateToggle({
+UI.Tabs.TabFarm:CreateToggle({
     Title = "Auto Launder",
     Description = "Runs any briefcase you are carrying to the nearest launder point first",
     Icon = ICONS.refresh,
@@ -2664,7 +2720,7 @@ TabFarm:CreateToggle({
     Callback = function(v) Flags.AutoLaunder = v end,
 })
 
-TabFarm:CreateSlider({
+UI.Tabs.TabFarm:CreateSlider({
     Title = "Farm Delay",
     Description = "Pause between each buy/sell step",
     Icon = ICONS.timer,
@@ -2677,7 +2733,7 @@ TabFarm:CreateSlider({
     Callback = function(v) Flags.FarmDelay = v end,
 })
 
-TabFarm:CreateToggle({
+UI.Tabs.TabFarm:CreateToggle({
     Title = "Use A Car For The Run",
     Description = "Spawns and drives a car between the shop, the seller and the launder point",
     Icon = ICONS.rocket,
@@ -2687,7 +2743,7 @@ TabFarm:CreateToggle({
     Callback = function(v) Flags.FarmAutoSpawn = v end,
 })
 
-TabFarm:CreateDropdown({
+UI.Tabs.TabFarm:CreateDropdown({
     Title = "Farm Car",
     Icon = ICONS.rocket,
     Options = vehicleOptions(),
@@ -2697,7 +2753,7 @@ TabFarm:CreateDropdown({
     Callback = function(v) if type(v) == "string" then Flags.FarmVehicle = v end end,
 })
 
-TabFarm:CreateSlider({
+UI.Tabs.TabFarm:CreateSlider({
     Title = "Travel Speed",
     Description = "Studs per second. Above 400 the server rolls your position back",
     Icon = ICONS.gauge,
@@ -2710,9 +2766,9 @@ TabFarm:CreateSlider({
     Callback = function(v) Flags.TravelSpeed = v end,
 })
 
-TabFarm:CreateSection({ Text = "Box Job", Icon = ICONS.boxes, Side = 1 })
+UI.Tabs.TabFarm:CreateSection({ Text = "Box Job", Icon = ICONS.boxes, Side = 1 })
 
-TabFarm:CreateToggle({
+UI.Tabs.TabFarm:CreateToggle({
     Title = "Auto Box Farm",
     Description = "Grabs a box and delivers it on a loop",
     Icon = ICONS.boxes,
@@ -2725,7 +2781,7 @@ TabFarm:CreateToggle({
     end,
 })
 
-TabFarm:CreateSlider({
+UI.Tabs.TabFarm:CreateSlider({
     Title = "Box Delay",
     Icon = ICONS.timer,
     Min = 0,
@@ -2737,7 +2793,7 @@ TabFarm:CreateSlider({
     Callback = function(v) Flags.BoxDelay = v end,
 })
 
-TabFarm:CreateToggle({
+UI.Tabs.TabFarm:CreateToggle({
     Title = "Auto Collect Drops",
     Description = "Walks you onto dropped cash and items so the game picks them up",
     Icon = ICONS.package,
@@ -2750,7 +2806,7 @@ TabFarm:CreateToggle({
     end,
 })
 
-TabFarm:CreateSlider({
+UI.Tabs.TabFarm:CreateSlider({
     Title = "Collect Radius",
     Icon = ICONS.scan,
     Min = 50,
@@ -2762,9 +2818,9 @@ TabFarm:CreateSlider({
     Callback = function(v) Flags.CollectRadius = v end,
 })
 
-TabFarm:CreateSection({ Text = "Truck Missions", Icon = ICONS.rocket, Side = 2 })
+UI.Tabs.TabFarm:CreateSection({ Text = "Truck Missions", Icon = ICONS.rocket, Side = 2 })
 
-TabFarm:CreateToggle({
+UI.Tabs.TabFarm:CreateToggle({
     Title = "Auto Truck Farm",
     Description = "Starts a trucking run, boards the truck and drives it to the delivery point",
     Icon = ICONS.rocket,
@@ -2777,7 +2833,7 @@ TabFarm:CreateToggle({
     end,
 })
 
-TabFarm:CreateDropdown({
+UI.Tabs.TabFarm:CreateDropdown({
     Title = "Truck Mission",
     Icon = ICONS.map,
     Options = missionOptions(truckMissionList(), true),
@@ -2787,7 +2843,7 @@ TabFarm:CreateDropdown({
     Callback = function(v) if type(v) == "string" then Flags.TruckMission = v end end,
 })
 
-TabFarm:CreateSlider({
+UI.Tabs.TabFarm:CreateSlider({
     Title = "Contraband %",
     Description = "Higher pay, higher chance the border scanner flags you",
     Icon = ICONS.alert,
@@ -2800,7 +2856,7 @@ TabFarm:CreateSlider({
     Callback = function(v) Flags.Contraband = math.floor(v / 10) * 10 end,
 })
 
-TabFarm:CreateSlider({
+UI.Tabs.TabFarm:CreateSlider({
     Title = "Truck Drive Speed",
     Icon = ICONS.gauge,
     Min = 20,
@@ -2812,9 +2868,9 @@ TabFarm:CreateSlider({
     Callback = function(v) Flags.TruckSpeed = v end,
 })
 
-TabFarm:CreateSection({ Text = "Boat Missions", Icon = ICONS.globe, Side = 2 })
+UI.Tabs.TabFarm:CreateSection({ Text = "Boat Missions", Icon = ICONS.globe, Side = 2 })
 
-TabFarm:CreateToggle({
+UI.Tabs.TabFarm:CreateToggle({
     Title = "Auto Boat Farm",
     Description = "Runs the smuggling boat missions end to end",
     Icon = ICONS.globe,
@@ -2827,7 +2883,7 @@ TabFarm:CreateToggle({
     end,
 })
 
-TabFarm:CreateDropdown({
+UI.Tabs.TabFarm:CreateDropdown({
     Title = "Boat Mission",
     Icon = ICONS.map,
     Options = missionOptions(boatMissionList(), true),
@@ -2837,7 +2893,7 @@ TabFarm:CreateDropdown({
     Callback = function(v) if type(v) == "string" then Flags.BoatMission = v end end,
 })
 
-TabFarm:CreateSlider({
+UI.Tabs.TabFarm:CreateSlider({
     Title = "Boat Drive Speed",
     Icon = ICONS.gauge,
     Min = 20,
@@ -2849,7 +2905,7 @@ TabFarm:CreateSlider({
     Callback = function(v) Flags.BoatSpeed = v end,
 })
 
-TabFarm:CreateSlider({
+UI.Tabs.TabFarm:CreateSlider({
     Title = "Mission Delay",
     Icon = ICONS.timer,
     Min = 0,
@@ -2861,16 +2917,16 @@ TabFarm:CreateSlider({
     Callback = function(v) Flags.MissionDelay = v end,
 })
 
-TabFarm:CreateSection({ Text = "Trackers", Icon = ICONS.activity, Side = 2 })
+UI.Tabs.TabFarm:CreateSection({ Text = "Trackers", Icon = ICONS.activity, Side = 2 })
 
-local farmStatusPara = TabFarm:CreateParagraph({
+UI.Para.farmStatusPara = UI.Tabs.TabFarm:CreateParagraph({
     Title = "Live",
     Icon = ICONS.scan,
     Side = 2,
     Description = "Idle",
 })
 
-local cooldownPara = TabFarm:CreateParagraph({
+UI.Para.cooldownPara = UI.Tabs.TabFarm:CreateParagraph({
     Title = "Cooldowns",
     Icon = ICONS.clock,
     Side = 2,
@@ -2879,16 +2935,16 @@ local cooldownPara = TabFarm:CreateParagraph({
 
 Window:CreateSeparator({ Text = "TRAVEL" })
 
-local TabTeleport = Window:CreateTab({
+UI.Tabs.TabTeleport = Window:CreateTab({
     Title = "Teleport",
     Subtitle = "Map & Players",
     Icon = ICONS.mappin,
     Double = true,
 })
 
-TabTeleport:CreateSection({ Text = "Locations", Icon = ICONS.map, Side = 1 })
+UI.Tabs.TabTeleport:CreateSection({ Text = "Locations", Icon = ICONS.map, Side = 1 })
 
-local locationDropdown = TabTeleport:CreateDropdown({
+local locationDropdown = UI.Tabs.TabTeleport:CreateDropdown({
     Title = "Destination",
     Icon = ICONS.mappin,
     Options = locationOptions(),
@@ -2898,7 +2954,7 @@ local locationDropdown = TabTeleport:CreateDropdown({
     Callback = function(v) if type(v) == "string" then Flags.TpLocation = v end end,
 })
 
-TabTeleport:CreateButton({
+UI.Tabs.TabTeleport:CreateButton({
     Title = "Teleport To Destination",
     Description = "Tweens you there at the travel speed below",
     Icon = ICONS.rocket,
@@ -2914,7 +2970,7 @@ TabTeleport:CreateButton({
     end,
 })
 
-TabTeleport:CreateButton({
+UI.Tabs.TabTeleport:CreateButton({
     Title = "Cancel Teleport",
     Description = "Stops any route or teleport instantly and drops you where you are",
     Icon = ICONS.alert,
@@ -2925,7 +2981,7 @@ TabTeleport:CreateButton({
     end,
 })
 
-TabTeleport:CreateSlider({
+UI.Tabs.TabTeleport:CreateSlider({
     Title = "Teleport Speed",
     Description = "Studs per second. Above 400 the server rolls your position back",
     Icon = ICONS.gauge,
@@ -2938,7 +2994,7 @@ TabTeleport:CreateSlider({
     Callback = function(v) Flags.TpSpeed = v end,
 })
 
-TabTeleport:CreateButton({
+UI.Tabs.TabTeleport:CreateButton({
     Title = "Refresh Locations",
     Icon = ICONS.refresh,
     Side = 1,
@@ -2949,9 +3005,9 @@ TabTeleport:CreateButton({
     end,
 })
 
-TabTeleport:CreateSection({ Text = "Players", Icon = ICONS.person, Side = 2 })
+UI.Tabs.TabTeleport:CreateSection({ Text = "Players", Icon = ICONS.person, Side = 2 })
 
-local playerDropdown = TabTeleport:CreateDropdown({
+local playerDropdown = UI.Tabs.TabTeleport:CreateDropdown({
     Title = "Target Player",
     Icon = ICONS.user,
     Options = playerNameOptions(),
@@ -2961,7 +3017,7 @@ local playerDropdown = TabTeleport:CreateDropdown({
     Callback = function(v) if type(v) == "string" then Flags.TpPlayer = v end end,
 })
 
-TabTeleport:CreateButton({
+UI.Tabs.TabTeleport:CreateButton({
     Title = "Refresh Player List",
     Icon = ICONS.refresh,
     Side = 2,
@@ -2971,7 +3027,7 @@ TabTeleport:CreateButton({
     end,
 })
 
-TabTeleport:CreateButton({
+UI.Tabs.TabTeleport:CreateButton({
     Title = "Teleport To Player",
     Icon = ICONS.person,
     Side = 2,
@@ -2985,7 +3041,7 @@ TabTeleport:CreateButton({
     end,
 })
 
-TabTeleport:CreateToggle({
+UI.Tabs.TabTeleport:CreateToggle({
     Title = "Follow Player",
     Description = "Keeps re-teleporting to the selected player",
     Icon = ICONS.target,
@@ -3012,7 +3068,7 @@ TabTeleport:CreateToggle({
     end,
 })
 
-TabTeleport:CreateSlider({
+UI.Tabs.TabTeleport:CreateSlider({
     Title = "Follow Distance",
     Icon = ICONS.gauge,
     Min = 2,
@@ -3024,9 +3080,9 @@ TabTeleport:CreateSlider({
     Callback = function(v) Flags.FollowDistance = v end,
 })
 
-TabTeleport:CreateSection({ Text = "Waypoint", Icon = ICONS.key, Side = 2 })
+UI.Tabs.TabTeleport:CreateSection({ Text = "Waypoint", Icon = ICONS.key, Side = 2 })
 
-TabTeleport:CreateButton({
+UI.Tabs.TabTeleport:CreateButton({
     Title = "Save Current Position",
     Icon = ICONS.mappin,
     Side = 2,
@@ -3038,7 +3094,7 @@ TabTeleport:CreateButton({
     end,
 })
 
-TabTeleport:CreateButton({
+UI.Tabs.TabTeleport:CreateButton({
     Title = "Return To Saved Position",
     Icon = ICONS.refresh,
     Side = 2,
@@ -3050,7 +3106,7 @@ TabTeleport:CreateButton({
     end,
 })
 
-local travelPara = TabTeleport:CreateParagraph({
+UI.Para.travelPara = UI.Tabs.TabTeleport:CreateParagraph({
     Title = "Route",
     Icon = ICONS.activity,
     Side = 2,
@@ -3059,16 +3115,16 @@ local travelPara = TabTeleport:CreateParagraph({
 
 Window:CreateSeparator({ Text = "VISUALS" })
 
-local TabVisuals = Window:CreateTab({
+UI.Tabs.TabVisuals = Window:CreateTab({
     Title = "Visuals",
     Subtitle = "ESP & Chams",
     Icon = ICONS.eye,
     Double = true,
 })
 
-TabVisuals:CreateSection({ Text = "Targets", Icon = ICONS.target, Side = 1 })
+UI.Tabs.TabVisuals:CreateSection({ Text = "Targets", Icon = ICONS.target, Side = 1 })
 
-TabVisuals:CreateToggle({
+UI.Tabs.TabVisuals:CreateToggle({
     Title = "Player ESP",
     Description = "Draws every other player through walls",
     Icon = ICONS.person,
@@ -3078,7 +3134,7 @@ TabVisuals:CreateToggle({
     Callback = function(v) Flags.EspPlayers = v end,
 })
 
-TabVisuals:CreateToggle({
+UI.Tabs.TabVisuals:CreateToggle({
     Title = "Wanted ESP",
     Description = "Highlights players with a wanted level in the wanted colour",
     Icon = ICONS.alert,
@@ -3088,7 +3144,7 @@ TabVisuals:CreateToggle({
     Callback = function(v) Flags.EspWanted = v end,
 })
 
-TabVisuals:CreateToggle({
+UI.Tabs.TabVisuals:CreateToggle({
     Title = "Vehicle ESP",
     Description = "Cars and boats on the map",
     Icon = ICONS.rocket,
@@ -3098,7 +3154,7 @@ TabVisuals:CreateToggle({
     Callback = function(v) Flags.EspVehicles = v end,
 })
 
-TabVisuals:CreateToggle({
+UI.Tabs.TabVisuals:CreateToggle({
     Title = "Money Printer ESP",
     Description = "Placed money printers anywhere on the map",
     Icon = ICONS.coins,
@@ -3108,7 +3164,7 @@ TabVisuals:CreateToggle({
     Callback = function(v) Flags.EspPrinters = v end,
 })
 
-TabVisuals:CreateToggle({
+UI.Tabs.TabVisuals:CreateToggle({
     Title = "Drop ESP",
     Description = "Dropped items and pickups",
     Icon = ICONS.package,
@@ -3118,7 +3174,7 @@ TabVisuals:CreateToggle({
     Callback = function(v) Flags.EspDrops = v end,
 })
 
-TabVisuals:CreateToggle({
+UI.Tabs.TabVisuals:CreateToggle({
     Title = "Chams",
     Description = "Bright fill and outline on player models",
     Icon = ICONS.flame,
@@ -3128,9 +3184,9 @@ TabVisuals:CreateToggle({
     Callback = function(v) Flags.EspChams = v end,
 })
 
-TabVisuals:CreateSection({ Text = "Elements", Icon = ICONS.layers, Side = 1 })
+UI.Tabs.TabVisuals:CreateSection({ Text = "Elements", Icon = ICONS.layers, Side = 1 })
 
-TabVisuals:CreateToggle({
+UI.Tabs.TabVisuals:CreateToggle({
     Title = "Boxes",
     Icon = ICONS.filter,
     Default = true,
@@ -3139,7 +3195,7 @@ TabVisuals:CreateToggle({
     Callback = function(v) Flags.EspBox = v end,
 })
 
-TabVisuals:CreateToggle({
+UI.Tabs.TabVisuals:CreateToggle({
     Title = "Names",
     Icon = ICONS.info,
     Default = true,
@@ -3148,7 +3204,7 @@ TabVisuals:CreateToggle({
     Callback = function(v) Flags.EspNames = v end,
 })
 
-TabVisuals:CreateToggle({
+UI.Tabs.TabVisuals:CreateToggle({
     Title = "Distance",
     Icon = ICONS.gauge,
     Default = true,
@@ -3157,7 +3213,7 @@ TabVisuals:CreateToggle({
     Callback = function(v) Flags.EspDistanceText = v end,
 })
 
-TabVisuals:CreateToggle({
+UI.Tabs.TabVisuals:CreateToggle({
     Title = "Health Text",
     Icon = ICONS.heart,
     Default = true,
@@ -3166,7 +3222,7 @@ TabVisuals:CreateToggle({
     Callback = function(v) Flags.EspHealth = v end,
 })
 
-TabVisuals:CreateToggle({
+UI.Tabs.TabVisuals:CreateToggle({
     Title = "Health Bar",
     Icon = ICONS.heart,
     Default = false,
@@ -3175,7 +3231,7 @@ TabVisuals:CreateToggle({
     Callback = function(v) Flags.EspHealthBar = v end,
 })
 
-TabVisuals:CreateToggle({
+UI.Tabs.TabVisuals:CreateToggle({
     Title = "Tracers",
     Icon = ICONS.merge,
     Default = false,
@@ -3184,7 +3240,7 @@ TabVisuals:CreateToggle({
     Callback = function(v) Flags.EspTracers = v end,
 })
 
-TabVisuals:CreateToggle({
+UI.Tabs.TabVisuals:CreateToggle({
     Title = "Use Display Names",
     Icon = ICONS.user,
     Default = false,
@@ -3193,9 +3249,9 @@ TabVisuals:CreateToggle({
     Callback = function(v) Flags.EspUseDisplayName = v end,
 })
 
-TabVisuals:CreateSection({ Text = "Colours", Icon = ICONS.sparkles, Side = 2 })
+UI.Tabs.TabVisuals:CreateSection({ Text = "Colours", Icon = ICONS.sparkles, Side = 2 })
 
-TabVisuals:CreateColorPicker({
+UI.Tabs.TabVisuals:CreateColorPicker({
     Title = "Player Colour",
     Default = COLORS.Cyan,
     SaveId = "sdb_col_player",
@@ -3203,7 +3259,7 @@ TabVisuals:CreateColorPicker({
     Callback = function(c) Flags.EspPlayerColor = c end,
 })
 
-TabVisuals:CreateColorPicker({
+UI.Tabs.TabVisuals:CreateColorPicker({
     Title = "Wanted Colour",
     Default = COLORS.Red,
     SaveId = "sdb_col_wanted",
@@ -3211,7 +3267,7 @@ TabVisuals:CreateColorPicker({
     Callback = function(c) Flags.EspWantedColor = c end,
 })
 
-TabVisuals:CreateColorPicker({
+UI.Tabs.TabVisuals:CreateColorPicker({
     Title = "Vehicle Colour",
     Default = COLORS.Yellow,
     SaveId = "sdb_col_vehicle",
@@ -3219,7 +3275,7 @@ TabVisuals:CreateColorPicker({
     Callback = function(c) Flags.EspVehicleColor = c end,
 })
 
-TabVisuals:CreateColorPicker({
+UI.Tabs.TabVisuals:CreateColorPicker({
     Title = "Printer Colour",
     Default = COLORS.Green,
     SaveId = "sdb_col_printer",
@@ -3227,7 +3283,7 @@ TabVisuals:CreateColorPicker({
     Callback = function(c) Flags.EspPrinterColor = c end,
 })
 
-TabVisuals:CreateColorPicker({
+UI.Tabs.TabVisuals:CreateColorPicker({
     Title = "Drop Colour",
     Default = COLORS.Orange,
     SaveId = "sdb_col_drop",
@@ -3235,7 +3291,7 @@ TabVisuals:CreateColorPicker({
     Callback = function(c) Flags.EspDropColor = c end,
 })
 
-TabVisuals:CreateColorPicker({
+UI.Tabs.TabVisuals:CreateColorPicker({
     Title = "Cham Fill",
     Default = COLORS.Purple,
     SaveId = "sdb_col_chamfill",
@@ -3243,7 +3299,7 @@ TabVisuals:CreateColorPicker({
     Callback = function(c) Flags.EspChamFill = c end,
 })
 
-TabVisuals:CreateColorPicker({
+UI.Tabs.TabVisuals:CreateColorPicker({
     Title = "Cham Outline",
     Default = COLORS.White,
     SaveId = "sdb_col_chamline",
@@ -3251,7 +3307,7 @@ TabVisuals:CreateColorPicker({
     Callback = function(c) Flags.EspChamOutline = c end,
 })
 
-TabVisuals:CreateSlider({
+UI.Tabs.TabVisuals:CreateSlider({
     Title = "Max Distance",
     Icon = ICONS.gauge,
     Min = 100,
@@ -3263,7 +3319,7 @@ TabVisuals:CreateSlider({
     Callback = function(v) Flags.EspDistance = v end,
 })
 
-TabVisuals:CreateSlider({
+UI.Tabs.TabVisuals:CreateSlider({
     Title = "Line Thickness",
     Icon = ICONS.layers,
     Min = 1,
@@ -3277,16 +3333,16 @@ TabVisuals:CreateSlider({
 
 Window:CreateSeparator({ Text = "COMBAT" })
 
-local TabCombat = Window:CreateTab({
+UI.Tabs.TabCombat = Window:CreateTab({
     Title = "Combat",
     Subtitle = "Aim & Weapons",
     Icon = ICONS.target,
     Double = true,
 })
 
-TabCombat:CreateSection({ Text = "Aim Assist", Icon = ICONS.target, Side = 1 })
+UI.Tabs.TabCombat:CreateSection({ Text = "Aim Assist", Icon = ICONS.target, Side = 1 })
 
-TabCombat:CreateToggle({
+UI.Tabs.TabCombat:CreateToggle({
     Title = "Aimbot",
     Description = "Pulls the camera onto the closest target inside the FOV circle",
     Icon = ICONS.target,
@@ -3296,7 +3352,7 @@ TabCombat:CreateToggle({
     Callback = function(v) Flags.Aimbot = v end,
 })
 
-TabCombat:CreateToggle({
+UI.Tabs.TabCombat:CreateToggle({
     Title = "Hold To Aim",
     Description = "Only aims while you hold right click or touch the screen",
     Icon = ICONS.hand,
@@ -3306,7 +3362,7 @@ TabCombat:CreateToggle({
     Callback = function(v) Flags.AimRequireHold = v end,
 })
 
-TabCombat:CreateToggle({
+UI.Tabs.TabCombat:CreateToggle({
     Title = "Wall Check",
     Description = "Skips targets you have no line of sight to",
     Icon = ICONS.shield,
@@ -3316,7 +3372,7 @@ TabCombat:CreateToggle({
     Callback = function(v) Flags.AimWallCheck = v end,
 })
 
-TabCombat:CreateToggle({
+UI.Tabs.TabCombat:CreateToggle({
     Title = "Ignore Team",
     Icon = ICONS.person,
     Default = true,
@@ -3325,7 +3381,7 @@ TabCombat:CreateToggle({
     Callback = function(v) Flags.AimIgnoreTeam = v end,
 })
 
-TabCombat:CreateDropdown({
+UI.Tabs.TabCombat:CreateDropdown({
     Title = "Target Part",
     Icon = ICONS.person,
     Options = {
@@ -3339,7 +3395,7 @@ TabCombat:CreateDropdown({
     Callback = function(v) if type(v) == "string" then Flags.AimPart = v end end,
 })
 
-TabCombat:CreateSlider({
+UI.Tabs.TabCombat:CreateSlider({
     Title = "Smoothness",
     Description = "1 snaps instantly, lower values drag the camera over",
     Icon = ICONS.gauge,
@@ -3352,7 +3408,7 @@ TabCombat:CreateSlider({
     Callback = function(v) Flags.AimSmoothness = v end,
 })
 
-TabCombat:CreateSlider({
+UI.Tabs.TabCombat:CreateSlider({
     Title = "Max Target Distance",
     Icon = ICONS.gauge,
     Min = 50,
@@ -3364,9 +3420,9 @@ TabCombat:CreateSlider({
     Callback = function(v) Flags.AimMaxDistance = v end,
 })
 
-TabCombat:CreateSection({ Text = "FOV Circle", Icon = ICONS.scan, Side = 2 })
+UI.Tabs.TabCombat:CreateSection({ Text = "FOV Circle", Icon = ICONS.scan, Side = 2 })
 
-TabCombat:CreateToggle({
+UI.Tabs.TabCombat:CreateToggle({
     Title = "Show FOV Circle",
     Icon = ICONS.scan,
     Default = false,
@@ -3375,7 +3431,7 @@ TabCombat:CreateToggle({
     Callback = function(v) Flags.FovCircle = v end,
 })
 
-TabCombat:CreateSlider({
+UI.Tabs.TabCombat:CreateSlider({
     Title = "FOV Radius",
     Icon = ICONS.gauge,
     Min = 20,
@@ -3387,7 +3443,7 @@ TabCombat:CreateSlider({
     Callback = function(v) Flags.FovRadius = v end,
 })
 
-TabCombat:CreateSlider({
+UI.Tabs.TabCombat:CreateSlider({
     Title = "FOV Thickness",
     Icon = ICONS.layers,
     Min = 1,
@@ -3399,7 +3455,7 @@ TabCombat:CreateSlider({
     Callback = function(v) Flags.FovThickness = v end,
 })
 
-TabCombat:CreateColorPicker({
+UI.Tabs.TabCombat:CreateColorPicker({
     Title = "FOV Colour",
     Default = COLORS.White,
     SaveId = "sdb_fov_colour",
@@ -3407,9 +3463,9 @@ TabCombat:CreateColorPicker({
     Callback = function(c) Flags.FovColor = c end,
 })
 
-TabCombat:CreateSection({ Text = "Weapons", Icon = ICONS.flame, Side = 2 })
+UI.Tabs.TabCombat:CreateSection({ Text = "Weapons", Icon = ICONS.flame, Side = 2 })
 
-TabCombat:CreateToggle({
+UI.Tabs.TabCombat:CreateToggle({
     Title = "No Recoil",
     Description = "Zeroes the camera recoil factors in the gun config",
     Icon = ICONS.shield,
@@ -3423,7 +3479,7 @@ TabCombat:CreateToggle({
     end,
 })
 
-TabCombat:CreateToggle({
+UI.Tabs.TabCombat:CreateToggle({
     Title = "No Spread",
     Description = "Zeroes bullet spread and shotgun spread",
     Icon = ICONS.filter,
@@ -3437,7 +3493,7 @@ TabCombat:CreateToggle({
     end,
 })
 
-TabCombat:CreateToggle({
+UI.Tabs.TabCombat:CreateToggle({
     Title = "Instant Draw",
     Description = "Removes the delay between equipping a gun and being able to fire",
     Icon = ICONS.zap,
@@ -3451,7 +3507,7 @@ TabCombat:CreateToggle({
     end,
 })
 
-TabCombat:CreateToggle({
+UI.Tabs.TabCombat:CreateToggle({
     Title = "Auto Reload",
     Description = "Calls the reload remote the moment your magazine hits zero",
     Icon = ICONS.refresh,
@@ -3478,7 +3534,7 @@ TabCombat:CreateToggle({
     end,
 })
 
-local combatPara = TabCombat:CreateParagraph({
+UI.Para.combatPara = UI.Tabs.TabCombat:CreateParagraph({
     Title = "Target",
     Icon = ICONS.activity,
     Side = 2,
@@ -3487,16 +3543,16 @@ local combatPara = TabCombat:CreateParagraph({
 
 Window:CreateSeparator({ Text = "CHARACTER" })
 
-local TabCharacter = Window:CreateTab({
+UI.Tabs.TabCharacter = Window:CreateTab({
     Title = "Character",
     Subtitle = "Movement",
     Icon = ICONS.person,
     Double = true,
 })
 
-TabCharacter:CreateSection({ Text = "Speed", Icon = ICONS.gauge, Side = 1 })
+UI.Tabs.TabCharacter:CreateSection({ Text = "Speed", Icon = ICONS.gauge, Side = 1 })
 
-TabCharacter:CreateToggle({
+UI.Tabs.TabCharacter:CreateToggle({
     Title = "Speed Boost",
     Description = "Holds your walk speed at the value below",
     Icon = ICONS.zap,
@@ -3509,7 +3565,7 @@ TabCharacter:CreateToggle({
     end,
 })
 
-TabCharacter:CreateSlider({
+UI.Tabs.TabCharacter:CreateSlider({
     Title = "Walk Speed",
     Icon = ICONS.gauge,
     Min = 12,
@@ -3521,7 +3577,7 @@ TabCharacter:CreateSlider({
     Callback = function(v) Flags.WalkSpeed = v end,
 })
 
-TabCharacter:CreateToggle({
+UI.Tabs.TabCharacter:CreateToggle({
     Title = "Jump Boost",
     Icon = ICONS.rocket,
     Default = false,
@@ -3536,7 +3592,7 @@ TabCharacter:CreateToggle({
     end,
 })
 
-TabCharacter:CreateSlider({
+UI.Tabs.TabCharacter:CreateSlider({
     Title = "Jump Power",
     Icon = ICONS.gauge,
     Min = 50,
@@ -3548,7 +3604,7 @@ TabCharacter:CreateSlider({
     Callback = function(v) Flags.JumpPower = v end,
 })
 
-TabCharacter:CreateToggle({
+UI.Tabs.TabCharacter:CreateToggle({
     Title = "Infinite Stamina",
     Description = "Stops the sprint meter draining so you never drop out of a run",
     Icon = ICONS.heart,
@@ -3563,7 +3619,7 @@ TabCharacter:CreateToggle({
     end,
 })
 
-TabCharacter:CreateToggle({
+UI.Tabs.TabCharacter:CreateToggle({
     Title = "Fast Run",
     Description = "Holds the sprint state on through the game's own movement controller",
     Icon = ICONS.zap,
@@ -3588,9 +3644,9 @@ TabCharacter:CreateToggle({
     end,
 })
 
-TabCharacter:CreateSection({ Text = "Flight", Icon = ICONS.rocket, Side = 1 })
+UI.Tabs.TabCharacter:CreateSection({ Text = "Flight", Icon = ICONS.rocket, Side = 1 })
 
-TabCharacter:CreateToggle({
+UI.Tabs.TabCharacter:CreateToggle({
     Title = "Fly",
     Description = "WASD plus space and shift on PC, joystick on mobile",
     Icon = ICONS.rocket,
@@ -3603,7 +3659,7 @@ TabCharacter:CreateToggle({
     end,
 })
 
-TabCharacter:CreateSlider({
+UI.Tabs.TabCharacter:CreateSlider({
     Title = "Fly Speed",
     Icon = ICONS.gauge,
     Min = 10,
@@ -3615,7 +3671,7 @@ TabCharacter:CreateSlider({
     Callback = function(v) Flags.FlySpeed = v end,
 })
 
-TabCharacter:CreateToggle({
+UI.Tabs.TabCharacter:CreateToggle({
     Title = "Ascend",
     Description = "Hold altitude gain while flying, for touch screens with no space bar",
     Icon = ICONS.rocket,
@@ -3625,7 +3681,7 @@ TabCharacter:CreateToggle({
     Callback = function(v) Flags.FlyAscend = v end,
 })
 
-TabCharacter:CreateToggle({
+UI.Tabs.TabCharacter:CreateToggle({
     Title = "Descend",
     Icon = ICONS.rocket,
     Default = false,
@@ -3634,7 +3690,7 @@ TabCharacter:CreateToggle({
     Callback = function(v) Flags.FlyDescend = v end,
 })
 
-TabCharacter:CreateToggle({
+UI.Tabs.TabCharacter:CreateToggle({
     Title = "Noclip",
     Description = "Turns collision off on your own character parts",
     Icon = ICONS.layers,
@@ -3656,9 +3712,9 @@ TabCharacter:CreateToggle({
     end,
 })
 
-TabCharacter:CreateSection({ Text = "Session", Icon = ICONS.cog, Side = 2 })
+UI.Tabs.TabCharacter:CreateSection({ Text = "Session", Icon = ICONS.cog, Side = 2 })
 
-TabCharacter:CreateToggle({
+UI.Tabs.TabCharacter:CreateToggle({
     Title = "Anti AFK",
     Description = "Blocks the 20 minute idle kick",
     Icon = ICONS.clock,
@@ -3668,7 +3724,7 @@ TabCharacter:CreateToggle({
     Callback = function(v) setAntiAfk(v) end,
 })
 
-TabCharacter:CreateButton({
+UI.Tabs.TabCharacter:CreateButton({
     Title = "Server Hop",
     Description = "Finds another public server for this place and joins it",
     Icon = ICONS.globe,
@@ -3676,7 +3732,7 @@ TabCharacter:CreateButton({
     Callback = function() serverHop() end,
 })
 
-TabCharacter:CreateButton({
+UI.Tabs.TabCharacter:CreateButton({
     Title = "Rejoin Server",
     Icon = ICONS.refresh,
     Side = 2,
@@ -3687,9 +3743,9 @@ TabCharacter:CreateButton({
     end,
 })
 
-TabCharacter:CreateSection({ Text = "Appearance", Icon = ICONS.sparkles, Side = 2 })
+UI.Tabs.TabCharacter:CreateSection({ Text = "Appearance", Icon = ICONS.sparkles, Side = 2 })
 
-TabCharacter:CreateToggle({
+UI.Tabs.TabCharacter:CreateToggle({
     Title = "Rainbow Name",
     Description = "Cycles the colour of your nametag",
     Icon = ICONS.sparkles,
@@ -3699,7 +3755,7 @@ TabCharacter:CreateToggle({
     Callback = function(v) setRainbowName(v) end,
 })
 
-TabCharacter:CreateToggle({
+UI.Tabs.TabCharacter:CreateToggle({
     Title = "Stretch",
     Description = "Scales your character height",
     Icon = ICONS.person,
@@ -3712,7 +3768,7 @@ TabCharacter:CreateToggle({
     end,
 })
 
-TabCharacter:CreateSlider({
+UI.Tabs.TabCharacter:CreateSlider({
     Title = "Stretch Amount",
     Icon = ICONS.gauge,
     Min = 0.5,
@@ -3727,7 +3783,7 @@ TabCharacter:CreateSlider({
     end,
 })
 
-local charPara = TabCharacter:CreateParagraph({
+UI.Para.charPara = UI.Tabs.TabCharacter:CreateParagraph({
     Title = "Status",
     Icon = ICONS.activity,
     Side = 2,
@@ -3736,16 +3792,16 @@ local charPara = TabCharacter:CreateParagraph({
 
 Window:CreateSeparator({ Text = "VEHICLE" })
 
-local TabVehicle = Window:CreateTab({
+UI.Tabs.TabVehicle = Window:CreateTab({
     Title = "Vehicle",
     Subtitle = "Spawn & Physics",
     Icon = ICONS.rocket,
     Double = true,
 })
 
-TabVehicle:CreateSection({ Text = "Spawn", Icon = ICONS.shop, Side = 1 })
+UI.Tabs.TabVehicle:CreateSection({ Text = "Spawn", Icon = ICONS.shop, Side = 1 })
 
-TabVehicle:CreateDropdown({
+UI.Tabs.TabVehicle:CreateDropdown({
     Title = "Vehicle",
     Icon = ICONS.rocket,
     Options = vehicleOptions(),
@@ -3755,7 +3811,7 @@ TabVehicle:CreateDropdown({
     Callback = function(v) if type(v) == "string" then Flags.SpawnVehicle = v end end,
 })
 
-TabVehicle:CreateDropdown({
+UI.Tabs.TabVehicle:CreateDropdown({
     Title = "Spawner",
     Icon = ICONS.mappin,
     Options = spawnerOptions(),
@@ -3765,7 +3821,7 @@ TabVehicle:CreateDropdown({
     Callback = function(v) if type(v) == "string" then Flags.Spawner = v end end,
 })
 
-TabVehicle:CreateButton({
+UI.Tabs.TabVehicle:CreateButton({
     Title = "Spawn Vehicle",
     Description = "Server decides whether your team and unlocks allow it",
     Icon = ICONS.rocket,
@@ -3783,7 +3839,7 @@ TabVehicle:CreateButton({
     end,
 })
 
-TabVehicle:CreateDropdown({
+UI.Tabs.TabVehicle:CreateDropdown({
     Title = "Boat",
     Icon = ICONS.globe,
     Options = boatOptions(),
@@ -3793,7 +3849,7 @@ TabVehicle:CreateDropdown({
     Callback = function(v) if type(v) == "string" then Flags.SpawnBoat = v end end,
 })
 
-TabVehicle:CreateButton({
+UI.Tabs.TabVehicle:CreateButton({
     Title = "Spawn Boat",
     Icon = ICONS.globe,
     Side = 1,
@@ -3810,7 +3866,7 @@ TabVehicle:CreateButton({
     end,
 })
 
-TabVehicle:CreateButton({
+UI.Tabs.TabVehicle:CreateButton({
     Title = "Buy Selected Vehicle",
     Description = "Spends in game cash through the normal purchase remote",
     Icon = ICONS.coins,
@@ -3826,9 +3882,9 @@ TabVehicle:CreateButton({
     end,
 })
 
-TabVehicle:CreateSection({ Text = "Physics", Icon = ICONS.gauge, Side = 2 })
+UI.Tabs.TabVehicle:CreateSection({ Text = "Physics", Icon = ICONS.gauge, Side = 2 })
 
-TabVehicle:CreateToggle({
+UI.Tabs.TabVehicle:CreateToggle({
     Title = "Vehicle Noclip",
     Description = "Turns collision off on the vehicle you are sitting in",
     Icon = ICONS.layers,
@@ -3841,7 +3897,7 @@ TabVehicle:CreateToggle({
     end,
 })
 
-TabVehicle:CreateToggle({
+UI.Tabs.TabVehicle:CreateToggle({
     Title = "Map Noclip",
     Description = "Turns collision off across the whole map folder",
     Icon = ICONS.map,
@@ -3854,7 +3910,7 @@ TabVehicle:CreateToggle({
     end,
 })
 
-TabVehicle:CreateToggle({
+UI.Tabs.TabVehicle:CreateToggle({
     Title = "Gate Noclip",
     Description = "Turns collision off on border gates and barriers",
     Icon = ICONS.key,
@@ -3868,7 +3924,7 @@ TabVehicle:CreateToggle({
     end,
 })
 
-TabVehicle:CreateToggle({
+UI.Tabs.TabVehicle:CreateToggle({
     Title = "Remove Border Speed Limit",
     Description = "Stops the border region force-braking your car at 21mph",
     Icon = ICONS.zap,
@@ -3882,7 +3938,7 @@ TabVehicle:CreateToggle({
     end,
 })
 
-TabVehicle:CreateSlider({
+UI.Tabs.TabVehicle:CreateSlider({
     Title = "Cruise Height",
     Description = "Lifts the car over the map on long routes. Leave at 0 - the vehicle anti-cheat drags an airborne car backwards",
     Icon = ICONS.rocket,
@@ -3895,7 +3951,7 @@ TabVehicle:CreateSlider({
     Callback = function(v) Flags.CruiseHeight = v end,
 })
 
-TabVehicle:CreateSlider({
+UI.Tabs.TabVehicle:CreateSlider({
     Title = "Vehicle Travel Speed",
     Description = "Speed used when the farm drives a truck or boat for you",
     Icon = ICONS.gauge,
@@ -3908,7 +3964,7 @@ TabVehicle:CreateSlider({
     Callback = function(v) Flags.VehicleTravelSpeed = v end,
 })
 
-TabVehicle:CreateButton({
+UI.Tabs.TabVehicle:CreateButton({
     Title = "Unstuck Vehicle",
     Icon = ICONS.wrench,
     Side = 2,
@@ -3919,7 +3975,7 @@ TabVehicle:CreateButton({
     end,
 })
 
-local vehiclePara = TabVehicle:CreateParagraph({
+UI.Para.vehiclePara = UI.Tabs.TabVehicle:CreateParagraph({
     Title = "Current",
     Icon = ICONS.activity,
     Side = 2,
@@ -3928,16 +3984,16 @@ local vehiclePara = TabVehicle:CreateParagraph({
 
 Window:CreateSeparator({ Text = "RENDER" })
 
-local TabRender = Window:CreateTab({
+UI.Tabs.TabRender = Window:CreateTab({
     Title = "Render",
     Subtitle = "Lighting & FPS",
     Icon = ICONS.flame,
     Double = true,
 })
 
-TabRender:CreateSection({ Text = "Lighting", Icon = ICONS.flame, Side = 1 })
+UI.Tabs.TabRender:CreateSection({ Text = "Lighting", Icon = ICONS.flame, Side = 1 })
 
-TabRender:CreateToggle({
+UI.Tabs.TabRender:CreateToggle({
     Title = "Fullbright",
     Description = "Flattens the lighting so nothing is ever dark",
     Icon = ICONS.sparkles,
@@ -3963,7 +4019,7 @@ TabRender:CreateToggle({
     end,
 })
 
-TabRender:CreateSlider({
+UI.Tabs.TabRender:CreateSlider({
     Title = "Brightness",
     Icon = ICONS.gauge,
     Min = 0,
@@ -3979,7 +4035,7 @@ TabRender:CreateSlider({
     end,
 })
 
-TabRender:CreateSlider({
+UI.Tabs.TabRender:CreateSlider({
     Title = "Gamma",
     Description = "Exposure compensation, raise it to lift the shadows",
     Icon = ICONS.gauge,
@@ -3996,7 +4052,7 @@ TabRender:CreateSlider({
     end,
 })
 
-TabRender:CreateDropdown({
+UI.Tabs.TabRender:CreateDropdown({
     Title = "Sky",
     Icon = ICONS.globe,
     Options = (function()
@@ -4012,9 +4068,9 @@ TabRender:CreateDropdown({
     Callback = function(v) if type(v) == "string" then applySky(v) end end,
 })
 
-TabRender:CreateSection({ Text = "Performance", Icon = ICONS.zap, Side = 2 })
+UI.Tabs.TabRender:CreateSection({ Text = "Performance", Icon = ICONS.zap, Side = 2 })
 
-TabRender:CreateToggle({
+UI.Tabs.TabRender:CreateToggle({
     Title = "FPS Boost",
     Description = "Drops render quality, particles, shadows and post effects",
     Icon = ICONS.zap,
@@ -4027,7 +4083,7 @@ TabRender:CreateToggle({
     end,
 })
 
-TabRender:CreateToggle({
+UI.Tabs.TabRender:CreateToggle({
     Title = "Transparent Map",
     Description = "Makes the map see through without moving it",
     Icon = ICONS.eye,
@@ -4040,7 +4096,7 @@ TabRender:CreateToggle({
     end,
 })
 
-TabRender:CreateSlider({
+UI.Tabs.TabRender:CreateSlider({
     Title = "Map Transparency",
     Icon = ICONS.gauge,
     Min = 0.1,
@@ -4058,7 +4114,7 @@ TabRender:CreateSlider({
     end,
 })
 
-TabRender:CreateToggle({
+UI.Tabs.TabRender:CreateToggle({
     Title = "No Render",
     Description = "Unparents the heavy map folders for maximum frames, toggle off to bring them back",
     Icon = ICONS.filter,
@@ -4071,7 +4127,7 @@ TabRender:CreateToggle({
     end,
 })
 
-local renderPara = TabRender:CreateParagraph({
+UI.Para.renderPara = UI.Tabs.TabRender:CreateParagraph({
     Title = "Frames",
     Icon = ICONS.activity,
     Side = 2,
@@ -4080,16 +4136,16 @@ local renderPara = TabRender:CreateParagraph({
 
 Window:CreateSeparator({ Text = "SETTINGS" })
 
-local TabSettings = Window:CreateTab({
+UI.Tabs.TabSettings = Window:CreateTab({
     Title = "Settings",
     Subtitle = "Binds & Info",
     Icon = ICONS.cog,
     Double = true,
 })
 
-TabSettings:CreateSection({ Text = "Keybinds", Icon = ICONS.key, Side = 1 })
+UI.Tabs.TabSettings:CreateSection({ Text = "Keybinds", Icon = ICONS.key, Side = 1 })
 
-TabSettings:CreateKeyBind({
+UI.Tabs.TabSettings:CreateKeyBind({
     Title = "Panic Key",
     Description = "Turns every automation and visual off instantly",
     Default = Enum.KeyCode.RightControl,
@@ -4100,7 +4156,7 @@ TabSettings:CreateKeyBind({
     end,
 })
 
-TabSettings:CreateKeyBind({
+UI.Tabs.TabSettings:CreateKeyBind({
     Title = "Cancel Route Key",
     Description = "Stops the current teleport or farm route",
     Default = Enum.KeyCode.X,
@@ -4111,7 +4167,7 @@ TabSettings:CreateKeyBind({
     end,
 })
 
-TabSettings:CreateKeyBind({
+UI.Tabs.TabSettings:CreateKeyBind({
     Title = "Fly Key",
     Default = Enum.KeyCode.F,
     SaveId = "sdb_fly_key",
@@ -4121,16 +4177,16 @@ TabSettings:CreateKeyBind({
     end,
 })
 
-TabSettings:CreateSection({ Text = "Session", Icon = ICONS.info, Side = 2 })
+UI.Tabs.TabSettings:CreateSection({ Text = "Session", Icon = ICONS.info, Side = 2 })
 
-local infoPara = TabSettings:CreateParagraph({
+UI.Para.infoPara = UI.Tabs.TabSettings:CreateParagraph({
     Title = "SnowyHub",
     Icon = ICONS.info,
     Side = 2,
     Description = "Loading...",
 })
 
-TabSettings:CreateButton({
+UI.Tabs.TabSettings:CreateButton({
     Title = "Stop Everything",
     Description = "Same as the panic key",
     Icon = ICONS.alert,
@@ -4150,7 +4206,7 @@ TabSettings:CreateButton({
     end,
 })
 
-TabSettings:CreateButton({
+UI.Tabs.TabSettings:CreateButton({
     Title = "Unload SnowyHub",
     Description = "Removes the menu, drawings and every loop",
     Icon = ICONS.alert,
@@ -4162,7 +4218,7 @@ TabSettings:CreateButton({
     end,
 })
 
-TabSettings:CreateDiscordInvite({
+UI.Tabs.TabSettings:CreateDiscordInvite({
     Title = "VoidHub",
     Description = "Scripts by von63rd",
     Icon = "rbxassetid://101833678008843",
@@ -4210,7 +4266,7 @@ spawnLoop("status", 0.5, function()
     local elapsed = math.max(os.clock() - Stats.Started, 1)
     local perHour = function(n) return math.floor(n / elapsed * 3600) end
 
-    setPara(farmStatusPara, table.concat({
+    setPara(UI.Para.farmStatusPara, table.concat({
         "Money: " .. tostring(readMoney()),
         ("Bought %d | Sold %d | Laundered %d"):format(Stats.Bought, Stats.Sold, Stats.Laundered),
         ("Boxes %d | Truck %d | Boat %d | Deaths %d"):format(Stats.Boxes, Stats.TruckRuns, Stats.BoatRuns, Stats.Deaths),
@@ -4242,20 +4298,20 @@ spawnLoop("status", 0.5, function()
                 not unlocked and "locked" or (cooling and (math.floor(remain) .. "s") or "ready")))
         end
     end
-    setPara(cooldownPara, #lines > 0 and table.concat(lines, "\n") or "No mission data")
+    setPara(UI.Para.cooldownPara, #lines > 0 and table.concat(lines, "\n") or "No mission data")
 
-    setPara(travelPara, table.concat({
+    setPara(UI.Para.travelPara, table.concat({
         "State: " .. tostring(Travel.label),
         "Active: " .. tostring(Travel.active),
         "Locations: " .. tostring(#Locations),
     }, "\n"))
 
     local t = Aim.target
-    setPara(combatPara, t and ("Locked: " .. t.Player.Name .. "\nPart: " .. t.Part.Name)
+    setPara(UI.Para.combatPara, t and ("Locked: " .. t.Player.Name .. "\nPart: " .. t.Part.Name)
         or "No target")
 
     local h = humanoid()
-    setPara(charPara, table.concat({
+    setPara(UI.Para.charPara, table.concat({
         "WalkSpeed: " .. (h and math.floor(h.WalkSpeed) or "-"),
         "JumpPower: " .. (h and math.floor(h.JumpPower) or "-"),
         "Health: " .. (h and math.floor(h.Health) or "-"),
@@ -4264,18 +4320,18 @@ spawnLoop("status", 0.5, function()
     }, "\n"))
 
     local model, seat = currentVehicle()
-    setPara(vehiclePara, model
+    setPara(UI.Para.vehiclePara, model
         and ("Model: " .. model.Name .. "\nSeat: " .. (seat and seat.Name or "-"))
         or "Not in a vehicle")
 
-    setPara(renderPara, ("FPS: %d\nDrawings: %s\nEsp entries: %d")
+    setPara(UI.Para.renderPara, ("FPS: %d\nDrawings: %s\nEsp entries: %d")
         :format(math.floor(Fps.value), DrawingOk and "yes" or "unavailable", (function()
             local n = 0
             for _ in pairs(Esp.Entries) do n = n + 1 end
             return n
         end)()))
 
-    setPara(infoPara, table.concat({
+    setPara(UI.Para.infoPara, table.concat({
         "Game: San Diego Border Roleplay",
         "Bridge: " .. (Game.ok and "connected" or tostring(Game.reason)),
         "Uptime: " .. math.floor(elapsed) .. "s",
