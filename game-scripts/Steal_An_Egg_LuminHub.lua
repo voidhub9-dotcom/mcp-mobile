@@ -508,22 +508,42 @@ function Move:Attempt(targetPos, timeout)
     local stalls = 0
     local closest = math.huge
 
+    -- At high speed the character rams world geometry and each step gets
+    -- refused, which reads as a rollback. Travel phases through instead;
+    -- collisions are restored the moment the move ends.
+    local restore = {}
+    local char = getCharacter()
+    if char then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                restore[#restore + 1] = part
+                part.CanCollide = false
+            end
+        end
+    end
+    local function releaseCollisions()
+        for _, part in ipairs(restore) do
+            if part.Parent then pcall(function() part.CanCollide = true end) end
+        end
+        table.clear(restore)
+    end
+
     while os.clock() - start < timeout do
-        if self.cancel then self.moving = false return false, false end
+        if self.cancel then self.moving = false releaseCollisions() return false, false end
         root = getRoot()
-        if not root then self.moving = false return false, false end
+        if not root then self.moving = false releaseCollisions() return false, false end
 
         local here = root.Position
         local toGo = targetPos - here
         local dist = toGo.Magnitude
-        if dist <= 6 then self.moving = false return true, false end
+        if dist <= 6 then self.moving = false releaseCollisions() return true, false end
         if dist < closest then closest = dist end
 
         local dt   = RunService.Heartbeat:Wait()
         local step = math.min(speed * dt, dist)
 
         root = getRoot()
-        if not root then self.moving = false return false, false end
+        if not root then self.moving = false releaseCollisions() return false, false end
         root.CFrame = CFrame.new(here + toGo.Unit * step)
         -- the part that actually makes it stick
         root.AssemblyLinearVelocity  = Vector3.zero
@@ -531,7 +551,7 @@ function Move:Attempt(targetPos, timeout)
 
         RunService.Heartbeat:Wait()
         root = getRoot()
-        if not root then self.moving = false return false, false end
+        if not root then self.moving = false releaseCollisions() return false, false end
 
         -- Only treat it as blocked when we make no headway at all for a
         -- sustained run of frames. The old 35%-of-step test tripped on
@@ -539,7 +559,7 @@ function Move:Attempt(targetPos, timeout)
         local progressed = (root.Position - here).Magnitude
         if progressed < math.min(step * 0.1, 0.5) then
             stalls = stalls + 1
-            if stalls >= 12 then self.moving = false return false, true end
+            if stalls >= 12 then self.moving = false releaseCollisions() return false, true end
         else
             stalls = 0
         end
@@ -548,6 +568,7 @@ function Move:Attempt(targetPos, timeout)
     root = getRoot()
     local arrived = root and (root.Position - targetPos).Magnitude <= 14
     self.moving = false
+    releaseCollisions()
     return arrived or false, not arrived
 end
 
@@ -636,7 +657,9 @@ function Move:To(targetPos, timeoutSeconds)
         end
         if not rolledBack then return false end
         self:Penalise()
-        Status.Steal = "Adapting: " .. self.lastNote
+        Status.Steal = (Flags.AdaptiveSpeed and self.lastNote ~= "")
+            and ("Adapting: " .. self.lastNote)
+            or "Retrying travel"
         task.wait(0.2)
     end
     return false
