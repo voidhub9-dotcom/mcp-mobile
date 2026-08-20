@@ -578,22 +578,6 @@ function Move:Attempt(targetPos, timeout)
         -- ordinary frame-time jitter and throttled a working move to zero.
         frames = frames + 1
 
-        -- The server deletes the character on sustained fast movement.
-        -- Measured: a 2603-stud trip arrived fine in 57 frames, while an
-        -- 87-frame run was reset mid-flight. Pausing briefly every 40
-        -- frames keeps each burst inside what the server tolerates, at a
-        -- small cost in total travel time.
-        if frames % 40 == 0 then
-            root.AssemblyLinearVelocity  = Vector3.zero
-            root.AssemblyAngularVelocity = Vector3.zero
-            task.wait(0.35)
-            root = getRoot()
-            if not root then
-                self.lastFail = string.format("lost character during settle at frame %d", frames)
-                self.moving = false releaseCollisions() return false, false
-            end
-        end
-
         local progressed = (root.Position - here).Magnitude
         if progressed < math.min(step * 0.1, 0.5) then
             stalls = stalls + 1
@@ -666,6 +650,17 @@ function Move:To(targetPos, timeoutSeconds)
     local mode = Flags.MoveMode or "Walk"
     local root0 = getRoot()
     local dist0 = root0 and (root0.Position - targetPos).Magnitude or 0
+
+    -- The server resets the character on sustained fast movement.
+    -- Measured across runs: a trip that finished in 57 frames arrived
+    -- fine, while 72 and 87 frame runs were both killed mid-flight, and
+    -- pausing between bursts did not help. So tween only the distances
+    -- that finish well inside that budget and walk the long hauls, which
+    -- the server never objects to.
+    local hopLimit = tonumber(Flags.TweenMaxDistance) or 1500
+    if mode == "Tween" and dist0 > hopLimit then
+        mode = "Walk"
+    end
 
     if mode == "Walk" then
         local hum = getHumanoid()
@@ -2274,6 +2269,17 @@ MoveGB:AddSlider("TweenSpeed", {
     Default  = 1200,
     Rounding = 0,
     Callback = function(v) Flags.TweenSpeed = v end,
+})
+
+MoveGB:AddSlider("TweenMaxDistance", {
+    Text     = "Tween Max Distance",
+    Suffix   = " studs",
+    Tooltip  = "Trips longer than this walk instead. The server resets the character on sustained fast movement, so long hauls cannot be tweened.",
+    Min      = 300,
+    Max      = 4000,
+    Default  = 1500,
+    Rounding = 0,
+    Callback = function(v) Flags.TweenMaxDistance = v end,
 })
 
 MoveGB:AddToggle("AdaptiveSpeed", {
@@ -4216,6 +4222,7 @@ Flags.FarmMinRarity     = nil
 Flags.MinEggWeight      = 0
 Flags.SmartTween        = true
 Flags.AdaptiveSpeed     = false
+Flags.TweenMaxDistance  = 1500
 Flags.MoveMode          = "Tween"
 Flags.TweenSpeed        = 1200
 Flags.InstantMove       = false
