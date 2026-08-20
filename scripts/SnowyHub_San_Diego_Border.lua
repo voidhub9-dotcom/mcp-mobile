@@ -1495,6 +1495,18 @@ track(LocalPlayer.CharacterAdded:Connect(function(char)
     if Flags.Stretch then setStretch(true, Flags.StretchAmount) end
 end))
 
+local function tagged(tag)
+    local ok, list = pcall(function() return CollectionService:GetTagged(tag) end)
+    return ok and list or {}
+end
+
+local function instancePosition(inst)
+    if not inst then return nil end
+    if inst:IsA("BasePart") then return inst.Position end
+    if inst:IsA("Model") then return inst:GetPivot().Position end
+    return nil
+end
+
 local function folderPivot(name)
     local folder = Workspace:FindFirstChild(name)
     if not folder then return nil end
@@ -1524,6 +1536,10 @@ local LOCATION_FALLBACK = {
     ["Smuggling Docks"]    = Vector3.new(-83, -199, 432),
     ["Gun Shop"]           = Vector3.new(204, 17, 490),
     ["Money Printer Shop"] = Vector3.new(2980, -66, -1268),
+    ["Tunnel (North)"]     = Vector3.new(3133, 14, -1272),
+    ["Tunnel (South)"]     = Vector3.new(1837, 14, -451),
+    ["Box Job Pickup"]     = Vector3.new(-30, 19, -72),
+    ["Box Job Dropoff"]    = Vector3.new(5, 17, -62),
 }
 
 local Locations = {}
@@ -1536,6 +1552,13 @@ local function rebuildLocations()
 
     for name, pos in pairs(LOCATION_FALLBACK) do
         add(name, pos)
+    end
+
+    for _, inst in ipairs(tagged("SmuggledGoodsSeller")) do
+        add("Seller: " .. inst.Name, instancePosition(inst))
+    end
+    for i, inst in ipairs(tagged("LaunderPromptPart")) do
+        add("Launder " .. i, instancePosition(inst))
     end
 
     add("Bank", folderPivot("Bank"))
@@ -1602,10 +1625,6 @@ local function locationOptions()
     return t
 end
 
-local function tagged(tag)
-    local ok, list = pcall(function() return CollectionService:GetTagged(tag) end)
-    return ok and list or {}
-end
 
 local function nearestTagged(tag, from)
     local best, bestDist
@@ -1624,12 +1643,6 @@ local function nearestTagged(tag, from)
     return best, bestDist
 end
 
-local function instancePosition(inst)
-    if not inst then return nil end
-    if inst:IsA("BasePart") then return inst.Position end
-    if inst:IsA("Model") then return inst:GetPivot().Position end
-    return nil
-end
 
 local SELLABLE = {}
 
