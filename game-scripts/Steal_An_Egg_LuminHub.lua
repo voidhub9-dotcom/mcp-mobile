@@ -657,7 +657,7 @@ function Move:To(targetPos, timeoutSeconds)
     -- pausing between bursts did not help. So tween only the distances
     -- that finish well inside that budget and walk the long hauls, which
     -- the server never objects to.
-    local hopLimit = tonumber(Flags.TweenMaxDistance) or 1500
+    local hopLimit = tonumber(Flags.TweenMaxDistance) or 700
     if mode == "Tween" and dist0 > hopLimit then
         mode = "Walk"
     end
@@ -2264,9 +2264,10 @@ MoveGB:AddToggle("SmartTween", {
 MoveGB:AddSlider("TweenSpeed", {
     Text     = "Tween Speed",
     Suffix   = " studs/s",
+    Tooltip  = "300 measured safe. Above ~800 the server starts resetting or kicking on sustained movement.",
     Min      = 50,
-    Max      = 5000,
-    Default  = 1200,
+    Max      = 900,
+    Default  = 300,
     Rounding = 0,
     Callback = function(v) Flags.TweenSpeed = v end,
 })
@@ -2274,10 +2275,10 @@ MoveGB:AddSlider("TweenSpeed", {
 MoveGB:AddSlider("TweenMaxDistance", {
     Text     = "Tween Max Distance",
     Suffix   = " studs",
-    Tooltip  = "Trips longer than this walk instead. The server resets the character on sustained fast movement, so long hauls cannot be tweened.",
-    Min      = 300,
-    Max      = 4000,
-    Default  = 1500,
+    Tooltip  = "Trips longer than this walk instead. Sustained fast movement gets the character reset or the player kicked, so long hauls are never tweened.",
+    Min      = 200,
+    Max      = 2000,
+    Default  = 700,
     Rounding = 0,
     Callback = function(v) Flags.TweenMaxDistance = v end,
 })
@@ -4222,9 +4223,9 @@ Flags.FarmMinRarity     = nil
 Flags.MinEggWeight      = 0
 Flags.SmartTween        = true
 Flags.AdaptiveSpeed     = false
-Flags.TweenMaxDistance  = 1500
+Flags.TweenMaxDistance  = 700
 Flags.MoveMode          = "Tween"
-Flags.TweenSpeed        = 1200
+Flags.TweenSpeed        = 300
 Flags.InstantMove       = false
 Flags.DistantTarget     = false
 Flags.FarmDelay         = 0
