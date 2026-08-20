@@ -1493,8 +1493,20 @@ do
         table.clear(list)
     end
 
+    -- The game's character-correction path can leave the root anchored.
+    -- Nothing in the hub anchors, so any anchor found here is not ours
+    -- and would otherwise strand the player in place.
+    local function releaseGameAnchor()
+        if not root then return end
+        if root.Anchored then
+            root.Anchored = false
+            root.AssemblyLinearVelocity = Vector3.zero
+        end
+    end
+
     local function clearPhysics()
         if not God.active or not (character and humanoid and root) then return end
+        releaseGameAnchor()
         if Ragdoll and Ragdoll.ClearClientRagdoll then
             pcall(Ragdoll.ClearClientRagdoll, character)
         end
@@ -1577,6 +1589,8 @@ do
                 and humanoid:GetState() ~= Enum.HumanoidStateType.Physics then
                 pushTrail(root.CFrame)
             end
+
+            releaseGameAnchor()
 
             if Move.moving then
                 anchor = nil
