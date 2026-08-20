@@ -1256,25 +1256,39 @@ local RAGDOLL_STATES = {
 -- rotation causes. "drift" is how far the knockback actually moved us:
 -- the number that says whether GodMode held.
 local function godRecordHit(startPos, carriedBefore)
+    local hum0 = getHumanoid()
+    -- Walking at 163 studs/s covers 300+ studs in two seconds, so raw
+    -- displacement cannot tell a knockback from the player running. What
+    -- matters is displacement during the hold, while we are anchored:
+    -- if the hold worked that is ~0 no matter what happens afterwards.
+    local commanded = hum0 and hum0.MoveDirection.Magnitude > 0.1 or false
+
     task.spawn(function()
-        local peak = 0
+        local holdEnd = FlingHoldUntil
+        while os.clock() < holdEnd + 0.05 do task.wait(0.03) end
+
+        local r = getRoot()
+        local driftHold = r and (r.Position - startPos).Magnitude or -1
+
+        local peak = driftHold
         local t0 = os.clock()
-        while os.clock() - t0 < 2 do
-            local r = getRoot()
-            if r then
-                local d = (r.Position - startPos).Magnitude
+        while os.clock() - t0 < 1.5 do
+            local rr = getRoot()
+            if rr then
+                local d = (rr.Position - startPos).Magnitude
                 if d > peak then peak = d end
             end
             task.wait(0.05)
         end
-        God.lastDrift = peak
-        if peak > (God.worstDrift or 0) then God.worstDrift = peak end
+
+        God.lastDrift = driftHold
+        if driftHold > (God.worstDrift or 0) then God.worstDrift = driftHold end
 
         if not (writefile and appendfile) then return end
         local line = string.format(
-            "%s drift=%.1f carriedBefore=%s carriedAfter=%s regrabs=%d hold=%.2f\n",
-            os.date("%H:%M:%S"), peak, tostring(carriedBefore),
-            tostring(God.carrying), God.regrabs, FLING_HOLD)
+            "%s hold=%.1f after=%.1f walking=%s carried=%s->%s regrabs=%d\n",
+            os.date("%H:%M:%S"), driftHold, peak, tostring(commanded),
+            tostring(carriedBefore), tostring(God.carrying), God.regrabs)
         pcall(function()
             if not isfolder("LuminHub") then makefolder("LuminHub") end
             if isfile("LuminHub/hits.log") then
