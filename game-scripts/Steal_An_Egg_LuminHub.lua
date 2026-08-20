@@ -3862,7 +3862,10 @@ startLoop("PredictWatch", function()
 end)
 
 -- The server announces rare spawns for the coming reset.
-do
+-- Requiring EggCmds is done off the startup path: that module fetches the
+-- area egg snapshot at init with its own retry loop, so requiring it
+-- inline blocks the whole hub from finishing load.
+task.spawn(function()
     local ok, cmds = pcall(function()
         return require(ReplicatedStorage.Library.Client.EggCmds)
     end)
@@ -3889,7 +3892,7 @@ do
             end))
         end)
     end
-end
+end)
 
 watchForKick()
 
