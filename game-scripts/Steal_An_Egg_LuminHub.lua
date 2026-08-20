@@ -1170,7 +1170,7 @@ end
 -- the residual push cannot carry it. Deliberately velocity-only: an
 -- earlier attempt restored position instead and shoved the character
 -- through the map, so nothing here ever writes CFrame.
-local FLING_HOLD = 0.9
+local FLING_HOLD = 0.6
 local FlingHoldUntil = 0
 
 local function godStripMovers(char)
@@ -1235,6 +1235,49 @@ local function godCalmCharacter()
             God.lastHit = os.clock()
         end
     end
+end
+
+-- Measured on a live guard hit: the knockback's horizontal speed is only
+-- ~105 studs/s, BELOW this game's 163 walk speed, so no velocity
+-- threshold can ever distinguish it from running. What does mark the hit
+-- is the humanoid dropping into Physics state -- 3 seconds of it and ~80
+-- studs of drift with GodMode off, versus 30ms with anti-ragdoll on.
+-- So the hold is armed off the state change, not off velocity.
+local RAGDOLL_STATES = {
+    [Enum.HumanoidStateType.Physics]     = true,
+    [Enum.HumanoidStateType.Ragdoll]     = true,
+    [Enum.HumanoidStateType.FallingDown] = true,
+}
+
+local function godOnStateChanged(_, new)
+    if not Flags.GodMode then return end
+    if not RAGDOLL_STATES[new] then return end
+    if Move.moving or Flags.Fly then return end
+
+    FlingHoldUntil = os.clock() + FLING_HOLD
+    God.lastHit    = os.clock()
+    God.flings     = (God.flings or 0) + 1
+
+    local root = getRoot()
+    if root then
+        root.AssemblyLinearVelocity  = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        if not root.Anchored then
+            root.Anchored = true
+            God.anchored  = true
+        end
+    end
+    local hum = getHumanoid()
+    if hum then pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end) end
+end
+
+local StateConn
+local function godWatchState(char)
+    if StateConn then pcall(function() StateConn:Disconnect() end) StateConn = nil end
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    StateConn = hum.StateChanged:Connect(godOnStateChanged)
+    trackConn(StateConn)
 end
 
 local function godHardenHumanoid(char)
@@ -2904,6 +2947,7 @@ PlayerGB:AddToggle("GodMode", {
         if val then
             godHardenHumanoid(getCharacter())
             godStripMovers(getCharacter())
+            godWatchState(getCharacter())
             -- Stepped runs before physics, Heartbeat after; doing both
             -- means a push is cancelled on the same frame it arrives.
             Flags._godStep = trackConn(RunService.Stepped:Connect(function()
@@ -3505,6 +3549,7 @@ trackConn(LocalPlayer.CharacterAdded:Connect(function(char)
     if Flags.GodMode then
         godHardenHumanoid(char)
         godStripMovers(char)
+        godWatchState(char)
     end
     God.carrying, God.carryUid = false, nil
     God.anchored = false
