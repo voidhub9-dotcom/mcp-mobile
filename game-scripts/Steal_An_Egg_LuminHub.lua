@@ -433,6 +433,7 @@ end
 
 local Move = {
     cancel    = false,
+    moving    = false,   -- true while the hub is deliberately relocating us
     speed     = nil,   -- current adaptive speed, nil = use the slider value
     rollbacks = 0,
     lastNote  = "",
@@ -481,20 +482,21 @@ end
 function Move:Attempt(targetPos, timeout)
     local root = getRoot()
     if not root then return false, false end
+    self.moving = true
 
     local speed  = self:CurrentSpeed()
     local start  = os.clock()
     local stalls = 0
 
     while os.clock() - start < timeout do
-        if self.cancel then return false, false end
+        if self.cancel then self.moving = false return false, false end
         root = getRoot()
-        if not root then return false, false end
+        if not root then self.moving = false return false, false end
 
         local here = root.Position
         local toGo = targetPos - here
         local dist = toGo.Magnitude
-        if dist <= 5 then return true, false end
+        if dist <= 5 then self.moving = false return true, false end
 
         local dt   = RunService.Heartbeat:Wait()
         local step = math.min(speed * dt, dist)
@@ -504,14 +506,14 @@ function Move:Attempt(targetPos, timeout)
         RunService.Heartbeat:Wait()
 
         root = getRoot()
-        if not root then return false, false end
+        if not root then self.moving = false return false, false end
 
         -- How much of the step actually survived?
         local moved = (root.Position - here).Magnitude
         if moved < step * 0.35 then
             stalls = stalls + 1
             -- three consecutive rejected steps is a rollback, not a hiccup
-            if stalls >= 3 then return false, true end
+            if stalls >= 3 then self.moving = false return false, true end
         else
             stalls = 0
         end
@@ -519,6 +521,7 @@ function Move:Attempt(targetPos, timeout)
 
     root = getRoot()
     local arrived = root and (root.Position - targetPos).Magnitude <= 12
+    self.moving = false
     return arrived or false, not arrived
 end
 
@@ -530,16 +533,18 @@ function Move:To(targetPos, timeoutSeconds)
     if Flags.InstantMove then
         local root = getRoot()
         if not root then return false end
+        self.moving = true
         local deadline = os.clock() + math.min(timeout, 2)
         while os.clock() < deadline do
             if self.cancel then return false end
             root = getRoot()
             if not root then return false end
             root.CFrame = CFrame.new(targetPos)
-            if (root.Position - targetPos).Magnitude < 6 then return true end
+            if (root.Position - targetPos).Magnitude < 6 then self.moving = false return true end
             task.wait(0.05)
         end
         root = getRoot()
+        self.moving = false
         return (root and (root.Position - targetPos).Magnitude < 12) or false
     end
 
@@ -1144,6 +1149,7 @@ local God = {
     lastHit         = 0,
     regrabbing      = false,
     flings          = 0,
+    anchored        = false,
     lastRegrab      = 0,
     burst           = 0,
     burstStart      = 0,
@@ -1188,14 +1194,24 @@ local function godCalmCharacter()
             God.flings     = (God.flings or 0) + 1
         end
 
-        -- Hold the horizontal velocity at zero through the whole knockback,
-        -- leaving gravity alone so the character still falls normally.
-        if now < FlingHoldUntil then
-            root.AssemblyLinearVelocity  = Vector3.new(0, math.min(vel.Y, 0), 0)
+        -- Hold position by anchoring rather than by writing a CFrame.
+        -- Anchoring freezes the character exactly where it already is, so
+        -- unlike a position restore it can never drop you through the map.
+        if now < FlingHoldUntil and not Move.moving then
+            if not root.Anchored then root.Anchored = true end
+            root.AssemblyLinearVelocity  = Vector3.zero
             root.AssemblyAngularVelocity = Vector3.zero
-        elseif root.AssemblyAngularVelocity.Magnitude > 10 then
-            root.AssemblyAngularVelocity = Vector3.zero
+        else
+            if root.Anchored and God.anchored then
+                root.Anchored = false
+                God.anchored  = false
+                root.AssemblyLinearVelocity = Vector3.zero
+            end
+            if root.AssemblyAngularVelocity.Magnitude > 10 then
+                root.AssemblyAngularVelocity = Vector3.zero
+            end
         end
+        if now < FlingHoldUntil and root.Anchored then God.anchored = true end
     end
 
     if hum then
@@ -2885,6 +2901,12 @@ PlayerGB:AddToggle("GodMode", {
             end))
             startLoop("GodMode", function()
                 godCalmCharacter()
+                -- failsafe: nothing may stay anchored past the hold
+                local r = getRoot()
+                if r and r.Anchored and God.anchored and os.clock() > FlingHoldUntil + 0.5 then
+                    r.Anchored   = false
+                    God.anchored = false
+                end
                 RunService.Heartbeat:Wait()
             end)
             -- Purge knockback movers the guard adds to the character.
@@ -2905,6 +2927,11 @@ PlayerGB:AddToggle("GodMode", {
             showToast("Lumin Hub", "GodMode on - hits will not stop the carry")
         else
             stopLoop("GodMode")
+            local root = getRoot()
+            if root and God.anchored then
+                root.Anchored = false
+                God.anchored  = false
+            end
         end
     end,
 })
@@ -3460,6 +3487,7 @@ trackConn(LocalPlayer.CharacterAdded:Connect(function(char)
         godStripMovers(char)
     end
     God.carrying, God.carryUid = false, nil
+    God.anchored = false
     task.wait(0.6)
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
@@ -3665,6 +3693,9 @@ end
 
 Library:OnUnload(function()
     UserInputService.MouseIconEnabled = true
+    -- never leave the character frozen behind us
+    local r = getRoot()
+    if r and r.Anchored then r.Anchored = false end
     pcall(function() RunService:UnbindFromRenderStep("ShowCursor") end)
     Move:Stop()
     stopAllLoops()
