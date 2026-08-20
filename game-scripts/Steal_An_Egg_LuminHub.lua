@@ -1142,6 +1142,10 @@ local God = {
     intentionalDrop = false,
     regrabs         = 0,
     lastHit         = 0,
+    regrabbing      = false,
+    lastRegrab      = 0,
+    burst           = 0,
+    burstStart      = 0,
 }
 
 -- Anything above this is a knockback, not running.
@@ -1206,15 +1210,41 @@ local function godHardenHumanoid(char)
 end
 
 -- Re-grab the egg the guard just knocked loose.
+--
+-- Single-flight and rate limited. Testing showed that without this every
+-- drop event spawns another re-grab thread, and a flickering carry state
+-- makes them pile up and fight each other -- the egg oscillates between
+-- Dropped and Carried and the attempt count runs away.
 local function godRegrab(uid)
     if not uid then return false end
+    if God.regrabbing then return false end
+    if os.clock() - (God.lastRegrab or 0) < 1.25 then return false end
+
+    -- If the server keeps taking it straight back, stop fighting it.
+    if God.burst and God.burst > 4 and os.clock() - (God.burstStart or 0) < 10 then
+        Status.Steal = "GodMode: server keeps dropping, backing off"
+        return false
+    end
+    if os.clock() - (God.burstStart or 0) > 10 then
+        God.burst, God.burstStart = 0, os.clock()
+    end
+
     local remote = Network:FindFirstChild("Eggs: RequestAreaEggCarry")
     if not remote then return false end
 
+    God.regrabbing = true
+    God.lastRegrab = os.clock()
+    God.burst = (God.burst or 0) + 1
+
+    local function finish(v)
+        God.regrabbing = false
+        return v
+    end
+
     local deadline = os.clock() + 6
     while os.clock() < deadline do
-        if not Flags.GodMode then return false end
-        if God.carrying then return true end
+        if not Flags.GodMode then return finish(false) end
+        if God.carrying then return finish(true) end
 
         local ok, res = pcall(function()
             return remote:InvokeServer({ Uid = uid })
@@ -1224,7 +1254,7 @@ local function godRegrab(uid)
             God.carrying = true
             God.carryUid = uid
             Status.Steal = "GodMode: re-grabbed after hit (" .. God.regrabs .. ")"
-            return true
+            return finish(true)
         end
 
         -- A dropped egg lands at our feet; nudge onto it and retry.
@@ -1239,9 +1269,9 @@ local function godRegrab(uid)
                 end
             end
         end
-        task.wait(0.1)
+        task.wait(0.15)
     end
-    return false
+    return finish(false)
 end
 
 -- Called by the hub whenever it drops on purpose.
