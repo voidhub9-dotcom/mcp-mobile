@@ -1912,6 +1912,24 @@ local function nearEnough(inst, radius)
     if not pos or not root then return false end
     return (pos - root.Position).Magnitude <= (radius or 12)
 end
+local function tryInteract(inst, radius, fire, confirm, attempts)
+    for attempt = 1, (attempts or 3) do
+        if Travel.cancel then return false end
+        if not nearEnough(inst, radius) then
+            local here = instancePosition(inst)
+            local r = rootPart()
+            if not here or not r then return false end
+            r.CFrame = CFrame.new(here + Vector3.new(0, 2.5, 0))
+            task.wait(0.5)
+            if not nearEnough(inst, radius) then return false end
+        end
+        fire()
+        if waitFor(confirm, 6) then return true end
+        task.wait(0.6 * attempt)
+    end
+    return false
+end
+
 
 local function approach(inst, tag)
     local pos = instancePosition(inst)
@@ -1972,14 +1990,14 @@ local function itemFarmStep()
         end
         equipTool(briefcaseTool())
         task.wait(0.3)
-        if not nearEnough(part, 16) then setStatus("pushed away from the launder point") return end
         local before = moneyValue() or 0
-        svcCall("SmuggleService", "LaunderBriefcase", part)
-        local landed = waitFor(function()
-            if briefcaseTool() == nil then return true end
-            local now = moneyValue()
-            return now ~= nil and now > before
-        end, 8)
+        local landed = tryInteract(part, 16,
+            function() svcCall("SmuggleService", "LaunderBriefcase", part) end,
+            function()
+                if briefcaseTool() == nil then return true end
+                local now = moneyValue()
+                return now ~= nil and now > before
+            end)
         if landed then
             Stats.Laundered = Stats.Laundered + 1
         else
@@ -1999,9 +2017,9 @@ local function itemFarmStep()
         if not approach(seller, "seller") then return end
         equipTool(holdingTool(itemName))
         task.wait(0.3)
-        if not nearEnough(seller, 16) then setStatus("pushed away from the seller") return end
-        svcCall("SmuggleService", "SellSmuggledGoods", seller)
-        if waitFor(function() return briefcaseTool() ~= nil end, 8) then
+        if tryInteract(seller, 16,
+            function() svcCall("SmuggleService", "SellSmuggledGoods", seller) end,
+            function() return briefcaseTool() ~= nil end) then
             Stats.Sold = Stats.Sold + 1
             Stats.LastSale = briefcaseValue()
         else
@@ -2025,9 +2043,9 @@ local function itemFarmStep()
 
     setStatus("buying " .. itemName)
     if not approach(model, "shop") then return end
-    if not nearEnough(model, 16) then setStatus("pushed away from the shop") return end
-    svcCall("WorldBuyableItemService", "PurchaseWorldBuyableItem", model)
-    if waitFor(function() return holdingTool(itemName) end, 6) then
+    if tryInteract(model, 16,
+        function() svcCall("WorldBuyableItemService", "PurchaseWorldBuyableItem", model) end,
+        function() return holdingTool(itemName) end) then
         Stats.Bought = Stats.Bought + 1
     else
         Stats.Failed = Stats.Failed + 1
@@ -2049,9 +2067,9 @@ local function boxFarmStep()
     if not box then
         setStatus("fetching box")
         if not approach(fetch, "box stack") then return end
-        if not nearEnough(fetch, 16) then setStatus("pushed away from the box stack") return end
-        svcCall("BoxJobService", "FetchBox", fetch)
-        if not waitFor(function() return anyToolNamed("Box") end, 5) then
+        if not tryInteract(fetch, 16,
+            function() svcCall("BoxJobService", "FetchBox", fetch) end,
+            function() return anyToolNamed("Box") end) then
             Stats.Failed = Stats.Failed + 1
             setStatus("no box received")
         end
@@ -2063,9 +2081,9 @@ local function boxFarmStep()
     equipTool(box)
     if not approach(deliver, "drop point") then return end
     equipTool(anyToolNamed("Box"))
-    if not nearEnough(deliver, 16) then setStatus("pushed away from the drop point") return end
-    svcCall("BoxJobService", "DeliverBox", deliver)
-    if waitFor(function() return anyToolNamed("Box") == nil end, 5) then
+    if tryInteract(deliver, 16,
+        function() svcCall("BoxJobService", "DeliverBox", deliver) end,
+        function() return anyToolNamed("Box") == nil end) then
         Stats.Boxes = Stats.Boxes + 1
     else
         Stats.Failed = Stats.Failed + 1
