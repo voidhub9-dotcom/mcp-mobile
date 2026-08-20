@@ -293,6 +293,10 @@ local Status = {
     Farm  = "Idle",
 }
 
+-- Forward declaration: the Settings tab wires a button to this before
+-- the watchdog section defines it.
+local doRejoin
+
 local CarryCooldowns, CarryFails = {}, {}
 local GlobalCarryCooldown = 0
 local PlaceCooldown       = 0
@@ -427,69 +431,130 @@ end
 -- Movement  (Smart Tween / Instant)
 --=====================================================================
 
-local Move = { cancel = false, active = nil }
+local Move = {
+    cancel    = false,
+    speed     = nil,   -- current adaptive speed, nil = use the slider value
+    rollbacks = 0,
+    lastNote  = "",
+}
+
+function Move:BaseSpeed()
+    return math.max(tonumber(Flags.TweenSpeed) or 300, 20)
+end
+
+function Move:CurrentSpeed()
+    return math.clamp(self.speed or self:BaseSpeed(), 20, 2000)
+end
+
+-- The server rolled us back: it rejected the per-tick displacement.
+-- Drop the rate and try again -- repeated backoff converges on whatever
+-- this server actually tolerates.
+function Move:Penalise()
+    local now = self:CurrentSpeed()
+    self.speed = math.max(25, math.floor(now * 0.65))
+    self.rollbacks = self.rollbacks + 1
+    self.lastNote = string.format("rolled back, speed %d -> %d", now, self.speed)
+end
+
+-- Clean arrival: creep back toward the slider value so a one-off stall
+-- does not pin us slow forever.
+function Move:Reward()
+    local base = self:BaseSpeed()
+    if self.speed and self.speed < base then
+        self.speed = math.min(base, math.floor(self.speed * 1.2) + 10)
+        self.lastNote = string.format("clean, speed -> %d", self.speed)
+    end
+    self.rollbacks = 0
+end
 
 function Move:Stop()
     self.cancel = true
-    if self.active then
-        pcall(function() self.active:Cancel() end)
-        self.active = nil
-    end
     local root = getRoot()
     if root and root.Anchored then root.Anchored = false end
 end
 
--- Tween mode moves the root at a bounded stud/s rate instead of snapping
--- the CFrame every Heartbeat. Instant mode keeps the old snap behaviour.
-function Move:To(targetPos, timeoutSeconds)
+-- One movement attempt. Rather than tweening the whole distance in one
+-- go (which this game's character replication reverts), the root is
+-- advanced in per-frame increments of speed*dt. Each step is small
+-- enough to survive validation, and a step that fails to land is what
+-- tells us the rate is too high.
+function Move:Attempt(targetPos, timeout)
     local root = getRoot()
-    if not root then return false end
+    if not root then return false, false end
 
+    local speed  = self:CurrentSpeed()
+    local start  = os.clock()
+    local stalls = 0
+
+    while os.clock() - start < timeout do
+        if self.cancel then return false, false end
+        root = getRoot()
+        if not root then return false, false end
+
+        local here = root.Position
+        local toGo = targetPos - here
+        local dist = toGo.Magnitude
+        if dist <= 5 then return true, false end
+
+        local dt   = RunService.Heartbeat:Wait()
+        local step = math.min(speed * dt, dist)
+        local want = here + toGo.Unit * step
+
+        root.CFrame = CFrame.new(want)
+        RunService.Heartbeat:Wait()
+
+        root = getRoot()
+        if not root then return false, false end
+
+        -- How much of the step actually survived?
+        local moved = (root.Position - here).Magnitude
+        if moved < step * 0.35 then
+            stalls = stalls + 1
+            -- three consecutive rejected steps is a rollback, not a hiccup
+            if stalls >= 3 then return false, true end
+        else
+            stalls = 0
+        end
+    end
+
+    root = getRoot()
+    local arrived = root and (root.Position - targetPos).Magnitude <= 12
+    return arrived or false, not arrived
+end
+
+function Move:To(targetPos, timeoutSeconds)
     self.cancel = false
-    local instant = (Flags.SmartTween == false) or Flags.InstantMove
     local timeout = timeoutSeconds or 8
 
-    if instant then
-        local deadline = os.clock() + math.min(timeout, 1.5)
+    -- Instant mode keeps the old snap behaviour for anyone who wants it.
+    if Flags.InstantMove then
+        local root = getRoot()
+        if not root then return false end
+        local deadline = os.clock() + math.min(timeout, 2)
         while os.clock() < deadline do
+            if self.cancel then return false end
             root = getRoot()
             if not root then return false end
-            if self.cancel then return false end
             root.CFrame = CFrame.new(targetPos)
             if (root.Position - targetPos).Magnitude < 6 then return true end
             task.wait(0.05)
         end
         root = getRoot()
-        return root and (root.Position - targetPos).Magnitude < 12 or false
+        return (root and (root.Position - targetPos).Magnitude < 12) or false
     end
 
-    local speed = math.max(tonumber(Flags.TweenSpeed) or 300, 20)
-    local dist  = (root.Position - targetPos).Magnitude
-    if dist < 4 then return true end
-
-    local duration = math.clamp(dist / speed, 0.05, timeout)
-    root.Anchored = true
-
-    local tween = TweenService:Create(
-        root,
-        TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut),
-        { CFrame = CFrame.new(targetPos) }
-    )
-    self.active = tween
-    tween:Play()
-
-    local deadline = os.clock() + duration + 0.75
-    while os.clock() < deadline do
-        if self.cancel then break end
-        if tween.PlaybackState ~= Enum.PlaybackState.Playing then break end
-        task.wait(0.05)
+    for _ = 1, 5 do
+        local ok, rolledBack = self:Attempt(targetPos, timeout)
+        if ok then
+            self:Reward()
+            return true
+        end
+        if not rolledBack then return false end
+        self:Penalise()
+        Status.Steal = "Adapting: " .. self.lastNote
+        task.wait(0.2)
     end
-
-    self.active = nil
-    root = getRoot()
-    if root then root.Anchored = false end
-    if self.cancel then return false end
-    return root and (root.Position - targetPos).Magnitude < 15 or false
+    return false
 end
 
 --=====================================================================
@@ -906,53 +971,153 @@ end
 -- ESP
 --=====================================================================
 
-local function makeBillboard(key, adornee, text, colour)
-    if Visuals[key] then return Visuals[key] end
-    -- BillboardGui needs a BasePart or a Model with a PrimaryPart.
-    local target = adornee
-    if adornee:IsA("Model") then
-        target = adornee.PrimaryPart or adornee:FindFirstChildWhichIsA("BasePart", true)
+-- ESP ----------------------------------------------------------------
+-- Everything is parented to the executor GUI host and adorned, so no
+-- objects are inserted into the game's own tree. Each entry owns a
+-- Highlight, a BillboardGui and an optional tracer, tracked under one
+-- key so cleanup can never leak.
+
+local Camera = Workspace.CurrentCamera
+
+local function resolvePart(inst)
+    if not inst then return nil end
+    if inst:IsA("BasePart") then return inst end
+    if inst:IsA("Model") then
+        return inst.PrimaryPart
+            or inst:FindFirstChild("HumanoidRootPart")
+            or inst:FindFirstChild("Hitbox")
+            or inst:FindFirstChildWhichIsA("BasePart", true)
     end
-    if not target then return nil end
-
-    local bb = Instance.new("BillboardGui")
-    bb.Name          = "LuminESP"
-    bb.Adornee       = target
-    bb.Size          = UDim2.fromOffset(200, 50)
-    bb.StudsOffset   = Vector3.new(0, 3, 0)
-    bb.AlwaysOnTop   = true
-    bb.MaxDistance   = 2000
-    bb.ResetOnSpawn  = false
-
-    local label = Instance.new("TextLabel")
-    label.Size                   = UDim2.fromScale(1, 1)
-    label.BackgroundTransparency = 1
-    label.Text                   = text
-    label.TextColor3             = colour
-    label.TextStrokeTransparency = 0.4
-    label.TextScaled             = true
-    label.Font                   = Enum.Font.GothamBold
-    label.Parent                 = bb
-
-    bb.Parent = GuiHost
-    pcall(protectgui, bb)
-    Visuals[key] = bb
-    return bb
+    return nil
 end
 
-local function makeHighlight(key, adornee, colour)
-    if Visuals[key] then return Visuals[key] end
-    local hl = Instance.new("Highlight")
-    hl.Name              = "LuminHL"
-    hl.Adornee           = adornee
-    hl.FillColor         = colour
-    hl.FillTransparency  = 0.55
-    hl.OutlineColor      = colour
-    hl.OutlineTransparency = 0
-    hl.DepthMode         = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Parent            = GuiHost
-    Visuals[key] = hl
-    return hl
+local EspEntries = {}   -- key -> { part, gui, label, highlight, tracer }
+
+local function espDestroy(key)
+    local e = EspEntries[key]
+    if not e then return end
+    for _, k in ipairs({ "gui", "highlight", "tracer" }) do
+        if e[k] then pcall(function() e[k]:Destroy() end) end
+    end
+    EspEntries[key] = nil
+    Visuals["esp_" .. key] = nil
+end
+
+local function espClear(prefix)
+    for key in pairs(EspEntries) do
+        if (not prefix) or key:sub(1, #prefix) == prefix then espDestroy(key) end
+    end
+end
+
+-- opts: colour, text, highlight (bool), tracer (bool), maxDistance
+local function espUpsert(key, adornee, opts)
+    local part = resolvePart(adornee)
+    if not part then espDestroy(key) return end
+
+    local e = EspEntries[key]
+    if e and e.part ~= part then
+        espDestroy(key)
+        e = nil
+    end
+
+    if not e then
+        local gui = Instance.new("BillboardGui")
+        gui.Name          = "LuminESP"
+        gui.Adornee       = part
+        gui.Size          = UDim2.fromOffset(220, 42)
+        gui.StudsOffset   = Vector3.new(0, 2.8, 0)
+        gui.AlwaysOnTop   = true
+        gui.ResetOnSpawn  = false
+        gui.ClipsDescendants = false
+
+        local label = Instance.new("TextLabel")
+        label.Name                   = "Info"
+        label.Size                   = UDim2.fromScale(1, 1)
+        label.BackgroundTransparency = 1
+        label.TextScaled             = false
+        label.TextSize               = 14
+        label.Font                   = Enum.Font.GothamBold
+        label.RichText               = true
+        label.TextStrokeTransparency = 0.35
+        label.TextStrokeColor3       = Color3.new(0, 0, 0)
+        label.TextYAlignment         = Enum.TextYAlignment.Bottom
+        label.Parent                 = gui
+
+        gui.Parent = GuiHost
+        pcall(protectgui, gui)
+
+        e = { part = part, gui = gui, label = label }
+        EspEntries[key] = e
+        Visuals["esp_" .. key] = gui
+    end
+
+    local colour = opts.colour or Color3.new(1, 1, 1)
+
+    -- highlight
+    if opts.highlight then
+        if not e.highlight then
+            local hl = Instance.new("Highlight")
+            hl.Name                = "LuminHL"
+            hl.Adornee             = part
+            hl.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.FillTransparency    = 0.62
+            hl.OutlineTransparency = 0
+            hl.Parent              = GuiHost
+            e.highlight = hl
+        end
+        e.highlight.FillColor    = colour
+        e.highlight.OutlineColor = colour
+    elseif e.highlight then
+        pcall(function() e.highlight:Destroy() end)
+        e.highlight = nil
+    end
+
+    -- tracer from the bottom of the screen
+    if opts.tracer then
+        if not e.tracer and Drawing then
+            local ok, line = pcall(function() return Drawing.new("Line") end)
+            if ok then
+                line.Thickness = 1
+                line.Visible   = false
+                e.tracer = line
+            end
+        end
+    elseif e.tracer then
+        pcall(function() e.tracer:Remove() end)
+        pcall(function() e.tracer:Destroy() end)
+        e.tracer = nil
+    end
+
+    local root = getRoot()
+    local dist = root and (part.Position - root.Position).Magnitude or 0
+    local maxD = opts.maxDistance or 5000
+    local show = dist <= maxD
+
+    e.gui.Enabled = show
+    if e.highlight then e.highlight.Enabled = show end
+
+    if show then
+        e.label.Text = string.format(
+            '<font color="#%s">%s</font>  <font color="#c8c8c8">%dm</font>',
+            colour:ToHex(), opts.text or key, math.floor(dist))
+        e.label.TextColor3 = colour
+    end
+
+    if e.tracer then
+        if show then
+            local sp, onScreen = Camera:WorldToViewportPoint(part.Position)
+            if onScreen then
+                e.tracer.Visible = true
+                e.tracer.Color   = colour
+                e.tracer.From    = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                e.tracer.To      = Vector2.new(sp.X, sp.Y)
+            else
+                e.tracer.Visible = false
+            end
+        else
+            e.tracer.Visible = false
+        end
+    end
 end
 
 --=====================================================================
@@ -1406,9 +1571,10 @@ FilterGB:AddDropdown("StealZones", {
 })
 
 FilterGB:AddDropdown("SelectEggs", {
-    Text     = "Specific Eggs",
-    Tooltip  = "Optional whitelist of individual eggs.",
-    Values   = EggNameList,
+    Text       = "Specific Eggs",
+    Tooltip    = "Optional whitelist of individual eggs.",
+    Searchable = true,
+    Values     = EggNameList,
     Multi     = true,
     AllowNull = true,
     Callback = function(v) Flags.SelectEggs = v end,
@@ -2118,11 +2284,25 @@ ESPGB:AddDropdown("EspMinRarity", {
     Callback  = function(v) Flags.EspMinRarity = v end,
 })
 
-ESPGB:AddToggle("HighlightESP", {
-    Text    = "Use Highlights",
-    Tooltip = "Adds a coloured highlight on top of the name tag.",
-    Default = true,
-    Callback = function(v) Flags.HighlightESP = v end,
+ESPGB:AddSlider("EspDistance", {
+    Text     = "ESP Distance",
+    Suffix   = " studs",
+    Min      = 100,
+    Max      = 5000,
+    Default  = 2500,
+    Rounding = 0,
+    Callback = function(v) Flags.EspDistance = v end,
+})
+
+ESPGB:AddToggle("EspHighlight", {
+    Text = "Highlights", Default = true,
+    Callback = function(v) Flags.EspHighlight = v end,
+})
+
+ESPGB:AddToggle("EspTracers", {
+    Text = "Tracers", Default = false,
+    Tooltip = "Draws a line from the bottom of the screen to each egg.",
+    Callback = function(v) Flags.EspTracers = v end,
 })
 
 ESPGB:AddToggle("EggESP", {
@@ -2133,143 +2313,172 @@ ESPGB:AddToggle("EggESP", {
             startLoop("EggESP", function()
                 local slots = Workspace:FindFirstChild("AreaEggSlotsClient")
                 local alive = {}
+                local minR  = Flags.EspMinRarity
+                local maxD  = tonumber(Flags.EspDistance) or 2500
+
                 for _, egg in pairs(getAreaEggs()) do
-                    local uid = egg.Uid
-                    local cat = egg.AssetCategory
+                    local uid, cat = egg.Uid, egg.AssetCategory
                     if uid and cat then
                         local info   = AssetInfo[cat]
                         local rarity = info and info.rarity or "Unknown"
-                        local minR   = Flags.EspMinRarity
                         if (not minR) or minR == "" or rarityNum(rarity) >= rarityNum(minR) then
-                            alive["egg_" .. uid] = true
-                            alive["eggh_" .. uid] = true
                             local slot = slots and slots:FindFirstChild(uid)
                             if slot then
-                                local colour = RarityColour[rarity] or Color3.new(1, 1, 1)
-                                local text = string.format("%s [%s]\n%.0f",
-                                    tostring(info and info.display and cat or cat), rarity, getEggWeight(egg))
-                                makeBillboard("egg_" .. uid, slot, text, colour)
-                                if Flags.HighlightESP then
-                                    makeHighlight("eggh_" .. uid, slot, colour)
-                                end
+                                local key = "egg_" .. uid
+                                alive[key] = true
+                                local muts = getEggMutations(egg)
+                                local name = (info and info.display) and cat or cat
+                                local text = string.format("%s [%s]  %.0fkg%s",
+                                    name, rarity, getEggWeight(egg),
+                                    #muts > 0 and (" " .. table.concat(muts, "/")) or "")
+                                espUpsert(key, slot, {
+                                    colour      = RarityColour[rarity] or Color3.new(1, 1, 1),
+                                    text        = text,
+                                    highlight   = Flags.EspHighlight ~= false,
+                                    tracer      = Flags.EspTracers == true,
+                                    maxDistance = maxD,
+                                })
                             end
                         end
                     end
                 end
-                -- BUG FIX: prune ESP for eggs that no longer exist.
-                for key, obj in pairs(Visuals) do
-                    if (key:sub(1, 4) == "egg_" or key:sub(1, 5) == "eggh_") and not alive[key] then
-                        pcall(function() obj:Destroy() end)
-                        Visuals[key] = nil
-                    end
+                for key in pairs(EspEntries) do
+                    if key:sub(1, 4) == "egg_" and not alive[key] then espDestroy(key) end
                 end
-                task.wait(2)
+                task.wait(0.4)
             end)
         else
             stopLoop("EggESP")
-            destroyVisuals("egg_")
-            destroyVisuals("eggh_")
+            espClear("egg_")
         end
     end,
 })
 
--- BUG FIX: the old Guard ESP iterated workspace._Guards, which is empty in
--- this build. Guards live under __OBJECTS.Areas.GuardAreas.<Area>.Guard.
+-- Guards live under __OBJECTS.Areas.GuardAreas.<Area>.Guard;
+-- workspace._Guards exists but is always empty in this build.
 ESPGB:AddToggle("GuardESP", {
     Text = "Guard ESP", Default = false,
     Callback = function(val)
         Flags.GuardESP = val
         if val then
             startLoop("GuardESP", function()
+                local maxD = tonumber(Flags.EspDistance) or 2500
+                local alive = {}
                 for _, g in ipairs(getGuardReport()) do
                     local key = "guard_" .. g.areaId
-                    local colour = g.awake and Color3.fromRGB(255, 60, 60) or Color3.fromRGB(120, 120, 120)
-                    local bb = Visuals[key]
-                    if not bb then
-                        bb = makeBillboard(key, g.model,
-                            g.areaId .. " Guard\n" .. tostring(g.state), colour)
-                    elseif bb:FindFirstChildOfClass("TextLabel") then
-                        local lbl = bb:FindFirstChildOfClass("TextLabel")
-                        lbl.Text = g.areaId .. " Guard\n" .. tostring(g.state)
-                        lbl.TextColor3 = colour
-                    end
+                    alive[key] = true
+                    espUpsert(key, g.model, {
+                        colour      = g.awake and Color3.fromRGB(255, 70, 70)
+                                              or Color3.fromRGB(130, 130, 140),
+                        text        = string.format("%s Guard - %s", g.areaId, tostring(g.state)),
+                        highlight   = Flags.EspHighlight ~= false,
+                        tracer      = Flags.EspTracers == true,
+                        maxDistance = maxD,
+                    })
                 end
-                task.wait(1)
+                for key in pairs(EspEntries) do
+                    if key:sub(1, 6) == "guard_" and not alive[key] then espDestroy(key) end
+                end
+                task.wait(0.4)
             end)
         else
             stopLoop("GuardESP")
-            destroyVisuals("guard_")
+            espClear("guard_")
         end
     end,
 })
 
--- BUG FIX: player ESP never removed leavers and never rebuilt after a
--- respawn, so it silently died the first time anyone reset.
 ESPGB:AddToggle("PlayerESP", {
     Text = "Player ESP", Default = false,
     Callback = function(val)
         Flags.PlayerESP = val
         if val then
             startLoop("PlayerESP", function()
+                local maxD = tonumber(Flags.EspDistance) or 2500
                 local alive = {}
                 for _, plr in ipairs(Players:GetPlayers()) do
-                    if plr ~= LocalPlayer then
-                        local char = plr.Character
-                        local root = char and char:FindFirstChild("HumanoidRootPart")
-                        if root then
-                            local key = "player_" .. plr.UserId
-                            alive[key] = true
-                            local existing = Visuals[key]
-                            if existing and existing.Adornee ~= root then
-                                pcall(function() existing:Destroy() end)
-                                Visuals[key] = nil
-                            end
-                            makeBillboard(key, root, plr.DisplayName, Color3.fromRGB(0, 255, 120))
-                        end
+                    if plr ~= LocalPlayer and plr.Character then
+                        local key = "player_" .. plr.UserId
+                        alive[key] = true
+                        local ls    = plr:FindFirstChild("leaderstats")
+                        local money = ls and ls:FindFirstChild("Money/s")
+                        local hum   = plr.Character:FindFirstChildOfClass("Humanoid")
+                        espUpsert(key, plr.Character, {
+                            colour = (hum and hum.Health <= 0)
+                                and Color3.fromRGB(120, 120, 120)
+                                or Color3.fromRGB(90, 200, 255),
+                            text = string.format("%s%s", plr.DisplayName,
+                                money and ("  " .. tostring(money.Value)) or ""),
+                            highlight   = Flags.EspHighlight ~= false,
+                            tracer      = Flags.EspTracers == true,
+                            maxDistance = maxD,
+                        })
                     end
                 end
-                for key, obj in pairs(Visuals) do
-                    if key:sub(1, 7) == "player_" and not alive[key] then
-                        pcall(function() obj:Destroy() end)
-                        Visuals[key] = nil
-                    end
+                for key in pairs(EspEntries) do
+                    if key:sub(1, 7) == "player_" and not alive[key] then espDestroy(key) end
                 end
-                task.wait(2)
+                task.wait(0.4)
             end)
         else
             stopLoop("PlayerESP")
-            destroyVisuals("player_")
+            espClear("player_")
         end
     end,
 })
 
--- BUG FIX: adorning a BillboardGui to a Model with no PrimaryPart shows
--- nothing; makeBillboard now resolves a BasePart first.
 ESPGB:AddToggle("PlotESP", {
     Text = "Plot ESP", Default = false,
     Callback = function(val)
         Flags.PlotESP = val
         if val then
-            local plots = Workspace:FindFirstChild("Plots")
-            if plots then
+            startLoop("PlotESP", function()
+                local plots = Workspace:FindFirstChild("Plots")
+                if not plots then task.wait(5) return end
                 local ok, state = invokeRemote("Plots: RequestState")
                 local owners = (ok and type(state) == "table") and state.OwnersBySlot or {}
+                local alive = {}
                 for _, plot in ipairs(plots:GetChildren()) do
                     local sign = plot:FindFirstChild("PlotSign") or plot:FindFirstChild("CenterPoint")
                     if sign then
+                        local key = "plot_" .. plot.Name
+                        alive[key] = true
                         local ownerId = owners[tonumber(plot.Name)] or owners[plot.Name]
-                        local label = "Plot " .. plot.Name
+                        local who = "empty"
+                        local colour = Color3.fromRGB(150, 150, 150)
                         if ownerId then
                             local p = Players:GetPlayerByUserId(ownerId)
-                            label = label .. "\n" .. (p and p.DisplayName or tostring(ownerId))
+                            who = p and p.DisplayName or tostring(ownerId)
+                            colour = (ownerId == LocalPlayer.UserId)
+                                and Color3.fromRGB(90, 255, 140) or Color3.fromRGB(255, 210, 0)
                         end
-                        makeBillboard("plot_" .. plot.Name, sign, label, Color3.fromRGB(255, 220, 0))
+                        espUpsert(key, sign, {
+                            colour      = colour,
+                            text        = "Plot " .. plot.Name .. " - " .. who,
+                            highlight   = false,
+                            tracer      = false,
+                            maxDistance = tonumber(Flags.EspDistance) or 2500,
+                        })
                     end
                 end
-            end
+                for key in pairs(EspEntries) do
+                    if key:sub(1, 5) == "plot_" and not alive[key] then espDestroy(key) end
+                end
+                task.wait(3)
+            end)
         else
-            destroyVisuals("plot_")
+            stopLoop("PlotESP")
+            espClear("plot_")
         end
+    end,
+})
+
+ESPGB:AddButton({
+    Text = "Clear All ESP",
+    Tooltip = "Removes every ESP object without touching the toggles.",
+    Func = function()
+        espClear(nil)
+        showToast("Lumin Hub", "ESP cleared")
     end,
 })
 
@@ -2791,6 +3000,33 @@ menuGroup:AddToggle("ShowCustomCursor", {
 Library.ShowCustomCursor = false
 
 menuGroup:AddDivider()
+
+menuGroup:AddToggle("AutoRejoin", {
+    Text    = "Auto Rejoin On Kick",
+    Tooltip = "Teleports back in when the disconnect prompt appears, and queues the loader so the hub restarts itself.",
+    Default = false,
+    Callback = function(v)
+        Flags.AutoRejoin = v
+        if v and type(queue_on_teleport) ~= "function" then
+            showToast("Lumin Hub", "Rejoin works, but this executor cannot auto-execute on the new server.")
+        end
+    end,
+})
+
+menuGroup:AddInput("RejoinPayload", {
+    Text        = "Rejoin Loader",
+    Placeholder = "loadstring(game:HttpGet(\"...\"))()",
+    Tooltip     = "Runs on the new server after a rejoin. Leave blank for the default loader.",
+    Callback    = function(v) Flags.RejoinPayload = v end,
+})
+
+menuGroup:AddButton({
+    Text    = "Rejoin Now",
+    Tooltip = "Manual server rejoin using the same path as the watchdog.",
+    Func    = function() doRejoin("manual") end,
+})
+
+menuGroup:AddDivider()
 menuGroup:AddButton("Unload", function()
     stopAllLoops()
     disconnectAll()
@@ -2877,6 +3113,63 @@ do
 end
 
 --=====================================================================
+-- Rejoin watchdog
+--=====================================================================
+
+-- Kicks and disconnects surface as Roblox's own error prompt in CoreGui.
+-- Watching for it lets us teleport straight back instead of sitting on
+-- the "Leave"/"Reconnect" screen. The loader is queued first so the hub
+-- comes back up by itself on the new server.
+local LOADER_SOURCE = [[
+loadstring(game:HttpGet("]] .. (getgenv().LuminHubSource
+    or "https://raw.githubusercontent.com/voidhub9-dotcom/mcp-mobile/main/game-scripts/Steal_An_Egg_LuminHub.lua")
+    .. [["))()
+]]
+
+local function queueLoader()
+    if type(queue_on_teleport) ~= "function" then return false end
+    local payload = Flags.RejoinPayload
+    if not payload or payload == "" then payload = LOADER_SOURCE end
+    local ok = pcall(queue_on_teleport, payload)
+    return ok
+end
+
+local Rejoining = false
+
+function doRejoin(why)
+    if Rejoining then return end
+    Rejoining = true
+    queueLoader()
+    warn("[LuminHub] rejoining: " .. tostring(why))
+    task.spawn(function()
+        for attempt = 1, 6 do
+            local ok = pcall(function()
+                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+            end)
+            if ok then task.wait(6) else task.wait(2) end
+            -- exponential-ish backoff if the teleport was rejected
+            task.wait(math.min(2 ^ attempt, 20))
+        end
+        Rejoining = false
+    end)
+end
+
+-- Roblox's disconnect UI lives at CoreGui.RobloxPromptGui.promptOverlay
+-- and gains an ErrorPrompt child when the client is kicked or drops.
+local function watchForKick()
+    local prompt = CoreGui:FindFirstChild("RobloxPromptGui")
+    local overlay = prompt and prompt:FindFirstChild("promptOverlay")
+    if not overlay then return end
+    trackConn(overlay.ChildAdded:Connect(function(child)
+        if not Flags.AutoRejoin then return end
+        if child.Name:find("ErrorPrompt") or child.Name:find("Error") then
+            task.wait(1)
+            doRejoin("error prompt: " .. child.Name)
+        end
+    end))
+end
+
+--=====================================================================
 -- Runtime wiring
 --=====================================================================
 
@@ -2922,6 +3215,8 @@ trackConn(LocalPlayer.CharacterAdded:Connect(function(char)
     if Flags.WalkSpeed and Flags.WalkSpeed > 16 then hum.WalkSpeed = Flags.WalkSpeed end
     if Flags.JumpPower and Flags.JumpPower > 50 then hum.JumpPower = Flags.JumpPower end
 end))
+
+watchForKick()
 
 -- Sell confirmation watcher
 startLoop("SellConfirmWatcher", function()
