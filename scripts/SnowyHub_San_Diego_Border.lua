@@ -708,10 +708,23 @@ local function flyStep()
     Movement.flyGyro.CFrame = cf
 end
 
-local FarmNoclip = { depth = 0, touched = {} }
+local FarmNoclip = { depth = 0, touched = {}, active = false }
 
 local function noclipStep()
-    if not Flags.Noclip and FarmNoclip.depth <= 0 then return end
+    local want = Flags.Noclip == true or FarmNoclip.depth > 0
+    if not want then
+        if FarmNoclip.active then
+            FarmNoclip.active = false
+            for part in pairs(FarmNoclip.touched) do
+                if part and part.Parent then
+                    pcall(function() part.CanCollide = true end)
+                end
+            end
+            FarmNoclip.touched = {}
+        end
+        return
+    end
+    FarmNoclip.active = true
     local c = character()
     if not c then return end
     for _, part in ipairs(c:GetDescendants()) do
@@ -737,6 +750,7 @@ end
 
 function FarmNoclip.restoreAll()
     FarmNoclip.touched = {}
+    FarmNoclip.active = false
     local c = character()
     if not c then return end
     for _, part in ipairs(c:GetDescendants()) do
