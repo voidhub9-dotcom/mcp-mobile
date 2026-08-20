@@ -1086,11 +1086,13 @@ local function driveVehicleTo(model, targetPos, speed)
     local deadline = os.clock() + (total / speed) + 25
     local lastPos = cf0 and cf0.Position
     local lastMove = os.clock()
+    Travel.label = ("driving, %d studs to go"):format(total)
 
     while not done and not Travel.cancel and os.clock() < deadline do
         task.wait(0.25)
         local cf = vehiclePivot(model)
         if cf then
+            Travel.label = ("driving, %d studs to go"):format((targetPos - cf.Position).Magnitude)
             if lastPos and (cf.Position - lastPos).Magnitude > 6 then
                 lastMove = os.clock()
                 lastPos = cf.Position
@@ -1101,8 +1103,12 @@ local function driveVehicleTo(model, targetPos, speed)
     end
     conn:Disconnect()
 
-    if lost then return false end
+    if lost then
+        Travel.label = "left the vehicle"
+        return false
+    end
 
+    Travel.label = done and "arrived" or "stopped short"
     local cfEnd = vehiclePivot(model)
     if cfEnd and cruise > 0 then
         local ground = groundAt(cfEnd.Position, model)
