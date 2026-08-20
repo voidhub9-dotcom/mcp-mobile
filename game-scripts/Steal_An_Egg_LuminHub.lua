@@ -52,12 +52,18 @@ _G.LuminHubShutdown = function()
     stopAllLoops()
     disconnectAll()
     destroyVisuals(nil)
-    pcall(function()
-        if _G.LuminHubLibrary then _G.LuminHubLibrary:Unload() end
-    end)
+
+    -- Unload off the caller's thread and drop the globals immediately.
+    -- If a previous load died partway, its Library is half-built and
+    -- Unload() can block forever; doing it inline wedges every later
+    -- reload, which is exactly what happened during testing.
+    local stale = _G.LuminHubLibrary
     _G.LuminHubLibrary  = nil
     _G.LuminHubDebug    = nil
     _G.LuminHubRunning  = nil
+    if stale then
+        task.spawn(function() pcall(function() stale:Unload() end) end)
+    end
 end
 
 --=====================================================================
