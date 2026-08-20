@@ -628,7 +628,13 @@ function Move:To(targetPos, timeoutSeconds)
         return self:Walk(targetPos, budget)
     end
 
-    local timeout = timeoutSeconds or 8
+    -- Scale with distance: a flat timeout aborts long trips halfway and
+    -- the abort reads as a rollback.
+    local timeout = timeoutSeconds
+    if not timeout then
+        local sp = self:CurrentSpeed()
+        timeout = math.clamp(dist0 / math.max(sp, 20) * 3 + 3, 4, 30)
+    end
 
     -- Instant mode keeps the old snap behaviour for anyone who wants it.
     if Flags.InstantMove then
@@ -1815,14 +1821,25 @@ local function stealOnce(target)
     -- string such as "Enter the gameplay area first" when it refuses.
     -- Surfacing it beats retrying blindly into a cooldown.
     local carried, reason = false, nil
-    for _ = 1, 5 do
+    for _ = 1, 6 do
         root = getRoot()
         if not root then break end
+        -- pin us on the nest while the request resolves; without zeroing
+        -- velocity the character drifts out of pickup range mid-call
         root.CFrame = CFrame.new(targetPos)
+        root.AssemblyLinearVelocity  = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
         local remote = Network:FindFirstChild("Eggs: RequestAreaEggCarry")
         if not remote then break end
         local ok, res, why = pcall(function()
-            return remote:InvokeServer({ Uid = target.Uid })
+            return remote:InvokeServer({
+                Uid = target.Uid,
+                -- FirstAreaEgg nests are keyed by area and nest id
+                FirstAreaSlotKey = (tostring(target.Uid):sub(1, 13) == "FirstAreaEgg_"
+                    and target.AreaId and target.NestId)
+                    and (tostring(target.AreaId) .. ":" .. tostring(target.NestId))
+                    or nil,
+            })
         end)
         if ok and res == true then
             carried = true
@@ -3260,7 +3277,7 @@ local PlayerGB = Tabs.Utility:AddLeftGroupbox("Player", "user")
 PlayerGB:AddToggle("GodMode", {
     Text    = "GodMode",
     Tooltip = "Anti-fling, anti-ragdoll, and instant egg re-grab when a guard hits you.",
-    Default = false,
+    Default = true,
     Callback = function(val)
         Flags.GodMode = val
         if val then
@@ -4096,7 +4113,7 @@ Flags.WalkSpeed         = 16
 Flags.JumpPower         = 50
 Flags.FlySpeed          = 100
 Flags.AntiAFK           = true
-Flags.GodMode           = false
+Flags.GodMode           = true
 Flags.HighlightESP      = true
 Flags.HopMethod         = "Least Populated"
 Flags.DebugMode         = false
@@ -4202,6 +4219,16 @@ end
 startLoop("TeleportPersist", function()
     queueSelfForTeleport()
     task.wait(15)
+end)
+
+-- GodMode defaults on, so start it explicitly rather than relying on the
+-- toggle's initial callback firing.
+task.spawn(function()
+    task.wait(1)
+    if Flags.GodMode ~= false then
+        local ok = LuminGod:Start()
+        if ok then Flags.GodMode = true end
+    end
 end)
 
 Library:SetWatermarkVisibility(true)
