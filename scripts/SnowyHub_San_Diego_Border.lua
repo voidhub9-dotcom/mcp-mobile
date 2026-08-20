@@ -1547,18 +1547,25 @@ local Locations = {}
 local function rebuildLocations()
     Locations = {}
     local function add(name, pos)
-        if pos then table.insert(Locations, { Name = name, Position = pos }) end
+        if not pos then return end
+        for _, existing in ipairs(Locations) do
+            if (existing.Position - pos).Magnitude < 40 then return end
+        end
+        table.insert(Locations, { Name = name, Position = pos })
     end
 
-    for name, pos in pairs(LOCATION_FALLBACK) do
-        add(name, pos)
+    local ordered = {}
+    for name in pairs(LOCATION_FALLBACK) do table.insert(ordered, name) end
+    table.sort(ordered)
+    for _, name in ipairs(ordered) do
+        add(name, LOCATION_FALLBACK[name])
     end
 
     for _, inst in ipairs(tagged("SmuggledGoodsSeller")) do
-        add("Seller: " .. inst.Name, instancePosition(inst))
+        add("Seller (" .. inst.Name .. ")", instancePosition(inst))
     end
     for i, inst in ipairs(tagged("LaunderPromptPart")) do
-        add("Launder " .. i, instancePosition(inst))
+        add("Launder Point " .. i, instancePosition(inst))
     end
 
     add("Bank", folderPivot("Bank"))
