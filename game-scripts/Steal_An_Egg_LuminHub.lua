@@ -457,6 +457,7 @@ end
 -- Drop the rate and try again -- repeated backoff converges on whatever
 -- this server actually tolerates.
 function Move:Penalise()
+    if Flags.AdaptiveSpeed == false then return end
     local now = self:CurrentSpeed()
     -- Floor this well above zero. Below roughly 60 studs/s each frame's
     -- step is sub-stud, physics jitter swamps the progress check, and the
@@ -488,6 +489,15 @@ end
 -- advanced in per-frame increments of speed*dt. Each step is small
 -- enough to survive validation, and a step that fails to land is what
 -- tells us the rate is too high.
+-- One movement attempt.
+--
+-- Measured on a live server: a single hard teleport gets rolled back, and
+-- per-frame stepping alone only crawls (1532 studs, 91 frames, still 600
+-- short). Zeroing AssemblyLinearVelocity after each write is what makes
+-- it stick -- accumulated momentum fights the CFrame and drags the
+-- character back. With it, the same trip lands in 9 frames at 800 studs/s
+-- and a frame at 2000, with no stalls at any speed. So there is no reason
+-- to throttle: speed is whatever the slider says.
 function Move:Attempt(targetPos, timeout)
     local root = getRoot()
     if not root then return false, false end
@@ -496,6 +506,7 @@ function Move:Attempt(targetPos, timeout)
     local speed  = self:CurrentSpeed()
     local start  = os.clock()
     local stalls = 0
+    local closest = math.huge
 
     while os.clock() - start < timeout do
         if self.cancel then self.moving = false return false, false end
@@ -505,31 +516,37 @@ function Move:Attempt(targetPos, timeout)
         local here = root.Position
         local toGo = targetPos - here
         local dist = toGo.Magnitude
-        if dist <= 5 then self.moving = false return true, false end
+        if dist <= 6 then self.moving = false return true, false end
+        if dist < closest then closest = dist end
 
         local dt   = RunService.Heartbeat:Wait()
         local step = math.min(speed * dt, dist)
-        local want = here + toGo.Unit * step
-
-        root.CFrame = CFrame.new(want)
-        RunService.Heartbeat:Wait()
 
         root = getRoot()
         if not root then self.moving = false return false, false end
+        root.CFrame = CFrame.new(here + toGo.Unit * step)
+        -- the part that actually makes it stick
+        root.AssemblyLinearVelocity  = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
 
-        -- How much of the step actually survived?
-        local moved = (root.Position - here).Magnitude
-        if moved < step * 0.35 then
+        RunService.Heartbeat:Wait()
+        root = getRoot()
+        if not root then self.moving = false return false, false end
+
+        -- Only treat it as blocked when we make no headway at all for a
+        -- sustained run of frames. The old 35%-of-step test tripped on
+        -- ordinary frame-time jitter and throttled a working move to zero.
+        local progressed = (root.Position - here).Magnitude
+        if progressed < math.min(step * 0.1, 0.5) then
             stalls = stalls + 1
-            -- three consecutive rejected steps is a rollback, not a hiccup
-            if stalls >= 3 then self.moving = false return false, true end
+            if stalls >= 12 then self.moving = false return false, true end
         else
             stalls = 0
         end
     end
 
     root = getRoot()
-    local arrived = root and (root.Position - targetPos).Magnitude <= 12
+    local arrived = root and (root.Position - targetPos).Magnitude <= 14
     self.moving = false
     return arrived or false, not arrived
 end
@@ -2174,7 +2191,7 @@ MoveGB:AddDropdown("MoveMode", {
     Text    = "Travel Mode",
     Tooltip = "Walk uses ordinary humanoid movement, which this game's server never rolls back. Tween steps the root and adapts its speed. Instant snaps.",
     Values  = { "Walk", "Tween", "Instant" },
-    Default = "Walk",
+    Default = "Tween",
     Callback = function(v)
         Flags.MoveMode = v
         Flags.InstantMove = (v == "Instant")
@@ -2192,10 +2209,17 @@ MoveGB:AddSlider("TweenSpeed", {
     Text     = "Tween Speed",
     Suffix   = " studs/s",
     Min      = 50,
-    Max      = 1000,
-    Default  = 300,
+    Max      = 5000,
+    Default  = 1200,
     Rounding = 0,
     Callback = function(v) Flags.TweenSpeed = v end,
+})
+
+MoveGB:AddToggle("AdaptiveSpeed", {
+    Text    = "Adaptive Speed",
+    Tooltip = "Backs the speed off if the server ever refuses the movement. Off by default: with velocity zeroing it is not needed.",
+    Default = false,
+    Callback = function(v) Flags.AdaptiveSpeed = v end,
 })
 
 MoveGB:AddToggle("InstantMove", {
@@ -4144,8 +4168,9 @@ Flags.SelectMutations   = {}
 Flags.FarmMinRarity     = nil
 Flags.MinEggWeight      = 0
 Flags.SmartTween        = true
-Flags.MoveMode          = "Walk"
-Flags.TweenSpeed        = 300
+Flags.AdaptiveSpeed     = false
+Flags.MoveMode          = "Tween"
+Flags.TweenSpeed        = 1200
 Flags.InstantMove       = false
 Flags.DistantTarget     = false
 Flags.FarmDelay         = 0
