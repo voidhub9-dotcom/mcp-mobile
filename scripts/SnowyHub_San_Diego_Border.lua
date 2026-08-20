@@ -1738,6 +1738,35 @@ local function sellableOptions()
     return t
 end
 
+local ShopCache = {}
+
+local function rememberShops()
+    for _, model in ipairs(tagged("WorldBuyableItem")) do
+        local pos = instancePosition(model)
+        if pos then
+            local list = ShopCache[model.Name]
+            if not list then list = {} ShopCache[model.Name] = list end
+            local known = false
+            for _, p in ipairs(list) do
+                if (p - pos).Magnitude < 8 then known = true break end
+            end
+            if not known then table.insert(list, pos) end
+        end
+    end
+end
+
+local function cachedShopFor(itemName, from)
+    local list = ShopCache[itemName]
+    if not list or #list == 0 then return nil end
+    from = from or (rootPart() and rootPart().Position) or Vector3.zero
+    local best, bestDist
+    for _, p in ipairs(list) do
+        local d = (p - from).Magnitude
+        if not bestDist or d < bestDist then bestDist = d best = p end
+    end
+    return best, bestDist
+end
+
 local function buyableModelsFor(itemName)
     local out = {}
     for _, model in ipairs(tagged("WorldBuyableItem")) do
@@ -1749,6 +1778,7 @@ local function buyableModelsFor(itemName)
 end
 
 local function nearestBuyable(itemName, from)
+    rememberShops()
     from = from or (rootPart() and rootPart().Position) or Vector3.zero
     local best, bestDist
     for _, model in ipairs(buyableModelsFor(itemName)) do
@@ -2139,7 +2169,34 @@ local function itemFarmStep()
     end
 
     local model = nearestBuyable(itemName)
-    if not model then setStatus("no shop stocks " .. itemName) task.wait(2) return end
+    if not model then
+        local spot = cachedShopFor(itemName)
+        if not spot then
+            spot = LOCATION_FALLBACK["Civilian Shop"]
+        end
+        if not spot then
+            setStatus("no shop stocks " .. itemName)
+            task.wait(2)
+            return
+        end
+        local root = rootPart()
+        if root and (spot - root.Position).Magnitude > 120 then
+            setStatus("driving to the shop district")
+            local car = ensureVehicle()
+            if car then
+                driveVehicleTo(car, spot, Flags.VehicleTravelSpeed)
+            else
+                travelTo(spot + Vector3.new(0, 4, 0), Flags.TravelSpeed, "shop district")
+            end
+        end
+        task.wait(0.6)
+        model = nearestBuyable(itemName)
+        if not model then
+            setStatus("shop not loaded yet for " .. itemName)
+            task.wait(1.5)
+            return
+        end
+    end
 
     local price = (Game.ToolInfo[itemName] or {}).Price or 0
     local money = moneyValue()
@@ -2548,6 +2605,7 @@ local function collectStep()
 end
 
 rebuildLocations()
+rememberShops()
 rebuildSellable()
 
 local function vehicleOptions()
@@ -4380,6 +4438,7 @@ end)
 
 spawnLoop("printer_cache", 5, function()
     if Flags.EspPrinters then cachedPrinters() end
+    pcall(rememberShops)
 end)
 
 local function unload()
