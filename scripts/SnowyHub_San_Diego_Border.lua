@@ -1874,12 +1874,15 @@ local FARM_LOOPS = {
 }
 
 local function soloFarm(keep)
+    local switched = false
     for flag, loop in pairs(FARM_LOOPS) do
         if flag ~= keep and Flags[flag] then
             Flags[flag] = false
             stopLoop(loop)
+            switched = true
         end
     end
+    if switched then cancelTravel() end
 end
 
 local function setStatus(text)
@@ -2778,7 +2781,12 @@ UI.Tabs.TabFarm:CreateToggle({
     Callback = function(v)
         Flags.ItemFarm = v
         if v then soloFarm("ItemFarm") end
-        if v then spawnLoop("item_farm", 0.1, exclusive("farm", itemFarmStep)) else stopLoop("item_farm") end
+        if v then
+            spawnLoop("item_farm", 0.1, exclusive("farm", itemFarmStep))
+        else
+            stopLoop("item_farm")
+            cancelTravel()
+        end
     end,
 })
 
@@ -2875,7 +2883,12 @@ UI.Tabs.TabFarm:CreateToggle({
     Callback = function(v)
         Flags.BoxFarm = v
         if v then soloFarm("BoxFarm") end
-        if v then spawnLoop("box_farm", 0.1, exclusive("farm", boxFarmStep)) else stopLoop("box_farm") end
+        if v then
+            spawnLoop("box_farm", 0.1, exclusive("farm", boxFarmStep))
+        else
+            stopLoop("box_farm")
+            cancelTravel()
+        end
     end,
 })
 
@@ -2928,7 +2941,12 @@ UI.Tabs.TabFarm:CreateToggle({
     Callback = function(v)
         Flags.TruckFarm = v
         if v then soloFarm("TruckFarm") end
-        if v then spawnLoop("truck_farm", 0.2, exclusive("farm", truckFarmStep)) else stopLoop("truck_farm") end
+        if v then
+            spawnLoop("truck_farm", 0.2, exclusive("farm", truckFarmStep))
+        else
+            stopLoop("truck_farm")
+            cancelTravel()
+        end
     end,
 })
 
@@ -2979,7 +2997,12 @@ UI.Tabs.TabFarm:CreateToggle({
     Callback = function(v)
         Flags.BoatFarm = v
         if v then soloFarm("BoatFarm") end
-        if v then spawnLoop("boat_farm", 0.2, exclusive("farm", boatFarmStep)) else stopLoop("boat_farm") end
+        if v then
+            spawnLoop("boat_farm", 0.2, exclusive("farm", boatFarmStep))
+        else
+            stopLoop("boat_farm")
+            cancelTravel()
+        end
     end,
 })
 
