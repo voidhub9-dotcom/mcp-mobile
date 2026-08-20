@@ -53,6 +53,23 @@ _G.LuminHubShutdown = function()
     disconnectAll()
     destroyVisuals(nil)
 
+    -- Always hand the character back usable. An older build could be
+    -- holding an anchor when this tears it down, and with its loops gone
+    -- nothing would ever release it -- which left the player frozen in
+    -- place with no hub running.
+    pcall(function()
+        local char = Players.LocalPlayer.Character
+        if not char then return end
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Anchored = false
+                part.CanCollide = true
+            end
+        end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.PlatformStand = false end
+    end)
+
     -- Unload off the caller's thread and drop the globals immediately.
     -- If a previous load died partway, its Library is half-built and
     -- Unload() can block forever; doing it inline wedges every later
