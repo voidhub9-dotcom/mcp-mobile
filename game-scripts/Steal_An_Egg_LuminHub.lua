@@ -4327,6 +4327,57 @@ Library:OnUnload(function()
     _G.LuminHubLibrary = nil
 end)
 
+-- Survive the game's AFK rotation.
+--
+-- This game moves idle players to a new server every few minutes. That is
+-- a teleport, not a disconnect, so queue_on_teleport carries a payload
+-- across it. Queuing the loader at startup -- not only when the rejoin
+-- watchdog fires -- means the hub comes back by itself on the new server
+-- with the same toggles, instead of dying every rotation.
+local function queueSelfForTeleport()
+    if type(queue_on_teleport) ~= "function" then return end
+    local source = getgenv().LuminHubSource
+    if not source or source == "" then return end
+    local payload = ([[
+        task.spawn(function()
+            if not game:IsLoaded() then game.Loaded:Wait() end
+            task.wait(3)
+            getgenv().LuminHubSource = "%s"
+            local ok, body = pcall(function() return game:HttpGet(getgenv().LuminHubSource) end)
+            if not ok then return end
+            local chunk = loadstring(body)
+            if not chunk then return end
+            if pcall(chunk) then
+                task.wait(2)
+                local L = _G.LuminHubLibrary
+                if L then
+                    pcall(function() L.Toggles.GodMode:SetValue(%s) end)
+                    pcall(function() L.Toggles.AntiDie:SetValue(%s) end)
+                    pcall(function() L.Options.MoveMode:SetValue("%s") end)
+                    pcall(function() L.Options.TweenSpeed:SetValue(%d) end)
+                    pcall(function() L.Toggles.AutoPlaceAfterSteal:SetValue(%s) end)
+                    pcall(function() L.Toggles.AutoSteal:SetValue(%s) end)
+                end
+            end
+        end)
+    ]]):format(
+        source,
+        tostring(Flags.GodMode == true),
+        tostring(Flags.AntiDie == true),
+        tostring(Flags.MoveMode or "Tween"),
+        tonumber(Flags.TweenSpeed) or 1200,
+        tostring(Flags.AutoPlaceAfterSteal == true),
+        tostring(Flags.AutoSteal == true))
+    pcall(queue_on_teleport, payload)
+end
+
+-- Re-queue periodically so the payload always carries the toggles as they
+-- stand now, not as they were at load.
+startLoop("TeleportPersist", function()
+    queueSelfForTeleport()
+    task.wait(15)
+end)
+
 Library:SetWatermarkVisibility(true)
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
