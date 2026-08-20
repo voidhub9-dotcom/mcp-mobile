@@ -433,7 +433,6 @@ end
 
 local Move = {
     cancel    = false,
-    moving    = false,   -- true while the hub is deliberately relocating us
     speed     = nil,   -- current adaptive speed, nil = use the slider value
     rollbacks = 0,
     lastNote  = "",
@@ -481,22 +480,21 @@ end
 -- tells us the rate is too high.
 function Move:Attempt(targetPos, timeout)
     local root = getRoot()
-    if not root then self.moving = false return false, false end
-    self.moving = true
+    if not root then return false, false end
 
     local speed  = self:CurrentSpeed()
     local start  = os.clock()
     local stalls = 0
 
     while os.clock() - start < timeout do
-        if self.cancel then self.moving = false return false, false end
+        if self.cancel then return false, false end
         root = getRoot()
-        if not root then self.moving = false return false, false end
+        if not root then return false, false end
 
         local here = root.Position
         local toGo = targetPos - here
         local dist = toGo.Magnitude
-        if dist <= 5 then self.moving = false return true, false end
+        if dist <= 5 then return true, false end
 
         local dt   = RunService.Heartbeat:Wait()
         local step = math.min(speed * dt, dist)
@@ -506,14 +504,14 @@ function Move:Attempt(targetPos, timeout)
         RunService.Heartbeat:Wait()
 
         root = getRoot()
-        if not root then self.moving = false return false, false end
+        if not root then return false, false end
 
         -- How much of the step actually survived?
         local moved = (root.Position - here).Magnitude
         if moved < step * 0.35 then
             stalls = stalls + 1
             -- three consecutive rejected steps is a rollback, not a hiccup
-            if stalls >= 3 then self.moving = false return false, true end
+            if stalls >= 3 then return false, true end
         else
             stalls = 0
         end
@@ -521,7 +519,6 @@ function Move:Attempt(targetPos, timeout)
 
     root = getRoot()
     local arrived = root and (root.Position - targetPos).Magnitude <= 12
-    self.moving = false
     return arrived or false, not arrived
 end
 
@@ -533,18 +530,16 @@ function Move:To(targetPos, timeoutSeconds)
     if Flags.InstantMove then
         local root = getRoot()
         if not root then return false end
-        self.moving = true
         local deadline = os.clock() + math.min(timeout, 2)
         while os.clock() < deadline do
             if self.cancel then return false end
             root = getRoot()
             if not root then return false end
             root.CFrame = CFrame.new(targetPos)
-            if (root.Position - targetPos).Magnitude < 6 then self.moving = false return true end
+            if (root.Position - targetPos).Magnitude < 6 then return true end
             task.wait(0.05)
         end
         root = getRoot()
-        self.moving = false
         return (root and (root.Position - targetPos).Magnitude < 12) or false
     end
 
@@ -1155,88 +1150,63 @@ local God = {
 }
 
 -- Anything above this is a knockback, not running.
-local FLING_VELOCITY = 60
--- A single frame never legitimately moves you this far on foot.
-local FLING_STEP     = 10
--- How long to pin the character after a hit lands.
-local FLING_LOCK     = 1.25
+local FLING_VELOCITY = 55
+-- After a spike, keep the character's velocity pinned for this long so
+-- the residual push cannot carry it. Deliberately velocity-only: an
+-- earlier attempt restored position instead and shoved the character
+-- through the map, so nothing here ever writes CFrame.
+local FLING_HOLD = 0.9
+local FlingHoldUntil = 0
 
--- Position lock. The knockback is applied server-side -- there is no
--- client code doing it, so clamping our own velocity happens after the
--- displacement has already replicated. Instead we remember where we were
--- standing and, the moment a frame moves us further than walking could,
--- put us straight back and hold there. This cancels the fling whatever
--- mechanism produced it: velocity, impulse, or a server CFrame write.
-local Fling = {
-    lastPos    = nil,   -- previous frame, for per-frame step detection
-    settled    = nil,   -- last position we were genuinely standing at
-    settledAt  = 0,
-    lockUntil  = 0,
-    anchor     = nil,
-}
+local function godStripMovers(char)
+    if not char then return end
+    for _, d in ipairs(char:GetDescendants()) do
+        if d:IsA("BodyVelocity") or d:IsA("BodyAngularVelocity") or d:IsA("BodyThrust")
+            or d:IsA("BodyForce") or d:IsA("BodyGyro") or d:IsA("VectorForce")
+            or d:IsA("LinearVelocity") or d:IsA("AngularVelocity") then
+            -- leave the hub's own fly movers alone
+            if d ~= Visuals["_fly_bv"] and d ~= Visuals["_fly_bg"] then
+                pcall(function() d:Destroy() end)
+            end
+        end
+    end
+end
 
--- Beyond this distance from where we were standing, something moved us.
-local FLING_DRIFT = 22
-
-local function godAntiFling()
+local function godCalmCharacter()
+    local char = getCharacter()
+    if not char then return end
     local root = getRoot()
-    if not root then
-        Fling.lastPos, Fling.settled = nil, nil
-        return
+    local hum  = getHumanoid()
+
+    if root and not Flags.Fly then
+        local now = os.clock()
+        local vel = root.AssemblyLinearVelocity
+
+        if vel.Magnitude > FLING_VELOCITY then
+            FlingHoldUntil = now + FLING_HOLD
+            God.lastHit    = now
+            God.flings     = (God.flings or 0) + 1
+        end
+
+        -- Hold the horizontal velocity at zero through the whole knockback,
+        -- leaving gravity alone so the character still falls normally.
+        if now < FlingHoldUntil then
+            root.AssemblyLinearVelocity  = Vector3.new(0, math.min(vel.Y, 0), 0)
+            root.AssemblyAngularVelocity = Vector3.zero
+        elseif root.AssemblyAngularVelocity.Magnitude > 10 then
+            root.AssemblyAngularVelocity = Vector3.zero
+        end
     end
 
-    local now = os.clock()
-
-    -- Never fight our own movement.
-    if Move.moving or Flags.Fly then
-        Fling.lastPos   = root.Position
-        Fling.settled   = root.Position
-        Fling.settledAt = now
-        Fling.lockUntil = 0
-        return
-    end
-
-    -- Holding: re-assert until we are actually back and calm again.
-    if now < Fling.lockUntil and Fling.anchor then
-        root.CFrame                  = CFrame.new(Fling.anchor)
-        root.AssemblyLinearVelocity  = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-        return
-    end
-
-    local pos = root.Position
-    local vel = root.AssemblyLinearVelocity.Magnitude
-
-    local function trip(anchor)
-        Fling.anchor     = anchor
-        Fling.lockUntil  = now + FLING_LOCK
-        God.lastHit      = now
-        God.flings       = (God.flings or 0) + 1
-        root.CFrame                  = CFrame.new(anchor)
-        root.AssemblyLinearVelocity  = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-    end
-
-    -- A single frame that moves us further than running could.
-    if Fling.lastPos and ((pos - Fling.lastPos).Magnitude > FLING_STEP or vel > FLING_VELOCITY) then
-        trip(Fling.settled or Fling.lastPos)
-        return
-    end
-
-    -- A slow slide stays under the per-frame threshold, so also measure
-    -- against where we were actually standing.
-    if Fling.settled and (pos - Fling.settled).Magnitude > FLING_DRIFT then
-        trip(Fling.settled)
-        return
-    end
-
-    Fling.lastPos = pos
-
-    -- Only accept a new "standing here" reference once we are calm.
-    if vel < 30 then
-        if not Fling.settled or (pos - Fling.settled).Magnitude > 4 then
-            Fling.settled   = pos
-            Fling.settledAt = now
+    if hum then
+        if hum.PlatformStand and not Flags.Fly then hum.PlatformStand = false end
+        local state = hum:GetState()
+        if state == Enum.HumanoidStateType.Ragdoll
+            or state == Enum.HumanoidStateType.FallingDown
+            or state == Enum.HumanoidStateType.Physics
+            or state == Enum.HumanoidStateType.Seated then
+            pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+            God.lastHit = os.clock()
         end
     end
 end
@@ -2908,11 +2878,10 @@ PlayerGB:AddToggle("GodMode", {
         if val then
             godHardenHumanoid(getCharacter())
             godStripMovers(getCharacter())
-            -- PreSimulation runs before the physics step, so the lock
-            -- lands ahead of the knockback rather than chasing it.
+            -- Stepped runs before physics, Heartbeat after; doing both
+            -- means a push is cancelled on the same frame it arrives.
             Flags._godStep = trackConn(RunService.Stepped:Connect(function()
-                if not Flags.GodMode then return end
-                godAntiFling()
+                if Flags.GodMode then godCalmCharacter() end
             end))
             startLoop("GodMode", function()
                 godCalmCharacter()
@@ -3579,7 +3548,7 @@ spawnTracked(function()
             if Flags.GodMode then
                 local since = os.clock() - (God.lastHit or 0)
                 GodStatus:SetText(string.format(
-                    "GodMode: on | carrying %s | re-grabs %d | flings blocked %d | last hit %s",
+                    "GodMode: on | carrying %s | re-grabs %d | flings %d | last hit %s",
                     God.carrying and (God.carryUid and God.carryUid:sub(1, 6) or "yes") or "no",
                     God.regrabs,
                     God.flings or 0,
