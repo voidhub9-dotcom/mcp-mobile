@@ -917,7 +917,7 @@ local function setNoRender(on)
     end
 end
 
-local Travel = { active = false, cancel = false, label = "idle" }
+local Travel = { active = false, cancel = false, label = "idle", blocked = 0 }
 
 local function cancelTravel()
     Travel.cancel = true
@@ -1151,16 +1151,40 @@ local function travelTo(targetPos, speed, tag)
         local before = r.Position
         footMoveTo(g)
         legs = legs + 1
+
         local r2 = rootPart()
         if r2 and (r2.Position - before).Magnitude < 6 then
-            local gap = (targetPos - r2.Position).Magnitude
-            Travel.active = false
-            if gap <= 45 then
-                Travel.label = ("arrived, %d studs out"):format(gap)
-                return true
+            Travel.blocked = (Travel.blocked or 0) + 1
+            Travel.label = ("phasing past an obstacle (%d)"):format(Travel.blocked)
+            FarmNoclip.push()
+            local hop = before + delta.Unit * math.min(60, delta.Magnitude)
+            local hg = groundAt(hop, character()) or hop
+            local r3 = rootPart()
+            if r3 then r3.CFrame = CFrame.new(hg) end
+            task.wait(0.25)
+            FarmNoclip.pop()
+
+            local r4 = rootPart()
+            local moved = r4 and (r4.Position - before).Magnitude or 0
+            if moved < 4 then
+                local gap = r4 and (targetPos - r4.Position).Magnitude or 9e9
+                Travel.active = false
+                Travel.blocked = 0
+                if gap <= 45 then
+                    Travel.label = ("arrived, %d studs out"):format(gap)
+                    return true
+                end
+                Travel.label = ("blocked %d studs out"):format(gap)
+                return false
             end
-            Travel.label = ("blocked %d studs out"):format(gap)
-            return false
+            if Travel.blocked > 12 then
+                Travel.active = false
+                Travel.blocked = 0
+                Travel.label = "gave up phasing"
+                return false
+            end
+        else
+            Travel.blocked = 0
         end
         task.wait(0.1)
     end
@@ -1871,8 +1895,8 @@ local function exclusive(name, fn)
         Busy[name] = true
         Travel.cancel = false
         local ok, err = pcall(fn, ...)
-        Busy[name] = nil
         FarmNoclip.depth = 0
+        Busy[name] = nil
         if not Flags.Noclip then FarmNoclip.restore() end
         if not ok then error(err, 0) end
     end
@@ -1990,13 +2014,24 @@ local function spawnVehicleNear(name, wantBoat)
     end
 
     local remote = wantBoat and "SpawnBoatFromSpawner" or "SpawnVehicleFromSpawner"
-    local ok, res = svcCall("VehicleSpawnerService", remote, sp, name)
-    if not (ok and res == true) then
+    local spawned = false
+    for attempt = 1, 3 do
+        local ok, res = svcCall("VehicleSpawnerService", remote, sp, name)
+        if ok and res == true then spawned = true break end
         svcCall("VehicleSpawnerService", "PurchaseVehicle", sp, name)
-        task.wait(1.2)
-        ok, res = svcCall("VehicleSpawnerService", remote, sp, name)
+        task.wait(0.8 * attempt)
+        local ok2, res2 = svcCall("VehicleSpawnerService", remote, sp, name)
+        if ok2 and res2 == true then spawned = true break end
+        task.wait(0.5)
     end
-    if not (ok and res == true) then return nil, "server refused " .. tostring(name) end
+    if not spawned then
+        local okCount, count = svcCall("VehicleSpawnerService", "GetLimitedVehicleCount", name)
+        local why = "server refused " .. tostring(name)
+        if okCount and type(count) == "number" and count <= 0 then
+            why = tostring(name) .. " is out of stock on this server"
+        end
+        return nil, why
+    end
 
     local model = waitFor(function()
         local mine = myVehicles()
@@ -2093,13 +2128,13 @@ local function approach(inst, tag)
         if not root then return false end
         if (pos - root.Position).Magnitude <= 90 then break end
         local car = ensureVehicle()
-        if not car then
-            setStatus("need a car to reach the " .. tostring(tag))
-            task.wait(1.5)
-            return false
+        if car then
+            setStatus("driving to the " .. tostring(tag))
+            driveVehicleTo(car, pos, Flags.VehicleTravelSpeed)
+        else
+            setStatus("no car, walking to the " .. tostring(tag))
+            travelTo(pos + Vector3.new(0, 4, 0), Flags.TravelSpeed, tag)
         end
-        setStatus("driving to the " .. tostring(tag))
-        driveVehicleTo(car, pos, Flags.VehicleTravelSpeed)
     end
 
     local root = rootPart()
@@ -3830,6 +3865,31 @@ UI.Tabs.TabCharacter:CreateToggle({
     Callback = function(v)
         Flags.Noclip = v
         if not v and FarmNoclip.depth <= 0 then FarmNoclip.restoreAll() end
+    end,
+})
+
+UI.Tabs.TabCharacter:CreateButton({
+    Title = "Unstick Me",
+    Description = "Phases you up and out of whatever you are wedged inside, then drops you on the nearest ground",
+    Icon = ICONS.wrench,
+    Side = 1,
+    Callback = function()
+        task.spawn(function()
+            local h = humanoid()
+            if h and h.SeatPart then leaveVehicle() end
+            FarmNoclip.push()
+            local r = rootPart()
+            if r then
+                r.CFrame = r.CFrame + Vector3.new(0, 25, 0)
+                task.wait(0.35)
+                local rr = rootPart()
+                local g = rr and groundAt(rr.Position, character())
+                if rr and g then rr.CFrame = CFrame.new(g) end
+            end
+            task.wait(0.3)
+            FarmNoclip.pop()
+            notify("Unstick", "Done.", 2)
+        end)
     end,
 })
 
