@@ -735,6 +735,18 @@ function FarmNoclip.restore()
     FarmNoclip.touched = {}
 end
 
+function FarmNoclip.restoreAll()
+    FarmNoclip.touched = {}
+    local c = character()
+    if not c then return end
+    for _, part in ipairs(c:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart"
+            and not part:FindFirstAncestorOfClass("Tool") then
+            pcall(function() part.CanCollide = true end)
+        end
+    end
+end
+
 function FarmNoclip.pop()
     FarmNoclip.depth = math.max(FarmNoclip.depth - 1, 0)
     if FarmNoclip.depth > 0 or Flags.Noclip then return end
@@ -2776,7 +2788,6 @@ UI.Tabs.TabFarm:CreateToggle({
     Description = "Buys the chosen good, runs it to the seller, sells it, repeats",
     Icon = ICONS.coins,
     Default = false,
-    SaveId = "sdb_item_farm",
     Side = 1,
     Callback = function(v)
         Flags.ItemFarm = v
@@ -2878,7 +2889,6 @@ UI.Tabs.TabFarm:CreateToggle({
     Description = "Grabs a box and delivers it on a loop",
     Icon = ICONS.boxes,
     Default = false,
-    SaveId = "sdb_box_farm",
     Side = 1,
     Callback = function(v)
         Flags.BoxFarm = v
@@ -2909,7 +2919,6 @@ UI.Tabs.TabFarm:CreateToggle({
     Description = "Walks you onto dropped cash and items so the game picks them up",
     Icon = ICONS.package,
     Default = false,
-    SaveId = "sdb_auto_collect",
     Side = 1,
     Callback = function(v)
         Flags.AutoCollect = v
@@ -2936,7 +2945,6 @@ UI.Tabs.TabFarm:CreateToggle({
     Description = "Starts a trucking run, boards the truck and drives it to the delivery point",
     Icon = ICONS.rocket,
     Default = false,
-    SaveId = "sdb_truck_farm",
     Side = 2,
     Callback = function(v)
         Flags.TruckFarm = v
@@ -2992,7 +3000,6 @@ UI.Tabs.TabFarm:CreateToggle({
     Description = "Runs the smuggling boat missions end to end",
     Icon = ICONS.globe,
     Default = false,
-    SaveId = "sdb_boat_farm",
     Side = 2,
     Callback = function(v)
         Flags.BoatFarm = v
@@ -3822,7 +3829,7 @@ UI.Tabs.TabCharacter:CreateToggle({
     Side = 1,
     Callback = function(v)
         Flags.Noclip = v
-        if not v and FarmNoclip.depth <= 0 then FarmNoclip.restore() end
+        if not v and FarmNoclip.depth <= 0 then FarmNoclip.restoreAll() end
     end,
 })
 
@@ -4348,7 +4355,7 @@ end
 local function panic()
     for name in pairs(Busy) do Busy[name] = nil end
     FarmNoclip.depth = 0
-    FarmNoclip.restore()
+    FarmNoclip.restoreAll()
     for name in pairs(Loops) do stopLoop(name) end
     cancelTravel()
     Flags.Aimbot = false
@@ -4464,7 +4471,7 @@ end)
 local function unload()
     for name in pairs(Busy) do Busy[name] = nil end
     FarmNoclip.depth = 0
-    FarmNoclip.restore()
+    FarmNoclip.restoreAll()
     for name in pairs(Loops) do stopLoop(name) end
     cancelTravel()
     stopFly()
