@@ -452,7 +452,10 @@ end
 -- this server actually tolerates.
 function Move:Penalise()
     local now = self:CurrentSpeed()
-    self.speed = math.max(25, math.floor(now * 0.65))
+    -- Floor this well above zero. Below roughly 60 studs/s each frame's
+    -- step is sub-stud, physics jitter swamps the progress check, and the
+    -- backoff feeds on its own false positives all the way down.
+    self.speed = math.max(60, math.floor(now * 0.65))
     self.rollbacks = self.rollbacks + 1
     self.lastNote = string.format("rolled back, speed %d -> %d", now, self.speed)
 end
@@ -525,8 +528,62 @@ function Move:Attempt(targetPos, timeout)
     return arrived or false, not arrived
 end
 
+-- Walk mode: ordinary humanoid movement. The server never rolls this
+-- back because it is not a teleport, and walk speed here is 163 studs/s,
+-- so it is not much slower than a tween that keeps getting rejected.
+function Move:Walk(targetPos, timeout)
+    local hum, root = getHumanoid(), getRoot()
+    if not (hum and root) then return false end
+
+    self.moving = true
+    local t0 = os.clock()
+    local lastPos, lastProgress = root.Position, os.clock()
+
+    while os.clock() - t0 < timeout do
+        if self.cancel then self.moving = false return false end
+        root, hum = getRoot(), getHumanoid()
+        if not (root and hum) then self.moving = false return false end
+
+        if (root.Position - targetPos).Magnitude <= 8 then
+            self.moving = false
+            return true
+        end
+
+        hum:MoveTo(targetPos)
+        task.wait(0.2)
+
+        root = getRoot()
+        if root then
+            if (root.Position - lastPos).Magnitude > 5 then
+                lastPos, lastProgress = root.Position, os.clock()
+            elseif os.clock() - lastProgress > 3 then
+                -- snagged on geometry: hop and re-aim
+                pcall(function() hum.Jump = true end)
+                lastProgress = os.clock()
+            end
+        end
+    end
+
+    self.moving = false
+    root = getRoot()
+    return (root and (root.Position - targetPos).Magnitude <= 15) or false
+end
+
 function Move:To(targetPos, timeoutSeconds)
     self.cancel = false
+
+    local mode = Flags.MoveMode or "Walk"
+    local root0 = getRoot()
+    local dist0 = root0 and (root0.Position - targetPos).Magnitude or 0
+
+    if mode == "Walk" then
+        local hum = getHumanoid()
+        local ws  = (hum and hum.WalkSpeed) or 16
+        -- allow the trip plus slack for terrain
+        local budget = timeoutSeconds or math.clamp(dist0 / math.max(ws, 8) * 2 + 4, 5, 45)
+        return self:Walk(targetPos, budget)
+    end
+
     local timeout = timeoutSeconds or 8
 
     -- Instant mode keeps the old snap behaviour for anyone who wants it.
@@ -1934,6 +1991,17 @@ end):AddButton("Clear Zones", function()
 end)
 
 local MoveGB = Tabs.Farm:AddRightGroupbox("Movement", "move")
+
+MoveGB:AddDropdown("MoveMode", {
+    Text    = "Travel Mode",
+    Tooltip = "Walk uses ordinary humanoid movement, which this game's server never rolls back. Tween steps the root and adapts its speed. Instant snaps.",
+    Values  = { "Walk", "Tween", "Instant" },
+    Default = "Walk",
+    Callback = function(v)
+        Flags.MoveMode = v
+        Flags.InstantMove = (v == "Instant")
+    end,
+})
 
 MoveGB:AddToggle("SmartTween", {
     Text    = "Smart Tween",
@@ -3757,6 +3825,7 @@ Flags.SelectMutations   = {}
 Flags.FarmMinRarity     = nil
 Flags.MinEggWeight      = 0
 Flags.SmartTween        = true
+Flags.MoveMode          = "Walk"
 Flags.TweenSpeed        = 300
 Flags.InstantMove       = false
 Flags.DistantTarget     = false
