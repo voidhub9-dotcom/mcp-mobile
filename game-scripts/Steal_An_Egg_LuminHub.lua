@@ -1573,12 +1573,12 @@ do
         table.insert(characterConnections, humanoid.StateChanged:Connect(function(_, state)
             if not God.active or state ~= Enum.HumanoidStateType.Physics then return end
             -- Travel phases through geometry, which drops the humanoid
-            -- into Physics. That is not a guard hit, and anchoring for it
-            -- pins the character mid-flight and stalls the move.
-            if Move.moving then
-                clearPhysics()
-                return
-            end
+            -- into Physics constantly. That is not a guard hit. Do not
+            -- even clear physics here: ClearClientRagdoll restores the
+            -- character's position, so calling it every frame of a move
+            -- drags it backwards -- measured as 118 frames of ~85-stud
+            -- steps ending 2215 studs short of the target.
+            if Move.moving then return end
             hitAt       = os.clock()
             anchor      = trailAnchor(root.CFrame)
             lockUntil   = hitAt + 0.45
