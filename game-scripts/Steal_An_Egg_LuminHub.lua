@@ -370,6 +370,60 @@ local function getMoneyStat()
 end
 
 --=====================================================================
+-- Anti-death  (keeps the character alive across tweens)
+--=====================================================================
+
+-- The game runs death/fall handling from RunService connections owned by
+-- its AnalyticsDebug script. Tweening the root trips those handlers, so
+-- they get disabled; everything else on those signals is left alone.
+local function killACConns()
+    for _, signal in ipairs({ "PreSimulation", "PostSimulation", "Heartbeat", "Stepped" }) do
+        local ok, conns = pcall(function() return getconnections(RunService[signal]) end)
+        if ok and conns then
+            for _, c in ipairs(conns) do
+                local f
+                pcall(function() f = c.Function end)
+                local src = f and select(2, pcall(function() return debug.info(f, "s") end)) or ""
+                if type(src) == "string" and src:find("AnalyticsDebug") then
+                    pcall(function() c.Enabled = false end)
+                    pcall(function() c:Disable() end)
+                end
+            end
+        end
+    end
+end
+
+local function protectChar(char)
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
+    pcall(function() hum.BreakJointsOnDeath = false end)
+    pcall(function() hum.MaxHealth = math.huge hum.Health = math.huge end)
+end
+
+-- Lands the player on solid ground instead of inside an egg nest or in
+-- mid-air, which is what makes a tween arrival survivable.
+local function groundAt(pos)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local exclude = { getCharacter() }
+    local objs = Workspace:FindFirstChild("__OBJECTS")
+    local areas = objs and objs:FindFirstChild("Areas")
+    local guardAreas = areas and areas:FindFirstChild("GuardAreas")
+    if guardAreas then
+        for _, area in ipairs(guardAreas:GetChildren()) do
+            local nests = area:FindFirstChild("Nests")
+            if nests then table.insert(exclude, nests) end
+            local guard = area:FindFirstChild("Guard")
+            if guard then table.insert(exclude, guard) end
+        end
+    end
+    params.FilterDescendantsInstances = exclude
+    local hit = Workspace:Raycast(pos + Vector3.new(0, 60, 0), Vector3.new(0, -600, 0), params)
+    return hit and (hit.Position + Vector3.new(0, 3.2, 0)) or (pos + Vector3.new(0, 3, 0))
+end
+
+--=====================================================================
 -- Movement  (Smart Tween / Instant)
 --=====================================================================
 
@@ -993,6 +1047,39 @@ end
 -- Steal cycle
 --=====================================================================
 
+-- The server tracks whether you have entered the play corridor, and it
+-- only registers when you cross the entry plane under humanoid control --
+-- teleporting straight to an egg is refused with "Enter the gameplay area
+-- first" no matter how close you land. Verified live: after this routine
+-- the identical carry request returns true.
+local GameplayEntered = false
+
+local function enterGameplayArea()
+    local root, hum = getRoot(), getHumanoid()
+    local objs  = Workspace:FindFirstChild("__OBJECTS")
+    local areas = objs and objs:FindFirstChild("Areas")
+    local start = areas and areas:FindFirstChild("StartArea")
+    if not (root and hum and start) then return false end
+
+    Status.Steal = "Entering gameplay area"
+    root.CFrame = CFrame.new(groundAt(start.Position - Vector3.new(6, 0, 0)))
+    task.wait(1.2)
+
+    local goal = start.Position + Vector3.new(40, 0, 0)
+    local t0 = os.clock()
+    while os.clock() - t0 < 12 do
+        root = getRoot()
+        if not root then return false end
+        if (root.Position - goal).Magnitude <= 8 then break end
+        hum = getHumanoid()
+        if hum then hum:MoveTo(goal) end
+        task.wait(0.2)
+    end
+
+    GameplayEntered = true
+    return true
+end
+
 local function placeHeldEggs(limit)
     local placed = 0
     local eggs = getMyEggs()
@@ -1022,7 +1109,8 @@ local function stealOnce(target)
 
     local targetCFrame = target.BoundsCFrame or target.BottomCFrame
     if typeof(targetCFrame) ~= "CFrame" then return false end
-    local targetPos = targetCFrame.Position + Vector3.new(0, 3, 0)
+    -- Land on the ground beside the nest rather than inside it.
+    local targetPos = groundAt(targetCFrame.Position)
 
     Status.Steal = "Travelling to " .. (target.AssetCategory or "?")
     if not Move:To(targetPos) then
@@ -1032,23 +1120,43 @@ local function stealOnce(target)
 
     -- Hold position while the carry request resolves. The prompt's
     -- MaxActivationDistance is 8 studs in this build.
-    local carried = false
+    --
+    -- The remote answers (ok, reason): the server hands back a readable
+    -- string such as "Enter the gameplay area first" when it refuses.
+    -- Surfacing it beats retrying blindly into a cooldown.
+    local carried, reason = false, nil
     for _ = 1, 5 do
         root = getRoot()
         if not root then break end
         root.CFrame = CFrame.new(targetPos)
-        local ok, res = invokeRemote("Eggs: RequestAreaEggCarry", { Uid = target.Uid })
-        if ok and res ~= false then
+        local remote = Network:FindFirstChild("Eggs: RequestAreaEggCarry")
+        if not remote then break end
+        local ok, res, why = pcall(function()
+            return remote:InvokeServer({ Uid = target.Uid })
+        end)
+        if ok and res == true then
             carried = true
             clearCarryFail(target.Uid)
             break
         end
+        if ok and type(why) == "string" then reason = why end
         task.wait(0.12)
     end
 
     if not carried then
         markCarryFail(target.Uid)
-        Status.Steal = "Carry failed: " .. (target.AssetCategory or "?")
+        if reason then
+            Status.Steal = "Blocked: " .. reason
+            -- This refusal is about the player, not the egg, so it would hit
+            -- every egg in turn. Re-enter the corridor and clear the strike.
+            if reason:lower():find("gameplay area") then
+                GameplayEntered = false
+                clearCarryFail(target.Uid)
+                enterGameplayArea()
+            end
+        else
+            Status.Steal = "Carry failed: " .. (target.AssetCategory or "?")
+        end
         return false
     end
 
@@ -1431,6 +1539,12 @@ StealGB:AddToggle("AutoSteal", {
         end
         startLoop("AutoSteal", function()
             local zones = Flags.StealZones or {}
+
+            -- Register with the corridor once per life before farming.
+            if not GameplayEntered then
+                enterGameplayArea()
+                task.wait(0.3)
+            end
 
             local awake, zone = isGuardAwake(zones)
             if awake then
@@ -2378,16 +2492,17 @@ PlayerGB:AddToggle("AntiDie", {
     Default = false,
     Callback = function(val)
         Flags.AntiDie = val
+        _G.__SAE_AntiDeath = val
         if val then
+            protectChar(getCharacter())
+            killACConns()
             startLoop("AntiDie", function()
+                killACConns()
                 local hum = getHumanoid()
-                if hum then
-                    pcall(function()
-                        if hum.MaxHealth < 99999 then hum.MaxHealth = 99999 end
-                        if hum.Health < hum.MaxHealth then hum.Health = hum.MaxHealth end
-                    end)
+                if hum and hum.Health < hum.MaxHealth then
+                    pcall(function() hum.Health = hum.MaxHealth end)
                 end
-                task.wait(0.2)
+                task.wait(0.5)
             end)
         else
             -- BUG FIX: the old code called stopLoop("AntiDie") for a loop
@@ -2794,14 +2909,18 @@ end))
 
 -- Re-apply movement stats after a respawn
 trackConn(LocalPlayer.CharacterAdded:Connect(function(char)
-    task.wait(0.8)
+    -- A respawn drops the server's record of corridor entry.
+    GameplayEntered = false
+    task.wait(0.2)
+    if Flags.AntiDie then
+        protectChar(char)
+        killACConns()
+    end
+    task.wait(0.6)
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
     if Flags.WalkSpeed and Flags.WalkSpeed > 16 then hum.WalkSpeed = Flags.WalkSpeed end
     if Flags.JumpPower and Flags.JumpPower > 50 then hum.JumpPower = Flags.JumpPower end
-    if Flags.AntiDie then
-        pcall(function() hum.MaxHealth = 99999 hum.Health = 99999 end)
-    end
 end))
 
 -- Sell confirmation watcher
