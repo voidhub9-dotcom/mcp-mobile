@@ -708,7 +708,7 @@ local function flyStep()
     Movement.flyGyro.CFrame = cf
 end
 
-local FarmNoclip = { depth = 0 }
+local FarmNoclip = { depth = 0, touched = {} }
 
 local function noclipStep()
     if not Flags.Noclip and FarmNoclip.depth <= 0 then return end
@@ -716,6 +716,7 @@ local function noclipStep()
     if not c then return end
     for _, part in ipairs(c:GetDescendants()) do
         if part:IsA("BasePart") and part.CanCollide then
+            FarmNoclip.touched[part] = true
             part.CanCollide = false
         end
     end
@@ -725,16 +726,19 @@ function FarmNoclip.push()
     FarmNoclip.depth = FarmNoclip.depth + 1
 end
 
-function FarmNoclip.pop()
-    FarmNoclip.depth = math.max(FarmNoclip.depth - 1, 0)
-    if FarmNoclip.depth > 0 or Flags.Noclip then return end
-    local c = character()
-    if not c then return end
-    for _, part in ipairs(c:GetDescendants()) do
-        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+function FarmNoclip.restore()
+    for part in pairs(FarmNoclip.touched) do
+        if part and part.Parent then
             pcall(function() part.CanCollide = true end)
         end
     end
+    FarmNoclip.touched = {}
+end
+
+function FarmNoclip.pop()
+    FarmNoclip.depth = math.max(FarmNoclip.depth - 1, 0)
+    if FarmNoclip.depth > 0 or Flags.Noclip then return end
+    FarmNoclip.restore()
 end
 
 local MapCollide = { changed = {} }
@@ -1857,7 +1861,7 @@ local function exclusive(name, fn)
         local ok, err = pcall(fn, ...)
         Busy[name] = nil
         FarmNoclip.depth = 0
-        if not Flags.Noclip then FarmNoclip.pop() end
+        if not Flags.Noclip then FarmNoclip.restore() end
         if not ok then error(err, 0) end
     end
 end
@@ -3795,16 +3799,7 @@ UI.Tabs.TabCharacter:CreateToggle({
     Side = 1,
     Callback = function(v)
         Flags.Noclip = v
-        if not v then
-            local c = character()
-            if c then
-                for _, p in ipairs(c:GetDescendants()) do
-                    if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
-                        pcall(function() p.CanCollide = true end)
-                    end
-                end
-            end
-        end
+        if not v and FarmNoclip.depth <= 0 then FarmNoclip.restore() end
     end,
 })
 
@@ -4329,6 +4324,8 @@ end
 
 local function panic()
     for name in pairs(Busy) do Busy[name] = nil end
+    FarmNoclip.depth = 0
+    FarmNoclip.restore()
     for name in pairs(Loops) do stopLoop(name) end
     cancelTravel()
     Flags.Aimbot = false
@@ -4443,6 +4440,8 @@ end)
 
 local function unload()
     for name in pairs(Busy) do Busy[name] = nil end
+    FarmNoclip.depth = 0
+    FarmNoclip.restore()
     for name in pairs(Loops) do stopLoop(name) end
     cancelTravel()
     stopFly()
