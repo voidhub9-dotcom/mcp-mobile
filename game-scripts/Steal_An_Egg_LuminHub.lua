@@ -456,6 +456,7 @@ end
 
 local Move = {
     cancel    = false,
+    lastFail  = nil,
     moving    = false,   -- true while the hub is deliberately relocating us
     speed     = nil,   -- current adaptive speed, nil = use the slider value
     rollbacks = 0,
@@ -523,6 +524,7 @@ function Move:Attempt(targetPos, timeout)
     local speed  = self:CurrentSpeed()
     local start  = os.clock()
     local stalls = 0
+    local frames = 0
     local closest = math.huge
 
     -- At high speed the character rams world geometry and each step gets
@@ -573,17 +575,27 @@ function Move:Attempt(targetPos, timeout)
         -- Only treat it as blocked when we make no headway at all for a
         -- sustained run of frames. The old 35%-of-step test tripped on
         -- ordinary frame-time jitter and throttled a working move to zero.
+        frames = frames + 1
         local progressed = (root.Position - here).Magnitude
         if progressed < math.min(step * 0.1, 0.5) then
             stalls = stalls + 1
-            if stalls >= 12 then self.moving = false releaseCollisions() return false, true end
+            if stalls >= 12 then
+                self.lastFail = string.format("stalled %d frames, %.0f studs out",
+                    frames, (root.Position - targetPos).Magnitude)
+                self.moving = false releaseCollisions() return false, true
+            end
         else
             stalls = 0
         end
     end
 
     root = getRoot()
-    local arrived = root and (root.Position - targetPos).Magnitude <= 14
+    local remaining = root and (root.Position - targetPos).Magnitude or -1
+    local arrived = remaining >= 0 and remaining <= 14
+    if not arrived then
+        self.lastFail = string.format("timeout %.1fs at speed %d, %d frames, %.0f studs out",
+            os.clock() - start, speed, frames, remaining)
+    end
     self.moving = false
     releaseCollisions()
     return arrived or false, not arrived
@@ -1858,7 +1870,7 @@ local function stealOnce(target)
 
     Status.Steal = "Travelling to " .. (target.AssetCategory or "?")
     if not Move:To(targetPos) then
-        Status.Steal = "Travel interrupted"
+        Status.Steal = "Travel failed: " .. tostring(Move.lastFail or "unknown")
         return false
     end
 
