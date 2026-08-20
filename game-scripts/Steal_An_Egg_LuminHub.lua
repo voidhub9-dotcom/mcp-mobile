@@ -1183,6 +1183,177 @@ local function espUpsert(key, adornee, opts)
 end
 
 --=====================================================================
+-- Egg prediction
+--=====================================================================
+--
+-- The game publishes no spawn schedule, and Directory DropWeight is NOT
+-- the area-egg table: it rates Cave Dragon at 59.7% and gives Orca and
+-- Alabaster Whale zero, yet both spawn in the field. Odds derived from
+-- it would be fiction, so nothing here uses it.
+--
+-- Instead every field reset is recorded and predictions come from what
+-- this account has actually seen: how often an egg appears per reset,
+-- how long since it last appeared, and how that compares with its own
+-- average gap. History persists to disk so it survives the AFK
+-- rotation, and every figure is reported with the sample size behind it.
+
+local Predict = {
+    resets      = 0,      -- resets observed
+    seen        = {},     -- category -> { count, lastResetIndex, lastClock, gaps = {} }
+    lastUids    = nil,
+    lastReset   = 0,
+    nextResetAt = nil,
+    rareReveal  = {},
+    loaded      = false,
+}
+
+local PREDICT_FILE = "LuminHub/spawns.json"
+
+local function predictLoad()
+    if Predict.loaded then return end
+    Predict.loaded = true
+    if not (isfile and isfile(PREDICT_FILE)) then return end
+    pcall(function()
+        local data = HttpService:JSONDecode(readfile(PREDICT_FILE))
+        if type(data) ~= "table" then return end
+        Predict.resets = tonumber(data.resets) or 0
+        if type(data.seen) == "table" then
+            for cat, rec in pairs(data.seen) do
+                if type(rec) == "table" then
+                    Predict.seen[cat] = {
+                        count = tonumber(rec.count) or 0,
+                        lastResetIndex = tonumber(rec.lastResetIndex) or 0,
+                        gaps = type(rec.gaps) == "table" and rec.gaps or {},
+                    }
+                end
+            end
+        end
+    end)
+end
+
+local function predictSave()
+    if not writefile then return end
+    pcall(function()
+        if not isfolder("LuminHub") then makefolder("LuminHub") end
+        writefile(PREDICT_FILE, HttpService:JSONEncode({
+            resets = Predict.resets,
+            seen   = Predict.seen,
+        }))
+    end)
+end
+
+-- Record the field as it stands right after a reset.
+local function predictRecordReset(records)
+    Predict.resets   = Predict.resets + 1
+    Predict.lastReset = os.clock()
+
+    local present = {}
+    for _, egg in pairs(records) do
+        if egg.AssetCategory then present[egg.AssetCategory] = true end
+    end
+
+    for cat in pairs(present) do
+        local rec = Predict.seen[cat]
+        if not rec then
+            rec = { count = 0, lastResetIndex = 0, gaps = {} }
+            Predict.seen[cat] = rec
+        end
+        if rec.lastResetIndex > 0 then
+            local gap = Predict.resets - rec.lastResetIndex
+            table.insert(rec.gaps, gap)
+            -- keep the window bounded so old behaviour ages out
+            while #rec.gaps > 40 do table.remove(rec.gaps, 1) end
+        end
+        rec.count = rec.count + 1
+        rec.lastResetIndex = Predict.resets
+    end
+    predictSave()
+end
+
+-- A reset is a wholesale turnover of the field's Uids.
+local function predictCheckReset(records)
+    local uids, n = {}, 0
+    for _, egg in pairs(records) do
+        if egg.Uid then uids[egg.Uid] = true n = n + 1 end
+    end
+    if n == 0 then return false end
+
+    if not Predict.lastUids then
+        Predict.lastUids = uids
+        return false
+    end
+
+    local kept, prev = 0, 0
+    for uid in pairs(Predict.lastUids) do
+        prev = prev + 1
+        if uids[uid] then kept = kept + 1 end
+    end
+    Predict.lastUids = uids
+    if prev == 0 then return false end
+
+    -- more than 70% of the field replaced at once
+    if (kept / prev) < 0.3 then
+        predictRecordReset(records)
+        return true
+    end
+    return false
+end
+
+-- Seconds until the next field reset, read from the game's own timer.
+local function predictNextReset()
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    local gui = pg and pg:FindFirstChild("GameResetTimer")
+    if not gui then return nil end
+    local best
+    for _, d in ipairs(gui:GetDescendants()) do
+        if d:IsA("TextLabel") and d.Visible and d.Text ~= "" then
+            local m, s = d.Text:match("(%d+)m%s*(%d+)s")
+            local total
+            if m then
+                total = tonumber(m) * 60 + tonumber(s)
+            else
+                local only = d.Text:match("(%d+)s")
+                if only then total = tonumber(only) end
+            end
+            -- the largest reading is the field reset; the small one is a sub-timer
+            if total and (not best or total > best) then best = total end
+        end
+    end
+    return best
+end
+
+-- Ranked by how overdue each egg is against its own measured gap.
+local function predictRanked(minRarity, limit)
+    local rows = {}
+    for cat, rec in pairs(Predict.seen) do
+        local info = AssetInfo[cat]
+        local rarity = info and info.rarity or "?"
+        if (not minRarity) or minRarity == "" or rarityNum(rarity) >= rarityNum(minRarity) then
+            local mean = 0
+            if #rec.gaps > 0 then
+                local sum = 0
+                for _, g in ipairs(rec.gaps) do sum = sum + g end
+                mean = sum / #rec.gaps
+            end
+            local since = Predict.resets - (rec.lastResetIndex or 0)
+            local rate  = Predict.resets > 0 and (rec.count / Predict.resets) or 0
+            rows[#rows + 1] = {
+                cat = cat, rarity = rarity, rate = rate, mean = mean,
+                since = since, samples = #rec.gaps,
+                due = (mean > 0) and (since / mean) or 0,
+            }
+        end
+    end
+    table.sort(rows, function(a, b)
+        if a.due ~= b.due then return a.due > b.due end
+        return a.rate < b.rate
+    end)
+    local out = {}
+    for i = 1, math.min(limit or 8, #rows) do out[#out + 1] = rows[i] end
+    return out
+end
+
+--=====================================================================
 -- GodMode
 --=====================================================================
 --
@@ -1791,6 +1962,7 @@ local Tabs = {
     Farm       = Window:AddTab("Farm",       "flag",             "Egg stealing and filters."),
     Automation = Window:AddTab("Automation", "cpu",              "Eggs, pets, and progression."),
     Sell       = Window:AddTab("Sell",       "coins",            "Selling, fusing, and inventory."),
+    Predict    = Window:AddTab("Predict",    "chart-line",       "Reset timing and measured spawn rates."),
     Visual     = Window:AddTab("Visual",     "eye",              "ESP, intel, and movement."),
     Utility    = Window:AddTab("Utility",    "wrench",           "Player, server, and performance."),
     Config     = Window:AddTab("Settings",   "settings",         "Interface, themes, and configs."),
@@ -2666,6 +2838,54 @@ end)
 --=====================================================================
 -- VISUAL
 --=====================================================================
+
+--=====================================================================
+-- PREDICT
+--=====================================================================
+
+local ResetGB = Tabs.Predict:AddLeftGroupbox("Field Reset", "timer")
+local resetLabel   = ResetGB:AddLabel("Next reset: --", true)
+local resetsLabel  = ResetGB:AddLabel("Resets observed: 0", true)
+
+ResetGB:AddToggle("PredictEnabled", {
+    Text    = "Track Spawns",
+    Tooltip = "Records the field at every reset and builds spawn rates from what actually appears.",
+    Default = true,
+    Callback = function(v) Flags.PredictEnabled = v end,
+})
+
+ResetGB:AddToggle("PredictNotify", {
+    Text    = "Notify On Reset",
+    Default = false,
+    Callback = function(v) Flags.PredictNotify = v end,
+})
+
+ResetGB:AddButton("Reset History", function()
+    Predict.resets = 0
+    Predict.seen = {}
+    Predict.lastUids = nil
+    predictSave()
+    showToast("Lumin Hub", "Spawn history cleared")
+end)
+
+local RankGB = Tabs.Predict:AddRightGroupbox("Most Overdue", "trending-up")
+
+RankGB:AddDropdown("PredictMinRarity", {
+    Text      = "Minimum Rarity",
+    Values    = RarityOrder,
+    Default   = nil,
+    AllowNull = true,
+    Callback  = function(v) Flags.PredictMinRarity = v end,
+})
+
+local rankLabel = RankGB:AddLabel("Collecting data...", true)
+
+local RevealGB = Tabs.Predict:AddLeftGroupbox("Rare Spawn Reveal", "sparkle")
+RevealGB:AddLabel("Rare eggs the server announces for the coming reset.", true)
+local revealLabel = RevealGB:AddLabel("None announced yet", true)
+
+local StatsGB = Tabs.Predict:AddRightGroupbox("Observed Rarity Mix", "gem")
+local statsLabel = StatsGB:AddLabel("No samples yet", true)
 
 local ESPGB = Tabs.Visual:AddLeftGroupbox("ESP", "eye")
 
@@ -3626,6 +3846,53 @@ local function watchForKick()
     end))
 end
 
+predictLoad()
+
+-- Watch the field for the wholesale Uid turnover that marks a reset.
+startLoop("PredictWatch", function()
+    if Flags.PredictEnabled ~= false then
+        local records = getAreaEggs()
+        if next(records) then
+            if predictCheckReset(records) and Flags.PredictNotify then
+                showToast("Lumin Hub", "Field reset - sample " .. Predict.resets .. " recorded")
+            end
+        end
+    end
+    task.wait(3)
+end)
+
+-- The server announces rare spawns for the coming reset.
+do
+    local ok, cmds = pcall(function()
+        return require(ReplicatedStorage.Library.Client.EggCmds)
+    end)
+    if ok and type(cmds) == "table" and cmds.AreaEggRareSpawnsPresented then
+        pcall(function()
+            trackConn(cmds.AreaEggRareSpawnsPresented:Connect(function(payload)
+                local list = {}
+                if type(payload) == "table" then
+                    for _, v in pairs(payload) do
+                        if type(v) == "table" then
+                            local cat = v.AssetCategory or v.Category or v.Name
+                            if cat then table.insert(list, tostring(cat)) end
+                        elseif type(v) == "string" then
+                            table.insert(list, v)
+                        end
+                    end
+                end
+                if #list > 0 then
+                    Predict.rareReveal = list
+                    if Flags.PredictNotify then
+                        showToast("Rare spawn", table.concat(list, ", "):sub(1, 90))
+                    end
+                end
+            end))
+        end)
+    end
+end
+
+watchForKick()
+
 --=====================================================================
 -- Runtime wiring
 --=====================================================================
@@ -3679,8 +3946,6 @@ trackConn(LocalPlayer.CharacterAdded:Connect(function(char)
     if Flags.WalkSpeed and Flags.WalkSpeed > 16 then hum.WalkSpeed = Flags.WalkSpeed end
     if Flags.JumpPower and Flags.JumpPower > 50 then hum.JumpPower = Flags.JumpPower end
 end))
-
-watchForKick()
 
 -- Sell confirmation watcher
 startLoop("SellConfirmWatcher", function()
@@ -3802,6 +4067,51 @@ spawnTracked(function()
         end
         intelLabel:SetText("Players (" .. #players .. "):\n" .. table.concat(rows, "\n"))
 
+        -- Predict tab
+        do
+            local secs = predictNextReset()
+            resetLabel:SetText(secs
+                and string.format("Next reset: %dm %02ds", math.floor(secs / 60), secs % 60)
+                or "Next reset: --")
+            resetsLabel:SetText("Resets observed: " .. Predict.resets)
+
+            if Predict.resets < 3 then
+                rankLabel:SetText(string.format(
+                    "Collecting data - %d reset%s recorded.\nRates need a few samples before they mean anything.",
+                    Predict.resets, Predict.resets == 1 and "" or "s"))
+            else
+                local rows = predictRanked(Flags.PredictMinRarity, 8)
+                local out = {}
+                for i, r in ipairs(rows) do
+                    out[#out + 1] = string.format("%d. %s [%s]  %.0f%% of resets  last %d ago  n=%d",
+                        i, r.cat, r.rarity, r.rate * 100, r.since, r.samples)
+                end
+                rankLabel:SetText(#out > 0 and table.concat(out, "\n") or "No eggs match that rarity yet")
+            end
+
+            revealLabel:SetText(#Predict.rareReveal > 0
+                and table.concat(Predict.rareReveal, "\n") or "None announced yet")
+
+            if Predict.resets > 0 then
+                local tally, tot = {}, 0
+                for cat, rec in pairs(Predict.seen) do
+                    local info = AssetInfo[cat]
+                    local rar = info and info.rarity or "?"
+                    tally[rar] = (tally[rar] or 0) + rec.count
+                    tot = tot + rec.count
+                end
+                local lines = {}
+                for _, rar in ipairs(RarityOrder) do
+                    if tally[rar] then
+                        lines[#lines + 1] = string.format("%s  %d  (%.1f%%)",
+                            rar, tally[rar], tally[rar] / math.max(tot, 1) * 100)
+                    end
+                end
+                statsLabel:SetText(string.format("Across %d resets, %d sightings\n%s",
+                    Predict.resets, tot, table.concat(lines, "\n")))
+            end
+        end
+
         local pg = LocalPlayer:FindFirstChild("PlayerGui")
         local timerGui = pg and pg:FindFirstChild("GameResetTimer")
         local resetText = "--"
@@ -3850,6 +4160,8 @@ Flags.FlingSensitivity  = 1.6
 Flags.HighlightESP      = true
 Flags.HopMethod         = "Least Populated"
 Flags.DebugMode         = false
+Flags.PredictEnabled    = true
+Flags.PredictNotify     = false
 
 _G.LuminHubDebug = function()
     return {
