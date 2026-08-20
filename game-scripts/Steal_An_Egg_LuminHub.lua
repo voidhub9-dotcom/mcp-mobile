@@ -1436,6 +1436,30 @@ do
     local regrabBusy, lastTriedToken = false, 0
     local EggCmds, Ragdoll
 
+    -- Rolling trail of recent positions.
+    --
+    -- The lock arms on the Physics state change, but a knockback can land
+    -- a frame or two before that fires; measured, velocity arriving 30ms
+    -- early leaked 31 studs because the anchor was captured after the
+    -- shove. Anchoring to where we were just before the hit closes that,
+    -- without any velocity threshold -- which is what previously froze
+    -- the character during ordinary running.
+    local trail, TRAIL_BACK = {}, 0.18
+
+    local function pushTrail(cf)
+        local now = os.clock()
+        table.insert(trail, { t = now, cf = cf })
+        while #trail > 0 and now - trail[1].t > 0.6 do table.remove(trail, 1) end
+    end
+
+    local function trailAnchor(fallback)
+        local cutoff = os.clock() - TRAIL_BACK
+        for i = #trail, 1, -1 do
+            if trail[i].t <= cutoff then return trail[i].cf end
+        end
+        return trail[1] and trail[1].cf or fallback
+    end
+
     local function disconnectList(list)
         for _, c in ipairs(list) do pcall(function() c:Disconnect() end) end
         table.clear(list)
@@ -1488,6 +1512,7 @@ do
 
     local function attachCharacter(newCharacter)
         disconnectList(characterConnections)
+        table.clear(trail)
         character = newCharacter
         humanoid  = newCharacter:WaitForChild("Humanoid", 10)
         root      = newCharacter:WaitForChild("HumanoidRootPart", 10)
@@ -1496,7 +1521,7 @@ do
         table.insert(characterConnections, humanoid.StateChanged:Connect(function(_, state)
             if not God.active or state ~= Enum.HumanoidStateType.Physics then return end
             hitAt       = os.clock()
-            anchor      = root.CFrame
+            anchor      = trailAnchor(root.CFrame)
             lockUntil   = hitAt + 0.45
             God.lastHit = hitAt
             God.flings  = God.flings + 1
@@ -1511,6 +1536,13 @@ do
 
         table.insert(characterConnections, RunService.PostSimulation:Connect(function()
             if not God.active or not root then return end
+
+            -- only record positions we arrived at legitimately
+            if not anchor and not Move.moving
+                and humanoid:GetState() ~= Enum.HumanoidStateType.Physics then
+                pushTrail(root.CFrame)
+            end
+
             if anchor and os.clock() < lockUntil then
                 root.CFrame = anchor
                 root.AssemblyLinearVelocity  = Vector3.zero
