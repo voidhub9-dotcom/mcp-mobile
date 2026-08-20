@@ -971,7 +971,7 @@ local function driveVehicleTo(model, targetPos, speed)
     if not model:IsA("Model") then return false end
     speed = math.clamp(speed or Flags.VehicleTravelSpeed or 250, 20, VEHICLE_SPEED_CAP)
 
-    local cruise = math.max(Flags.CruiseHeight or 60, 0)
+    local cruise = math.max(Flags.CruiseHeight or 0, 0)
     local landingRange = 180
     local done, lost = false, false
 
@@ -3846,11 +3846,11 @@ TabVehicle:CreateToggle({
 
 TabVehicle:CreateSlider({
     Title = "Cruise Height",
-    Description = "How high the farm lifts the car over the map on long routes. 0 keeps it on the road",
+    Description = "Lifts the car over the map on long routes. Leave at 0 - the vehicle anti-cheat drags an airborne car backwards",
     Icon = ICONS.rocket,
     Min = 0,
     Max = 250,
-    Default = 60,
+    Default = 0,
     Decimals = 0,
     SaveId = "sdb_cruise_height",
     Side = 2,
