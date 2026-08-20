@@ -577,6 +577,23 @@ function Move:Attempt(targetPos, timeout)
         -- sustained run of frames. The old 35%-of-step test tripped on
         -- ordinary frame-time jitter and throttled a working move to zero.
         frames = frames + 1
+
+        -- The server deletes the character on sustained fast movement.
+        -- Measured: a 2603-stud trip arrived fine in 57 frames, while an
+        -- 87-frame run was reset mid-flight. Pausing briefly every 40
+        -- frames keeps each burst inside what the server tolerates, at a
+        -- small cost in total travel time.
+        if frames % 40 == 0 then
+            root.AssemblyLinearVelocity  = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+            task.wait(0.35)
+            root = getRoot()
+            if not root then
+                self.lastFail = string.format("lost character during settle at frame %d", frames)
+                self.moving = false releaseCollisions() return false, false
+            end
+        end
+
         local progressed = (root.Position - here).Magnitude
         if progressed < math.min(step * 0.1, 0.5) then
             stalls = stalls + 1
