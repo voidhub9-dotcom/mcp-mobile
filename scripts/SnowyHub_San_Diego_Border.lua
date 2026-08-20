@@ -1826,7 +1826,25 @@ local function exclusive(name, fn)
         Travel.cancel = false
         local ok, err = pcall(fn, ...)
         Busy[name] = nil
+        FarmNoclip.depth = 0
+        if not Flags.Noclip then FarmNoclip.pop() end
         if not ok then error(err, 0) end
+    end
+end
+
+local FARM_LOOPS = {
+    ItemFarm = "item_farm",
+    BoxFarm = "box_farm",
+    TruckFarm = "truck_farm",
+    BoatFarm = "boat_farm",
+}
+
+local function soloFarm(keep)
+    for flag, loop in pairs(FARM_LOOPS) do
+        if flag ~= keep and Flags[flag] then
+            Flags[flag] = false
+            stopLoop(loop)
+        end
     end
 end
 
@@ -2697,6 +2715,7 @@ UI.Tabs.TabFarm:CreateToggle({
     Side = 1,
     Callback = function(v)
         Flags.ItemFarm = v
+        if v then soloFarm("ItemFarm") end
         if v then spawnLoop("item_farm", 0.1, exclusive("farm", itemFarmStep)) else stopLoop("item_farm") end
     end,
 })
@@ -2793,6 +2812,7 @@ UI.Tabs.TabFarm:CreateToggle({
     Side = 1,
     Callback = function(v)
         Flags.BoxFarm = v
+        if v then soloFarm("BoxFarm") end
         if v then spawnLoop("box_farm", 0.1, exclusive("farm", boxFarmStep)) else stopLoop("box_farm") end
     end,
 })
@@ -2845,6 +2865,7 @@ UI.Tabs.TabFarm:CreateToggle({
     Side = 2,
     Callback = function(v)
         Flags.TruckFarm = v
+        if v then soloFarm("TruckFarm") end
         if v then spawnLoop("truck_farm", 0.2, exclusive("farm", truckFarmStep)) else stopLoop("truck_farm") end
     end,
 })
@@ -2895,6 +2916,7 @@ UI.Tabs.TabFarm:CreateToggle({
     Side = 2,
     Callback = function(v)
         Flags.BoatFarm = v
+        if v then soloFarm("BoatFarm") end
         if v then spawnLoop("boat_farm", 0.2, exclusive("farm", boatFarmStep)) else stopLoop("boat_farm") end
     end,
 })
