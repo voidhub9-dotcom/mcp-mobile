@@ -520,6 +520,7 @@ function Move:Attempt(targetPos, timeout)
     local root = getRoot()
     if not root then return false, false end
     self.moving = true
+    self.lastFail = nil
 
     local speed  = self:CurrentSpeed()
     local start  = os.clock()
@@ -548,9 +549,9 @@ function Move:Attempt(targetPos, timeout)
     end
 
     while os.clock() - start < timeout do
-        if self.cancel then self.moving = false releaseCollisions() return false, false end
+        if self.cancel then self.lastFail = "cancelled" self.moving = false releaseCollisions() return false, false end
         root = getRoot()
-        if not root then self.moving = false releaseCollisions() return false, false end
+        if not root then self.lastFail = string.format("lost character after %d frames", frames) self.moving = false releaseCollisions() return false, false end
 
         local here = root.Position
         local toGo = targetPos - here
@@ -562,7 +563,7 @@ function Move:Attempt(targetPos, timeout)
         local step = math.min(speed * dt, dist)
 
         root = getRoot()
-        if not root then self.moving = false releaseCollisions() return false, false end
+        if not root then self.lastFail = string.format("lost character after %d frames", frames) self.moving = false releaseCollisions() return false, false end
         root.CFrame = CFrame.new(here + toGo.Unit * step)
         -- the part that actually makes it stick
         root.AssemblyLinearVelocity  = Vector3.zero
@@ -570,7 +571,7 @@ function Move:Attempt(targetPos, timeout)
 
         RunService.Heartbeat:Wait()
         root = getRoot()
-        if not root then self.moving = false releaseCollisions() return false, false end
+        if not root then self.lastFail = string.format("lost character after %d frames", frames) self.moving = false releaseCollisions() return false, false end
 
         -- Only treat it as blocked when we make no headway at all for a
         -- sustained run of frames. The old 35%-of-step test tripped on
