@@ -1464,6 +1464,33 @@ local function godStripMovers(char)
     end
 end
 
+local RAGDOLL_BLOCKED = {
+    Enum.HumanoidStateType.Ragdoll,
+    Enum.HumanoidStateType.FallingDown,
+    Enum.HumanoidStateType.Physics,
+    Enum.HumanoidStateType.Dead,
+}
+
+-- The game drives knockdowns off a RagdollEndTime attribute on the
+-- player and by adding physics joints to the character. Blocking the
+-- humanoid states alone still let a hit land, so clear the timer and
+-- strip the joints as they appear.
+local function godClearRagdoll()
+    pcall(function()
+        local t = LocalPlayer:GetAttribute("RagdollEndTime")
+        if type(t) == "number" and t > os.time() then
+            LocalPlayer:SetAttribute("RagdollEndTime", 0)
+        end
+    end)
+    local char = getCharacter()
+    if not char then return end
+    for _, d in ipairs(char:GetDescendants()) do
+        if d:IsA("BallSocketConstraint") or d:IsA("HingeConstraint") then
+            pcall(function() d.Enabled = false end)
+        end
+    end
+end
+
 local function godCalmCharacter()
     local char = getCharacter()
     if not char then return end
@@ -1615,13 +1642,6 @@ local function godWatchState(char)
     trackConn(StateConn)
 end
 
-local RAGDOLL_BLOCKED = {
-    Enum.HumanoidStateType.Ragdoll,
-    Enum.HumanoidStateType.FallingDown,
-    Enum.HumanoidStateType.Physics,
-    Enum.HumanoidStateType.Dead,
-}
-
 local function godHardenHumanoid(char)
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
@@ -1630,26 +1650,6 @@ local function godHardenHumanoid(char)
     end
     pcall(function() hum.BreakJointsOnDeath = false end)
     pcall(function() hum.RequiresNeck = false end)
-end
-
--- The game drives knockdowns off a RagdollEndTime attribute on the
--- player and by adding physics joints to the character. Blocking the
--- humanoid states alone still let a hit land, so clear the timer and
--- strip the joints as they appear.
-local function godClearRagdoll()
-    pcall(function()
-        local t = LocalPlayer:GetAttribute("RagdollEndTime")
-        if type(t) == "number" and t > os.time() then
-            LocalPlayer:SetAttribute("RagdollEndTime", 0)
-        end
-    end)
-    local char = getCharacter()
-    if not char then return end
-    for _, d in ipairs(char:GetDescendants()) do
-        if d:IsA("BallSocketConstraint") or d:IsA("HingeConstraint") then
-            pcall(function() d.Enabled = false end)
-        end
-    end
 end
 
 -- Re-grab the egg the guard just knocked loose.
