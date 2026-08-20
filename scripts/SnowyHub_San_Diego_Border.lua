@@ -1549,7 +1549,7 @@ local function rebuildLocations()
     local function add(name, pos)
         if not pos then return end
         for _, existing in ipairs(Locations) do
-            if (existing.Position - pos).Magnitude < 40 then return end
+            if (existing.Position - pos).Magnitude < 15 then return end
         end
         table.insert(Locations, { Name = name, Position = pos })
     end
