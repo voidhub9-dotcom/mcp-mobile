@@ -1403,351 +1403,213 @@ end
 -- GodMode
 --=====================================================================
 --
--- Guard hits do three things: they fling you, they ragdoll you, and they
--- knock the egg out of your hands (DropReasons.GuardHit). GodMode
--- cancels all three so a carry run cannot be interrupted.
+-- Guard hits fling you, ragdoll you, and knock the egg loose. This
+-- cancels all three.
 --
--- The carry-state event only reports { IsCarrying, Uid, AreaId,
--- AssetCategory, SpeedMultiplier } -- there is no drop reason on it. So
--- the hub marks its own deliberate drops, and any other transition from
--- carrying to not-carrying is treated as a hit and re-grabbed. Without
--- that distinction GodMode would fight the farm loop by snatching the
--- egg back up the instant it was delivered to the plot.
+-- Two things make it work where earlier attempts did not. It clears the
+-- ragdoll through the game's own Library.Modules.Ragdoll.ClearClientRagdoll
+-- rather than fighting humanoid states, and it tells a guard hit from a
+-- deliberate drop by correlating the egg going to State "Dropped" with a
+-- Physics state change in the same 0.2s window -- so no flag has to be
+-- set by the rest of the hub, and a delivery at the plot is never
+-- mistaken for a hit.
+--
+-- Carry requests go through EggCmds.RequestCarryAreaEgg, which also
+-- handles the FirstAreaEgg_ case that needs an AreaId:NestId key.
 
 local God = {
-    carrying        = false,
-    carryUid        = nil,
-    carryArea       = nil,
-    intentionalDrop = false,
-    regrabs         = 0,
-    lastHit         = 0,
-    regrabbing      = false,
-    flings          = 0,
-    anchored        = false,
-    lastDrift       = 0,
-    shouldCarry     = nil,
-    worstDrift      = 0,
-    lastRegrab      = 0,
-    burst           = 0,
-    burstStart      = 0,
+    regrabs   = 0,
+    flings    = 0,
+    lastHit   = 0,
+    carrying  = false,
+    carryUid  = nil,
+    active    = false,
 }
 
--- A knockback has to be judged against how fast this player actually
--- runs. Walk speed in this game reaches ~163 with trails, so a fixed
--- low threshold reads normal running as a fling and anchors you in
--- place. The limit is derived from the live WalkSpeed instead, and only
--- horizontal speed counts so falling is never mistaken for a push.
-local function flingLimit()
-    local hum = getHumanoid()
-    local ws  = (hum and hum.WalkSpeed) or 16
-    local mult = tonumber(Flags.FlingSensitivity) or 1.6
-    return math.max(ws * mult + 40, 160)
-end
--- After a spike, keep the character's velocity pinned for this long so
--- the residual push cannot carry it. Deliberately velocity-only: an
--- earlier attempt restored position instead and shoved the character
--- through the map, so nothing here ever writes CFrame.
-local FLING_HOLD = 0.6
-local FlingHoldUntil = 0
+local LuminGod = {}
+do
+    local connections, characterConnections = {}, {}
+    local character, humanoid, root
+    local anchor, lockUntil, hitAt = nil, 0, 0
+    local carriedUid, uidUntil = nil, 0
+    local pendingDrop, pendingToken, dropAt = nil, 0, 0
+    local regrabBusy, lastTriedToken = false, 0
+    local EggCmds, Ragdoll
 
-local function godStripMovers(char)
-    if not char then return end
-    for _, d in ipairs(char:GetDescendants()) do
-        if d:IsA("BodyVelocity") or d:IsA("BodyAngularVelocity") or d:IsA("BodyThrust")
-            or d:IsA("BodyForce") or d:IsA("BodyGyro") or d:IsA("VectorForce")
-            or d:IsA("LinearVelocity") or d:IsA("AngularVelocity") then
-            -- leave the hub's own fly movers alone
-            if d ~= Visuals["_fly_bv"] and d ~= Visuals["_fly_bg"] then
-                pcall(function() d:Destroy() end)
-            end
-        end
-    end
-end
-
-local RAGDOLL_BLOCKED = {
-    Enum.HumanoidStateType.Ragdoll,
-    Enum.HumanoidStateType.FallingDown,
-    Enum.HumanoidStateType.Physics,
-    Enum.HumanoidStateType.Dead,
-}
-
--- The game drives knockdowns off a RagdollEndTime attribute on the
--- player and by adding physics joints to the character. Blocking the
--- humanoid states alone still let a hit land, so clear the timer and
--- strip the joints as they appear.
-local function godClearRagdoll()
-    pcall(function()
-        local t = LocalPlayer:GetAttribute("RagdollEndTime")
-        if type(t) == "number" and t > os.time() then
-            LocalPlayer:SetAttribute("RagdollEndTime", 0)
-        end
-    end)
-    local char = getCharacter()
-    if not char then return end
-    for _, d in ipairs(char:GetDescendants()) do
-        if d:IsA("BallSocketConstraint") or d:IsA("HingeConstraint") then
-            pcall(function() d.Enabled = false end)
-        end
-    end
-end
-
-local function godCalmCharacter()
-    local char = getCharacter()
-    if not char then return end
-    local root = getRoot()
-    local hum  = getHumanoid()
-
-    if root and not Flags.Fly then
-        local now = os.clock()
-        local vel = root.AssemblyLinearVelocity
-        local horizontal = Vector3.new(vel.X, 0, vel.Z).Magnitude
-
-        if horizontal > flingLimit() then
-            FlingHoldUntil = now + FLING_HOLD
-            God.lastHit    = now
-            God.flings     = (God.flings or 0) + 1
-        end
-
-        -- Hold position by anchoring rather than by writing a CFrame.
-        -- Anchoring freezes the character exactly where it already is, so
-        -- unlike a position restore it can never drop you through the map.
-        if now < FlingHoldUntil and not Move.moving then
-            if not root.Anchored then root.Anchored = true end
-            root.AssemblyLinearVelocity  = Vector3.zero
-            root.AssemblyAngularVelocity = Vector3.zero
-        else
-            if root.Anchored and God.anchored then
-                root.Anchored = false
-                God.anchored  = false
-                root.AssemblyLinearVelocity = Vector3.zero
-            end
-            if root.AssemblyAngularVelocity.Magnitude > 10 then
-                root.AssemblyAngularVelocity = Vector3.zero
-            end
-        end
-        if now < FlingHoldUntil and root.Anchored then God.anchored = true end
+    local function disconnectList(list)
+        for _, c in ipairs(list) do pcall(function() c:Disconnect() end) end
+        table.clear(list)
     end
 
-    if hum then
-        -- keep re-asserting: the game re-enables these on respawn and
-        -- sometimes mid-life, and one gap is enough for a hit to land
-        for _, s in ipairs(RAGDOLL_BLOCKED) do
-            if hum:GetStateEnabled(s) then
-                pcall(function() hum:SetStateEnabled(s, false) end)
-            end
+    local function clearPhysics()
+        if not God.active or not (character and humanoid and root) then return end
+        if Ragdoll and Ragdoll.ClearClientRagdoll then
+            pcall(Ragdoll.ClearClientRagdoll, character)
         end
-        godClearRagdoll()
-        if hum.PlatformStand and not Flags.Fly then hum.PlatformStand = false end
-        local state = hum:GetState()
-        if state == Enum.HumanoidStateType.Ragdoll
-            or state == Enum.HumanoidStateType.FallingDown
-            or state == Enum.HumanoidStateType.Physics
-            or state == Enum.HumanoidStateType.Seated then
-            pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-            God.lastHit = os.clock()
-        end
-    end
-end
-
--- Measured on a live guard hit: the knockback's horizontal speed is only
--- ~105 studs/s, BELOW this game's 163 walk speed, so no velocity
--- threshold can ever distinguish it from running. What does mark the hit
--- is the humanoid dropping into Physics state -- 3 seconds of it and ~80
--- studs of drift with GodMode off, versus 30ms with anti-ragdoll on.
--- So the hold is armed off the state change, not off velocity.
-local RAGDOLL_STATES = {
-    [Enum.HumanoidStateType.Physics]     = true,
-    [Enum.HumanoidStateType.Ragdoll]     = true,
-    [Enum.HumanoidStateType.FallingDown] = true,
-}
-
--- Every real hit measures itself and the result is appended to
--- LuminHub/hits.log, which survives the reconnects this game's AFK
--- rotation causes. "drift" is how far the knockback actually moved us:
--- the number that says whether GodMode held.
-local function godRecordHit(startPos, carriedBefore)
-    local hum0 = getHumanoid()
-    -- Walking at 163 studs/s covers 300+ studs in two seconds, so raw
-    -- displacement cannot tell a knockback from the player running. What
-    -- matters is displacement during the hold, while we are anchored:
-    -- if the hold worked that is ~0 no matter what happens afterwards.
-    local commanded = hum0 and hum0.MoveDirection.Magnitude > 0.1 or false
-
-    task.spawn(function()
-        local holdEnd = FlingHoldUntil
-        while os.clock() < holdEnd + 0.05 do task.wait(0.03) end
-
-        local r = getRoot()
-        local driftHold = r and (r.Position - startPos).Magnitude or -1
-
-        local peak = driftHold
-        local t0 = os.clock()
-        while os.clock() - t0 < 1.5 do
-            local rr = getRoot()
-            if rr then
-                local d = (rr.Position - startPos).Magnitude
-                if d > peak then peak = d end
-            end
-            task.wait(0.05)
-        end
-
-        God.lastDrift = driftHold
-        if driftHold > (God.worstDrift or 0) then God.worstDrift = driftHold end
-
-        if not (writefile and appendfile) then return end
-        local line = string.format(
-            "%s hold=%.1f after=%.1f walking=%s carried=%s->%s regrabs=%d\n",
-            os.date("%H:%M:%S"), driftHold, peak, tostring(commanded),
-            tostring(carriedBefore), tostring(God.carrying), God.regrabs)
-        pcall(function()
-            if not isfolder("LuminHub") then makefolder("LuminHub") end
-            if isfile("LuminHub/hits.log") then
-                appendfile("LuminHub/hits.log", line)
-            else
-                writefile("LuminHub/hits.log", line)
-            end
-        end)
-    end)
-end
-
-local function godOnStateChanged(_, new)
-    if not Flags.GodMode then return end
-    if not RAGDOLL_STATES[new] then return end
-    if Move.moving or Flags.Fly then return end
-
-    FlingHoldUntil = os.clock() + FLING_HOLD
-    God.lastHit    = os.clock()
-    God.flings     = (God.flings or 0) + 1
-
-    local root = getRoot()
-    if root then
-        godRecordHit(root.Position, God.carrying)
         root.AssemblyLinearVelocity  = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
-        if not root.Anchored then
-            root.Anchored = true
-            God.anchored  = true
+        pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Running) end)
+    end
+
+    local function tryRegrab(record, token)
+        if not God.active or regrabBusy or token ~= pendingToken
+            or token == lastTriedToken or type(record) ~= "table" then
+            return
         end
-    end
-    local hum = getHumanoid()
-    if hum then pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end) end
-end
+        local uid = tostring(record.Uid or "")
+        if uid == "" or uid ~= tostring(carriedUid or "") then return end
 
-local StateConn
-local function godWatchState(char)
-    if StateConn then pcall(function() StateConn:Disconnect() end) StateConn = nil end
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    StateConn = hum.StateChanged:Connect(godOnStateChanged)
-    trackConn(StateConn)
-end
+        regrabBusy = true
+        lastTriedToken = token
 
-local function godHardenHumanoid(char)
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    for _, s in ipairs(RAGDOLL_BLOCKED) do
-        pcall(function() hum:SetStateEnabled(s, false) end)
-    end
-    pcall(function() hum.BreakJointsOnDeath = false end)
-    pcall(function() hum.RequiresNeck = false end)
-end
+        task.spawn(function()
+            local key
+            if uid:sub(1, 13) == "FirstAreaEgg_" and record.AreaId and record.NestId then
+                key = tostring(record.AreaId) .. ":" .. tostring(record.NestId)
+            end
 
--- Re-grab the egg the guard just knocked loose.
---
--- Reworked: the previous version gave up after 4 attempts in 10s and sat
--- on a 1.25s cooldown, so it recovered the first hit and then went quiet
--- for the rest of the run. It is now single-flight only -- no burst cap,
--- a short cooldown -- and a polling watchdog re-arms it if the
--- carry-state event is ever missed.
-local function godRegrab(uid)
-    if not uid then return false end
-    if God.regrabbing then return false end
-    if os.clock() - (God.lastRegrab or 0) < 0.25 then return false end
+            local deadline = os.clock() + 0.65
+            repeat
+                if not God.active or token ~= pendingToken then break end
+                local ok, success = pcall(EggCmds.RequestCarryAreaEgg, uid, key)
+                if ok and success == true then
+                    uidUntil     = math.huge
+                    God.regrabs  = God.regrabs + 1
+                    God.carrying = true
+                    Status.Steal = "GodMode: re-grabbed after hit (" .. God.regrabs .. ")"
+                    break
+                end
+                task.wait(0.05)
+            until os.clock() >= deadline
 
-    local remote = Network:FindFirstChild("Eggs: RequestAreaEggCarry")
-    if not remote then return false end
-
-    God.regrabbing = true
-    God.lastRegrab = os.clock()
-
-    local function finish(v)
-        God.regrabbing = false
-        return v
-    end
-
-    local deadline = os.clock() + 10
-    while os.clock() < deadline do
-        if not Flags.GodMode then return finish(false) end
-        if God.carrying then return finish(true) end
-
-        local ok, res = pcall(function()
-            return remote:InvokeServer({ Uid = uid })
+            regrabBusy = false
         end)
-        if ok and res == true then
-            God.regrabs  = God.regrabs + 1
-            God.carrying    = true
-            God.carryUid    = uid
-            God.shouldCarry = uid
-            Status.Steal = "GodMode: re-grabbed after hit (" .. God.regrabs .. ")"
-            return finish(true)
-        end
+    end
 
-        -- Step onto the dropped egg between attempts; it lands at our feet
-        -- but the server still wants us inside pickup range.
-        local root = getRoot()
-        if root then
-            for _, rec in pairs(getAreaEggs()) do
-                if rec.Uid == uid then
-                    local cf = rec.BoundsCFrame or rec.BottomCFrame
-                    if cf then
-                        pcall(function()
-                            root.CFrame = CFrame.new(groundAt(cf.Position))
-                            root.AssemblyLinearVelocity = Vector3.zero
-                        end)
-                    end
+    local function attachCharacter(newCharacter)
+        disconnectList(characterConnections)
+        character = newCharacter
+        humanoid  = newCharacter:WaitForChild("Humanoid", 10)
+        root      = newCharacter:WaitForChild("HumanoidRootPart", 10)
+        if not (humanoid and root) then return end
+
+        table.insert(characterConnections, humanoid.StateChanged:Connect(function(_, state)
+            if not God.active or state ~= Enum.HumanoidStateType.Physics then return end
+            hitAt       = os.clock()
+            anchor      = root.CFrame
+            lockUntil   = hitAt + 0.45
+            God.lastHit = hitAt
+            God.flings  = God.flings + 1
+
+            clearPhysics()
+            task.defer(clearPhysics)
+
+            if pendingDrop and math.abs(hitAt - dropAt) <= 0.2 then
+                tryRegrab(pendingDrop, pendingToken)
+            end
+        end))
+
+        table.insert(characterConnections, RunService.PostSimulation:Connect(function()
+            if not God.active or not root then return end
+            if anchor and os.clock() < lockUntil then
+                root.CFrame = anchor
+                root.AssemblyLinearVelocity  = Vector3.zero
+                root.AssemblyAngularVelocity = Vector3.zero
+                if humanoid:GetState() == Enum.HumanoidStateType.Physics then
+                    clearPhysics()
+                end
+            else
+                anchor = nil
+            end
+        end))
+
+        -- pick up an egg we are already carrying
+        pcall(function()
+            local snapshot = EggCmds.GetAreaEggSnapshot()
+            for _, record in pairs((snapshot and snapshot.Records) or {}) do
+                if record.State == "Carried" and record.CarrierUserId == LocalPlayer.UserId then
+                    carriedUid   = tostring(record.Uid)
+                    uidUntil     = math.huge
+                    God.carrying = true
+                    God.carryUid = carriedUid
                     break
                 end
             end
-        end
-        task.wait(0.12)
+        end)
     end
-    return finish(false)
-end
 
--- Called by the hub whenever it drops on purpose.
-local function godMarkIntentionalDrop()
-    God.intentionalDrop = true
-    God.shouldCarry     = nil
-    task.delay(1.5, function() God.intentionalDrop = false end)
-end
+    function LuminGod:Start()
+        if God.active then return true end
 
-do
-    local carryState = Network:FindFirstChild("Eggs: AreaEggCarryState")
-    if carryState and carryState:IsA("RemoteEvent") then
-        trackConn(carryState.OnClientEvent:Connect(function(payload)
-            if type(payload) ~= "table" then return end
-            local wasCarrying = God.carrying
-            local lastUid     = God.carryUid
+        -- EggCmds fetches the egg snapshot at init behind its own retry
+        -- loop, so it is required here rather than on the hub's load path.
+        local okE, cmds = pcall(function()
+            return require(ReplicatedStorage.Library.Client.EggCmds)
+        end)
+        if not okE or type(cmds) ~= "table" then
+            showToast("Lumin Hub", "GodMode: EggCmds unavailable")
+            return false
+        end
+        EggCmds = cmds
+        pcall(function()
+            Ragdoll = require(ReplicatedStorage.Library.Modules.Ragdoll)
+        end)
 
-            God.carrying = payload.IsCarrying == true
-            if God.carrying then
-                God.carryUid    = payload.Uid or lastUid
-                God.carryArea   = payload.AreaId or God.carryArea
-                God.shouldCarry = God.carryUid
-                return
+        God.active = true
+
+        table.insert(connections, EggCmds.AreaEggCarryStateChanged:Connect(function(state)
+            if state and state.IsCarrying and state.Uid then
+                carriedUid   = tostring(state.Uid)
+                uidUntil     = math.huge
+                God.carrying = true
+                God.carryUid = carriedUid
+            elseif carriedUid then
+                -- keep the uid briefly so a hit-drop can still be recovered
+                uidUntil     = os.clock() + 1
+                God.carrying = false
             end
-
-            -- carrying -> not carrying
-            if not (Flags.GodMode and wasCarrying) then return end
-            if God.intentionalDrop then
-                God.shouldCarry = nil
-                return
-            end
-
-            local uid = payload.Uid or lastUid
-            God.shouldCarry = uid          -- the watchdog keeps trying
-            task.spawn(function() godRegrab(uid) end)
         end))
+
+        table.insert(connections, EggCmds.AreaEggUpdated:Connect(function(record)
+            if not God.active or type(record) ~= "table" or record.State ~= "Dropped" then return end
+            if tostring(record.Uid or "") ~= tostring(carriedUid or "") or os.clock() > uidUntil then
+                return
+            end
+
+            pendingToken = pendingToken + 1
+            pendingDrop  = record
+            dropAt       = os.clock()
+            local token  = pendingToken
+
+            -- Only a drop that lands alongside a hit gets re-grabbed; a
+            -- delivery at the plot has no Physics state next to it.
+            if math.abs(dropAt - hitAt) <= 0.2 then
+                tryRegrab(record, token)
+            else
+                task.delay(0.08, function()
+                    if God.active and token == pendingToken
+                        and math.abs(hitAt - dropAt) <= 0.2 then
+                        tryRegrab(record, token)
+                    end
+                end)
+            end
+        end))
+
+        table.insert(connections, LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+            task.wait(0.2)
+            if God.active then attachCharacter(newCharacter) end
+        end))
+
+        if LocalPlayer.Character then attachCharacter(LocalPlayer.Character) end
+        return true
+    end
+
+    function LuminGod:Stop()
+        God.active = false
+        clearPhysics()
+        disconnectList(characterConnections)
+        disconnectList(connections)
+        anchor, pendingDrop = nil, nil
     end
 end
 
@@ -1958,8 +1820,6 @@ local function stealOnce(target)
 
     Status.Steal = "Returning with " .. (target.AssetCategory or "?")
     Move:To(plotCenter)
-    -- Deliberate: GodMode must not snatch this back off the plot.
-    godMarkIntentionalDrop()
     invokeRemote("Eggs: RequestAreaEggDrop", {})
     task.wait(0.25)
 
@@ -2448,7 +2308,6 @@ ActionsGB:AddButton("Teleport to Base", function()
     if c then Move:To(c) end
     showToast("Lumin Hub", "Teleported to base")
 end):AddButton("Drop Held Egg", function()
-    godMarkIntentionalDrop()
     invokeRemote("Eggs: RequestAreaEggDrop", {})
     showToast("Lumin Hub", "Dropped held egg")
 end)
@@ -3368,74 +3227,18 @@ local PlayerGB = Tabs.Utility:AddLeftGroupbox("Player", "user")
 
 PlayerGB:AddToggle("GodMode", {
     Text    = "GodMode",
-    Tooltip = "Anti-fling, anti-ragdoll, and instant egg re-grab when a guard hits you. Walk the whole way home.",
+    Tooltip = "Anti-fling, anti-ragdoll, and instant egg re-grab when a guard hits you.",
     Default = false,
     Callback = function(val)
         Flags.GodMode = val
         if val then
-            godHardenHumanoid(getCharacter())
-            godStripMovers(getCharacter())
-            godWatchState(getCharacter())
-            -- Stepped runs before physics, Heartbeat after; doing both
-            -- means a push is cancelled on the same frame it arrives.
-            Flags._godStep = trackConn(RunService.Stepped:Connect(function()
-                if Flags.GodMode then godCalmCharacter() end
-            end))
-            -- Watchdog: if we believe we should be holding an egg but are
-            -- not, keep trying. Covers a carry-state event we never saw,
-            -- which is what made recovery work only on the first hit.
-            startLoop("GodRegrabWatch", function()
-                if Flags.GodMode and God.shouldCarry and not God.carrying
-                    and not God.regrabbing and not God.intentionalDrop then
-                    local uid = God.shouldCarry
-                    local stillThere = false
-                    for _, rec in pairs(getAreaEggs()) do
-                        if rec.Uid == uid then stillThere = true break end
-                    end
-                    if stillThere then
-                        godRegrab(uid)
-                    else
-                        God.shouldCarry = nil   -- someone else took it
-                    end
-                end
-                task.wait(0.4)
-            end)
-
-            startLoop("GodMode", function()
-                godCalmCharacter()
-                -- failsafe: nothing may stay anchored past the hold
-                local r = getRoot()
-                if r and r.Anchored and God.anchored and os.clock() > FlingHoldUntil + 0.5 then
-                    r.Anchored   = false
-                    God.anchored = false
-                end
-                RunService.Heartbeat:Wait()
-            end)
-            -- Purge knockback movers the guard adds to the character.
-            local char = getCharacter()
-            if char then
-                Flags._godMoverConn = trackConn(char.DescendantAdded:Connect(function(d)
-                    if not Flags.GodMode then return end
-                    if d:IsA("BodyVelocity") or d:IsA("BodyAngularVelocity") or d:IsA("BodyThrust")
-                        or d:IsA("BodyForce") or d:IsA("VectorForce")
-                        or d:IsA("LinearVelocity") or d:IsA("AngularVelocity") then
-                        if d ~= Visuals["_fly_bv"] and d ~= Visuals["_fly_bg"] then
-                            task.defer(function() pcall(function() d:Destroy() end) end)
-                            God.lastHit = os.clock()
-                        end
-                    end
-                end))
+            if LuminGod:Start() then
+                showToast("Lumin Hub", "GodMode on - hits will not stop the carry")
+            else
+                Toggles.GodMode:SetValue(false)
             end
-            showToast("Lumin Hub", "GodMode on - hits will not stop the carry")
         else
-            stopLoop("GodMode")
-            stopLoop("GodRegrabWatch")
-            God.shouldCarry = nil
-            local root = getRoot()
-            if root and God.anchored then
-                root.Anchored = false
-                God.anchored  = false
-            end
+            LuminGod:Stop()
         end
     end,
 })
@@ -4046,11 +3849,6 @@ trackConn(LocalPlayer.CharacterAdded:Connect(function(char)
         protectChar(char)
         killACConns()
     end
-    if Flags.GodMode then
-        godHardenHumanoid(char)
-        godStripMovers(char)
-        godWatchState(char)
-    end
     God.carrying, God.carryUid = false, nil
     God.anchored = false
     task.wait(0.6)
@@ -4139,13 +3937,10 @@ spawnTracked(function()
             if Flags.GodMode then
                 local since = os.clock() - (God.lastHit or 0)
                 GodStatus:SetText(string.format(
-                    "GodMode: on | carrying %s | re-grabs %d | flings %d\nlast drift %.0f | worst %.0f | last hit %s",
+                    "GodMode: on | carrying %s | re-grabs %d | hits %d | last hit %s",
                     God.carrying and (God.carryUid and God.carryUid:sub(1, 6) or "yes") or "no",
-                    God.regrabs,
-                    God.flings or 0,
-                    God.lastDrift or 0,
-                    God.worstDrift or 0,
-                    God.lastHit > 0 and string.format("%.0fs ago", since) or "none"))
+                    God.regrabs, God.flings,
+                    (God.lastHit or 0) > 0 and string.format("%.0fs ago", since) or "none"))
             else
                 GodStatus:SetText("GodMode: off")
             end
@@ -4270,7 +4065,6 @@ Flags.JumpPower         = 50
 Flags.FlySpeed          = 100
 Flags.AntiAFK           = true
 Flags.GodMode           = false
-Flags.FlingSensitivity  = 1.6
 Flags.HighlightESP      = true
 Flags.HopMethod         = "Least Populated"
 Flags.DebugMode         = false
