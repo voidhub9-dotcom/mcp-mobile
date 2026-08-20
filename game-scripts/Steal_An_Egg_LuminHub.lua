@@ -1155,8 +1155,17 @@ local God = {
     burstStart      = 0,
 }
 
--- Anything above this is a knockback, not running.
-local FLING_VELOCITY = 55
+-- A knockback has to be judged against how fast this player actually
+-- runs. Walk speed in this game reaches ~163 with trails, so a fixed
+-- low threshold reads normal running as a fling and anchors you in
+-- place. The limit is derived from the live WalkSpeed instead, and only
+-- horizontal speed counts so falling is never mistaken for a push.
+local function flingLimit()
+    local hum = getHumanoid()
+    local ws  = (hum and hum.WalkSpeed) or 16
+    local mult = tonumber(Flags.FlingSensitivity) or 1.6
+    return math.max(ws * mult + 40, 160)
+end
 -- After a spike, keep the character's velocity pinned for this long so
 -- the residual push cannot carry it. Deliberately velocity-only: an
 -- earlier attempt restored position instead and shoved the character
@@ -1187,8 +1196,9 @@ local function godCalmCharacter()
     if root and not Flags.Fly then
         local now = os.clock()
         local vel = root.AssemblyLinearVelocity
+        local horizontal = Vector3.new(vel.X, 0, vel.Z).Magnitude
 
-        if vel.Magnitude > FLING_VELOCITY then
+        if horizontal > flingLimit() then
             FlingHoldUntil = now + FLING_HOLD
             God.lastHit    = now
             God.flings     = (God.flings or 0) + 1
@@ -2936,6 +2946,16 @@ PlayerGB:AddToggle("GodMode", {
     end,
 })
 
+PlayerGB:AddSlider("FlingSensitivity", {
+    Text     = "Fling Sensitivity",
+    Tooltip  = "Multiple of your walk speed that counts as a knockback. Lower catches softer hits; too low and running trips it.",
+    Min      = 1.2,
+    Max      = 4,
+    Default  = 1.6,
+    Rounding = 1,
+    Callback = function(v) Flags.FlingSensitivity = v end,
+})
+
 local GodStatus = PlayerGB:AddLabel("GodMode: idle", true)
 
 PlayerGB:AddToggle("AntiAFK", {
@@ -3658,6 +3678,7 @@ Flags.JumpPower         = 50
 Flags.FlySpeed          = 100
 Flags.AntiAFK           = true
 Flags.GodMode           = false
+Flags.FlingSensitivity  = 1.6
 Flags.HighlightESP      = true
 Flags.HopMethod         = "Least Populated"
 Flags.DebugMode         = false
