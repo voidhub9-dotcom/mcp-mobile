@@ -1167,86 +1167,76 @@ local FLING_LOCK     = 1.25
 -- standing and, the moment a frame moves us further than walking could,
 -- put us straight back and hold there. This cancels the fling whatever
 -- mechanism produced it: velocity, impulse, or a server CFrame write.
-local Fling = { lastPos = nil, lockUntil = 0, anchor = nil }
+local Fling = {
+    lastPos    = nil,   -- previous frame, for per-frame step detection
+    settled    = nil,   -- last position we were genuinely standing at
+    settledAt  = 0,
+    lockUntil  = 0,
+    anchor     = nil,
+}
+
+-- Beyond this distance from where we were standing, something moved us.
+local FLING_DRIFT = 22
 
 local function godAntiFling()
     local root = getRoot()
-    if not root then Fling.lastPos = nil return end
+    if not root then
+        Fling.lastPos, Fling.settled = nil, nil
+        return
+    end
 
     local now = os.clock()
 
     -- Never fight our own movement.
     if Move.moving or Flags.Fly then
         Fling.lastPos   = root.Position
+        Fling.settled   = root.Position
+        Fling.settledAt = now
         Fling.lockUntil = 0
         return
     end
 
+    -- Holding: re-assert until we are actually back and calm again.
     if now < Fling.lockUntil and Fling.anchor then
-        root.CFrame                 = CFrame.new(Fling.anchor)
-        root.AssemblyLinearVelocity = Vector3.zero
+        root.CFrame                  = CFrame.new(Fling.anchor)
+        root.AssemblyLinearVelocity  = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
         return
     end
 
     local pos = root.Position
-    if Fling.lastPos then
-        local step = (pos - Fling.lastPos).Magnitude
-        local vel  = root.AssemblyLinearVelocity.Magnitude
-        if step > FLING_STEP or vel > FLING_VELOCITY then
-            Fling.anchor    = Fling.lastPos
-            Fling.lockUntil = now + FLING_LOCK
-            God.lastHit     = now
-            God.flings      = (God.flings or 0) + 1
-            root.CFrame                 = CFrame.new(Fling.anchor)
-            root.AssemblyLinearVelocity = Vector3.zero
-            root.AssemblyAngularVelocity = Vector3.zero
-            return
-        end
+    local vel = root.AssemblyLinearVelocity.Magnitude
+
+    local function trip(anchor)
+        Fling.anchor     = anchor
+        Fling.lockUntil  = now + FLING_LOCK
+        God.lastHit      = now
+        God.flings       = (God.flings or 0) + 1
+        root.CFrame                  = CFrame.new(anchor)
+        root.AssemblyLinearVelocity  = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
     end
+
+    -- A single frame that moves us further than running could.
+    if Fling.lastPos and ((pos - Fling.lastPos).Magnitude > FLING_STEP or vel > FLING_VELOCITY) then
+        trip(Fling.settled or Fling.lastPos)
+        return
+    end
+
+    -- A slow slide stays under the per-frame threshold, so also measure
+    -- against where we were actually standing.
+    if Fling.settled and (pos - Fling.settled).Magnitude > FLING_DRIFT then
+        trip(Fling.settled)
+        return
+    end
+
     Fling.lastPos = pos
-end
 
-local function godStripMovers(char)
-    if not char then return end
-    for _, d in ipairs(char:GetDescendants()) do
-        if d:IsA("BodyVelocity") or d:IsA("BodyAngularVelocity") or d:IsA("BodyThrust")
-            or d:IsA("BodyForce") or d:IsA("BodyGyro") or d:IsA("VectorForce")
-            or d:IsA("LinearVelocity") or d:IsA("AngularVelocity") then
-            -- leave the hub's own fly movers alone
-            if d ~= Visuals["_fly_bv"] and d ~= Visuals["_fly_bg"] then
-                pcall(function() d:Destroy() end)
-            end
-        end
-    end
-end
-
-local function godCalmCharacter()
-    local char = getCharacter()
-    if not char then return end
-    local root = getRoot()
-    local hum  = getHumanoid()
-
-    if root and not Flags.Fly then
-        local vel = root.AssemblyLinearVelocity
-        if vel.Magnitude > FLING_VELOCITY then
-            root.AssemblyLinearVelocity = Vector3.new(0, math.clamp(vel.Y, -50, 0), 0)
-            God.lastHit = os.clock()
-        end
-        if root.AssemblyAngularVelocity.Magnitude > 10 then
-            root.AssemblyAngularVelocity = Vector3.zero
-        end
-    end
-
-    if hum then
-        if hum.PlatformStand and not Flags.Fly then hum.PlatformStand = false end
-        local state = hum:GetState()
-        if state == Enum.HumanoidStateType.Ragdoll
-            or state == Enum.HumanoidStateType.FallingDown
-            or state == Enum.HumanoidStateType.Physics
-            or state == Enum.HumanoidStateType.Seated then
-            pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-            God.lastHit = os.clock()
+    -- Only accept a new "standing here" reference once we are calm.
+    if vel < 30 then
+        if not Fling.settled or (pos - Fling.settled).Magnitude > 4 then
+            Fling.settled   = pos
+            Fling.settledAt = now
         end
     end
 end
