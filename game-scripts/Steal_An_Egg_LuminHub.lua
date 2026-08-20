@@ -483,6 +483,45 @@ local function isAtBase()
 end
 
 --=====================================================================
+-- Selection helpers
+--=====================================================================
+
+-- Multi-select dropdowns hand back a set ({Forest = true}), single-select
+-- ones hand back a bare string, and a cleared dropdown hands back nil.
+-- Normalise all three into a set, or nil meaning "no filter".
+local function listToSet(value)
+    if value == nil then return nil end
+
+    if type(value) == "string" then
+        if value == "" then return nil end
+        return { [value] = true }
+    end
+
+    if type(value) ~= "table" then return nil end
+
+    local set, count = {}, 0
+    -- array form: { "Forest", "Desert" }
+    for _, v in ipairs(value) do
+        if type(v) == "string" then
+            set[v] = true
+            count = count + 1
+        end
+    end
+    -- set form: { Forest = true, Desert = false }
+    if count == 0 then
+        for k, v in pairs(value) do
+            if v == true and type(k) == "string" then
+                set[k] = true
+                count = count + 1
+            end
+        end
+    end
+
+    if count == 0 then return nil end
+    return set
+end
+
+--=====================================================================
 -- Guards
 --=====================================================================
 
@@ -528,11 +567,7 @@ end
 -- Reads the guard's AreaId attribute rather than the container's name, so
 -- the zone match survives any renaming of the GuardAreas children.
 local function isGuardAwake(selectedZones)
-    local zoneFilter
-    if selectedZones and #selectedZones > 0 then
-        zoneFilter = {}
-        for _, z in ipairs(selectedZones) do zoneFilter[z] = true end
-    end
+    local zoneFilter = listToSet(selectedZones)
     for _, g in ipairs(getGuardReport()) do
         if (not zoneFilter) or zoneFilter[g.areaId] then
             if g.awake then
@@ -630,13 +665,6 @@ end
 --=====================================================================
 -- Egg filtering
 --=====================================================================
-
-local function listToSet(list)
-    if not list or #list == 0 then return nil end
-    local set = {}
-    for _, v in ipairs(list) do set[v] = true end
-    return set
-end
 
 local function eggPassesFilters(egg)
     if egg.State ~= "Slot" and not Flags.SnipeDropped then return false end
@@ -1255,7 +1283,7 @@ FilterGB:AddDropdown("StealRarities", {
     Text     = "Exact Rarities",
     Tooltip  = "Optional. When set, ONLY these exact tiers are farmed.",
     Values   = RarityOrder,
-    Multiple = true,
+    Multi     = true,
     AllowNull = true,
     Callback = function(v) Flags.StealRarities = v end,
 })
@@ -1264,7 +1292,7 @@ FilterGB:AddDropdown("StealZones", {
     Text     = "Zones",
     Tooltip  = "Leave empty to farm every zone.",
     Values   = ZoneList,
-    Multiple = true,
+    Multi     = true,
     AllowNull = true,
     Callback = function(v) Flags.StealZones = v end,
 })
@@ -1273,7 +1301,7 @@ FilterGB:AddDropdown("SelectEggs", {
     Text     = "Specific Eggs",
     Tooltip  = "Optional whitelist of individual eggs.",
     Values   = EggNameList,
-    Multiple = true,
+    Multi     = true,
     AllowNull = true,
     Callback = function(v) Flags.SelectEggs = v end,
 })
@@ -1282,7 +1310,7 @@ FilterGB:AddDropdown("SelectMutations", {
     Text     = "Mutations",
     Tooltip  = "Optional. Only take eggs carrying one of these mutations.",
     Values   = { "Silver", "Gold", "Diamond", "Rainbow", "Frost", "Magma", "Shiny" },
-    Multiple = true,
+    Multi     = true,
     AllowNull = true,
     Callback = function(v) Flags.SelectMutations = v end,
 })
@@ -1426,12 +1454,18 @@ StealGB:AddToggle("AutoSteal", {
             end
 
             -- Spawn sniper queue takes precedence over the normal scan.
+            -- The area snapshot's Records is a plain array, so a sniped uid
+            -- has to be found by scanning rather than indexed directly.
+            local snapshot = getAreaEggs()
             local target = table.remove(SnipeQueue, 1)
             if target then
-                local live = getAreaEggs()[target.Uid]
-                target = live and eggPassesFilters(live) and live or nil
+                local live
+                for _, rec in pairs(snapshot) do
+                    if rec.Uid == target.Uid then live = rec break end
+                end
+                target = (live and eggPassesFilters(live)) and live or nil
             end
-            target = target or pickTargetEgg(getAreaEggs())
+            target = target or pickTargetEgg(snapshot)
 
             if not target then
                 Status.Steal = "No matching eggs"
@@ -1855,7 +1889,7 @@ SellGB:AddDropdown("SellRarities", {
     Text     = "Exact Sell Rarities",
     Tooltip  = "Optional. When set, overrides Keep Min Rarity and sells only these tiers.",
     Values   = RarityOrder,
-    Multiple = true,
+    Multi     = true,
     AllowNull = true,
     Callback = function(v) Flags.SellRarities = v end,
 })
