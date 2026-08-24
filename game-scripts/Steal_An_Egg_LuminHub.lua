@@ -351,25 +351,6 @@ if TrailConfig and TrailConfig.Directory then
     table.sort(TrailList)
 end
 
--- =====================================================================
--- Live game configuration.
---
--- Everything below is read straight out of the running place instead of
--- being hard coded, so the numbers are the ones the server actually uses.
--- Verified against Steal An Egg place version 385:
---
---   Directory.Areas.Directory[area].DropTable    real spawn weights
---   Directory.Gears.Directory[gear].IndexBatTier bat ranking
---   Directory.Sakura                             tags, ranges, cooldowns
---   Library.Modules.BatController.Config.Range   15 studs
---   Library.Modules.SakuraBloomPolicy            incubator unlock state
---   Library.Client.Save                          replicated save data
---   Library.Util.SpeedUpgradeUtil                speed power curve
---
--- Everything the new features add lives on this one table. The main chunk
--- is close to Luau's 200 local limit, so extra top level locals are out.
--- =====================================================================
-
 local Ext = {
     AreaDirectory = {},
     GearDirectory = {},
@@ -433,8 +414,6 @@ do
         MaxCharge    = tonumber(incubator.MaxChargePercent) or 150,
     }
 
-    -- BatController.Config.Range is the distance the server accepts for a
-    -- bat hit; HitTolerance is the slack it allows on top of that.
     Ext.BatRange     = tonumber(Ext.BatConfig.Range) or 15
     Ext.BatTolerance = tonumber(Ext.BatConfig.HitTolerance) or 2
 end
@@ -445,10 +424,6 @@ function Ext.batHitboxScalar()
     return (ok and tonumber(scalar)) or 1
 end
 
--- BatClientController builds its selection range as
---   Config.Range + Config.HitTolerance + gear.BatControllerData.RangeBonus
--- and then scales the whole thing by GetHitboxScalar(). RangeBonus runs from
--- 0 on the Forest Bat to 16.875 on the Katana, so the bat you hold matters.
 function Ext.batServerRange(gearName)
     local bonus = 0
     local gear  = gearName and Ext.GearDirectory[gearName]
@@ -2133,10 +2108,6 @@ local function stealOnce(target)
     return true
 end
 
--- =====================================================================
--- Drop tables and odds
--- =====================================================================
-
 Ext.DropOdds = {}
 
 do
@@ -2205,15 +2176,6 @@ function Ext.serverLuck()
     return Ext.ServerLuck.value
 end
 
--- =====================================================================
--- Area order
---
--- Worked out from where the live eggs actually sit on the X axis, so a new
--- area added by an update slots itself into the list without a script edit.
--- On the current map this yields Forest, Lake, Desert, Jungle, Snow,
--- Volcano, Abyss Ocean, Prehistoric, Cosmic, Cherry Blossom.
--- =====================================================================
-
 Ext.AreaOrder = { list = {}, at = 0 }
 
 function Ext.areaOrder(force)
@@ -2247,13 +2209,6 @@ function Ext.areaOrder(force)
     Ext.AreaOrder.list, Ext.AreaOrder.at = list, os.clock()
     return list
 end
-
--- =====================================================================
--- Egg Finder
---
--- Polls the server snapshot on a timer. Deliberately no RenderStepped or
--- Heartbeat scan, so the list costs nothing per frame.
--- =====================================================================
 
 Ext.EggFinder = {
     rows      = {},
@@ -2365,14 +2320,6 @@ function Ext.eggPredictorText(areaId, limit)
     return table.concat(lines, "\n")
 end
 
--- =====================================================================
--- Carry tracking
---
--- A carried egg leaves its nest slot, so any record whose State is not
--- "Slot" is in someone's hands. Matching that record back to the closest
--- character tells us who is holding it without guessing at field names.
--- =====================================================================
-
 Ext.CarryWatch = { byUser = {}, at = 0, mineUntil = 0, mine = nil, mineUid = nil }
 
 function Ext.refreshCarryWatch()
@@ -2412,9 +2359,6 @@ function Ext.refreshCarryWatch()
     return carriers
 end
 
--- Eggs: AreaEggCarryState is the authoritative answer for our own hands. It is
--- local-player only, which is why other players still go through the snapshot
--- proximity match above.
 do
     local carryState = Network:FindFirstChild("Eggs: AreaEggCarryState")
     if carryState and carryState:IsA("RemoteEvent") then
@@ -2432,10 +2376,6 @@ function Ext.amCarryingEgg()
     Ext.refreshCarryWatch()
     return Ext.CarryWatch.byUser[LocalPlayer.UserId] ~= nil
 end
-
--- =====================================================================
--- Bat Aura
--- =====================================================================
 
 Ext.BatAura = {
     lastSwing = 0,
@@ -2507,7 +2447,6 @@ function Ext.findBatTool(gearName)
 end
 
 function Ext.equipBestBat()
-    -- Never swap tools mid-steal: equipping would drop the egg we are holding.
     if Ext.amCarryingEgg() then
         Ext.BatAura.status = "Holding an egg - not swapping tools"
         return nil
@@ -2520,7 +2459,6 @@ function Ext.equipBestBat()
     local tool   = Ext.findBatTool(wanted)
 
     if not tool and wanted then
-        -- Bat is owned but not handed out yet: ask the server for the area bat.
         local areaId = Ext.areaForBat(wanted)
         if areaId then
             invokeRemote("Index: RequestEquipAreaBat", areaId)
@@ -2555,13 +2493,10 @@ function Ext.batOnCooldown(tool)
         if okNow and now < endsAt then return true end
     end
 
-    -- BatClientController debounces its own Activated handler at 0.6s and logs
-    -- CLIENT_COOLDOWN_ACTIVE for anything faster, so never ask below that.
     local minGap = math.max(tonumber(Flags.BatMinInterval) or 0.6, 0.6)
     return (os.clock() - Ext.BatAura.lastSwing) < minGap
 end
 
--- The same checks _isTargetEligible runs before the client will send a swing.
 function Ext.batTargetEligible(player)
     local char = player and player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -2622,8 +2557,6 @@ function Ext.swingBat(tool)
     local char = getCharacter()
     if not (tool and char and tool.Parent == char) then return false end
 
-    -- _onActivated bails out with CLIENT_GAMEPLAY_GUARD_REJECTED before it
-    -- sends anything, so there is no point swinging outside the arena.
     if Ext.ToolGuard and type(Ext.ToolGuard.CanActivateLocal) == "function" then
         local okGuard, allowed = pcall(Ext.ToolGuard.CanActivateLocal, tool)
         if okGuard and not allowed then
@@ -2632,9 +2565,6 @@ function Ext.swingBat(tool)
         end
     end
 
-    -- Activate the game's own bat controller. It picks the target and fires
-    -- Bat:Activate(target, traceId) itself, so the request is byte for byte
-    -- what a manual swing sends.
     local ok = pcall(function() tool:Activate() end)
     if ok then
         Ext.BatAura.lastSwing = os.clock()
@@ -2650,10 +2580,6 @@ function Ext.batAuraText()
         Ext.BatAura.status, Ext.BatAura.swings, Ext.batServerRange(gearName),
         gearName and ("\nBat: " .. gearName .. " (tier " .. Ext.batTier(gearName) .. ")") or "")
 end
-
--- =====================================================================
--- Great Bloom / Sakura
--- =====================================================================
 
 Ext.SakuraStatus = { text = "Idle", trees = 0, crystals = 0, hits = 0, collected = 0 }
 
@@ -2721,9 +2647,6 @@ function Ext.crystalReach()
     return Ext.Sakura.PickupRange
 end
 
--- Trees carry a Radius attribute and the client's findTreeInReach compares the
--- horizontal distance against Radius + Bloom.HitRange, so a big tree is
--- reachable from much further out than a small one.
 function Ext.treeReach(tree)
     local radius = tonumber(tree and tree:GetAttribute("Radius")) or 0
     return radius + Ext.Sakura.HitRange
@@ -2743,10 +2666,6 @@ function Ext.collectCrystals(budgetSeconds)
                 Move:To(entry.part.Position + Vector3.new(0, 3, 0), 8)
             end
 
-            -- Standing inside CrystalPickupRange is enough: the Great Bloom
-            -- client flies the crystal to you and invokes CollectCrystal with
-            -- the crystal model once it lands. The direct call is the same
-            -- request, just skipping the fly-in animation.
             if Flags.SakuraDirectCollect then
                 invokeRemote("Sakura: CollectCrystal", entry.inst)
             end
@@ -2765,11 +2684,6 @@ function Ext.collectCrystals(budgetSeconds)
     return collected
 end
 
--- The Great Bloom client already runs its own Heartbeat loop calling
--- tryAutoSwing every 0.15s: if you hold a bat, the incubator is unlocked and a
--- tree is in reach, it plays HitAnim and fires HitTree for you. So this farm
--- does not swing at all. It gets you unlocked, holding a bat, and standing in
--- reach, then lets the game do the hitting and picks up what falls out.
 function Ext.farmBloomTrees()
     local active = Ext.bloomActive()
     if not active then
@@ -2781,8 +2695,6 @@ function Ext.farmBloomTrees()
     end
 
     if not Ext.incubatorUnlocked() then
-        -- tryAutoSwing checks SakuraBloomPolicy.IsUnlocked before it will send
-        -- a single hit, so chopping is pointless until the incubator is awake.
         Ext.SakuraStatus.text = "Incubator locked - trees cannot be hit yet"
         return false
     end
@@ -2817,9 +2729,6 @@ function Ext.farmBloomTrees()
         Move:To(target.part.Position + Vector3.new(0, 3, 0), 12)
     end
 
-    -- Hold position while the game's own loop chews through the tree.
-    -- Trees carry Size, Hits and HitsRequired: Small dies in 1 hit and drops
-    -- 1 crystal, Gigantic takes 3 and drops 6.
     Ext.SakuraStatus.text = string.format("Working a %s tree (%s/%s hits), %d up",
         tostring(target.inst:GetAttribute("Size") or "?"),
         tostring(target.inst:GetAttribute("Hits") or "?"),
@@ -2836,7 +2745,6 @@ function Ext.farmBloomTrees()
             Move:To(target.part.Position + Vector3.new(0, 3, 0), 8)
         end
         if Flags.SakuraDirectHit then
-            -- Same request the client sends, addressed by the tree instance.
             fireRemote("Sakura: HitTree", target.inst)
         end
         Ext.SakuraStatus.hits = Ext.SakuraStatus.hits + 1
@@ -2847,10 +2755,6 @@ function Ext.farmBloomTrees()
     Ext.collectCrystals(6)
     return true
 end
-
--- =====================================================================
--- Sakura incubator
--- =====================================================================
 
 function Ext.saveData()
     if not (Ext.ClientSave and type(Ext.ClientSave.GetUnsafe) == "function") then return nil end
@@ -2874,8 +2778,6 @@ function Ext.sakuraCrystals()
 end
 
 function Ext.incubatorUnlocked()
-    -- SakuraBloomPolicy.IsUnlocked(isLocalDataLoaded, save) is the exact call
-    -- the Great Bloom client makes before it will hit a tree.
     if Ext.BloomPolicy and type(Ext.BloomPolicy.IsUnlocked) == "function"
         and Ext.ClientSave and type(Ext.ClientSave.Get) == "function" then
         local okLoaded, loaded = pcall(Ext.ClientSave.IsLocalDataLoaded)
@@ -2891,7 +2793,6 @@ function Ext.incubatorUnlocked()
         return state.Unlocked == true
     end
 
-    -- The dormant tree model is swapped out once the incubator is awake.
     return Workspace:FindFirstChild("IncubatorDead") == nil
 end
 
@@ -2935,7 +2836,6 @@ function Ext.unlockSakuraIncubator(travel)
 
     local uid, source = Ext.ownedCraneUid()
     if not uid then
-        -- No Crane, so nothing is sent. Firing blind would just burn a request.
         return false, "No " .. Ext.Sakura.CraneAssetId .. " owned - nothing sent"
     end
 
@@ -2952,8 +2852,6 @@ function Ext.unlockSakuraIncubator(travel)
         uid = Ext.ownedCraneUid() or uid
     end
 
-    -- The dormant tree prompt invokes REQUEST_RETURN_CRANE with no arguments;
-    -- the server picks the Crane out of your inventory itself.
     local ok, res = invokeRemote("Sakura: ReturnCrane")
 
     if ok and res ~= false and res ~= nil then
@@ -3004,10 +2902,6 @@ function Ext.runIncubator()
     return #notes > 0, #notes > 0 and table.concat(notes, ", ") or "nothing to do"
 end
 
--- =====================================================================
--- Global auto farm
--- =====================================================================
-
 Ext.GlobalFarm = {
     index      = 1,
     enteredAt  = 0,
@@ -3038,8 +2932,6 @@ function Ext.globalFarmAreas()
 end
 
 function Ext.areaHasTargets(areaId)
-    -- The zone filter is already pinned to this area by advanceGlobalFarm, so
-    -- eggPassesFilters answers the same question the steal loop is asking.
     for _, egg in pairs(getAreaEggs()) do
         if tostring(egg.AreaId) == tostring(areaId) and eggPassesFilters(egg) then
             return true
@@ -3063,10 +2955,6 @@ function Ext.advanceGlobalFarm()
     Ext.GlobalFarm.status = string.format("Farming %s (%d/%d)", areaId, Ext.GlobalFarm.index, #areas)
 end
 
--- =====================================================================
--- Fast travel calibration
--- =====================================================================
-
 Ext.Travel = { lastCalibration = nil }
 
 function Ext.realSpeedPower()
@@ -3088,14 +2976,11 @@ function Ext.movementLimit()
     local hum  = getHumanoid()
     local walk = hum and tonumber(hum.WalkSpeed) or 0
 
-    -- Humanoid.WalkSpeed is the game's own answer for this Speed Power after
-    -- its own caps, so it is the number the server expects to see us move at.
     if walk > 16 then
         Ext.Travel.lastWalk = walk
         return walk, "live walk speed"
     end
 
-    -- Character not ready: reuse the last real reading rather than inventing one.
     if Ext.Travel.lastWalk then return Ext.Travel.lastWalk, "last known" end
 
     return math.max(walk, tonumber(Ext.Constants.BASE_WALK_SPEED) or 16), "base speed"
@@ -3109,7 +2994,6 @@ function Ext.calibrateFastTravel(apply)
     end
 
     local speed = limit * margin
-    -- Every rollback already seen this session says we were still too quick.
     if Move.rollbacks and Move.rollbacks > 0 then
         speed = speed * math.max(0.6, 1 - 0.1 * Move.rollbacks)
     end
@@ -3622,12 +3506,7 @@ ActionsGB:AddToggle("AutoReturnBase", {
     end,
 })
 
--- Scoped so the extra panels do not eat into the main chunk's local budget.
 do
-
--- =====================================================================
--- Global Auto Farm
--- =====================================================================
 
 local GlobalGB = Tabs.Farm:AddLeftGroupbox("Global Auto Farm", "radar")
 
@@ -3717,10 +3596,6 @@ GlobalGB:AddToggle("GlobalAutoFarm", {
 
 local globalLabel = GlobalGB:AddLabel("Rotation: idle", true)
 
--- =====================================================================
--- Fast travel calibration
--- =====================================================================
-
 local TravelGB = Tabs.Farm:AddLeftGroupbox("Fast Travel", "zap")
 
 TravelGB:AddSlider("TravelMargin", {
@@ -3756,10 +3631,6 @@ TravelGB:AddToggle("AutoCalibrateTravel", {
         end)
     end,
 })
-
--- =====================================================================
--- Bat Aura
--- =====================================================================
 
 local BatGB = Tabs.Farm:AddRightGroupbox("Bat Aura", "crosshair")
 
@@ -3842,10 +3713,6 @@ BatGB:AddButton("Equip Best Bat", function()
 end)
 
 local batLabel = BatGB:AddLabel("Bat Aura: idle", true)
-
--- =====================================================================
--- Egg Finder and Egg Predictor
--- =====================================================================
 
 local FinderGB = Tabs.Intel:AddLeftGroupbox("Egg Finder", "egg")
 
@@ -3963,10 +3830,6 @@ PredictGB:AddButton("Copy Drop Table", function()
     if setclipboard then pcall(setclipboard, Ext.eggPredictorText(Flags.PredictArea, 99)) end
     showToast("Lumin Hub", "Drop table copied")
 end)
-
--- =====================================================================
--- Sakura
--- =====================================================================
 
 local BloomGB   = Tabs.Sakura:AddLeftGroupbox("Great Bloom", "sparkle")
 local CherryGB  = Tabs.Sakura:AddLeftGroupbox("Cherry Blossom", "egg")
@@ -4161,10 +4024,6 @@ IncubGB:AddToggle("AutoIncubator", {
 })
 
 local sakuraLabel = SakuraInfoGB:AddLabel("Loading...", true)
-
--- =====================================================================
--- Panel refresh. One shared timer, no per frame work.
--- =====================================================================
 
 spawnTracked(function()
     task.wait(1)
