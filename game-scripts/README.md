@@ -16,16 +16,35 @@ while the features were written:
 | --- | --- | --- |
 | Egg drop tables | `Directory.Areas.Directory[area].DropTable` | 10 areas, weights summing to 100 |
 | Bat ranking | `Directory.Gears.Directory[gear].IndexBatTier` | Forest Bat 1 … Katana 10 |
-| Bat hit range | `Library.Modules.BatController.Config.Range` | 15 studs (+2 `HitTolerance`) |
-| Bat cooldown | `CooldownActive` / `CooldownEndTime` tool attributes | set by the server per swing |
-| Bloom tree tag | `Directory.Sakura.TreeTag` | `SakuraBloomTree` |
-| Crystal tag | `Directory.Sakura.CrystalTag` | `SakuraCrystal` |
-| Bloom timings | `Directory.Sakura.Bloom` | 285 s long, every 1800 s, 0.6 s hit cooldown, 10 stud hit and pickup range |
-| Incubator unlock | `Library.Client.Save` → `Sakura.Unlocked`, plus `Workspace.IncubatorDead` | locked until a `Crane` is returned |
-| Crane ownership | `Library.Client.Save` → `Inventory[uid].Category == "Crane"` | |
-| Crystals held | `Library.Client.CurrencyCmds.Get("SakuraCrystals")` | |
+| Bat reach | `Config.Range + Config.HitTolerance + gear.BatControllerData.RangeBonus`, times `GetHitboxScalar()` | 17 with a Forest Bat, 28.25 with an Abyss Ocean Bat, 33.875 with a Katana |
+| Bat swing rate | `_tryActivate(0.6, …)` in `BatController.Client` | fixed 0.6 s client debounce |
+| Bat request | `Network.Fire(NETWORK_MAP.Bat.ACTIVATE, target, traceId)` | target from `_selectClosestTarget()` |
+| Bloom tree tag | `Directory.Sakura.TreeTag` | `SakuraBloomTree`, 50 live trees under `Workspace.SakuraBloomTrees` |
+| Tree reach | `tree:GetAttribute("Radius") + Bloom.HitRange`, horizontal only | 5.07 + 10 = 15.07 on a Small tree |
+| Tree sizes | `Directory.Sakura.Bloom.Sizes` | Small 1 hit / 1 crystal … Gigantic 3 hits / 6 crystals |
+| Crystal tag | `Directory.Sakura.CrystalTag` | `SakuraCrystal`, 60 s lifetime |
+| Bloom timings | `Directory.Sakura.Bloom` | 285 s long, every 1800 s, 10 stud hit and pickup range |
+| Incubator unlock | `SakuraBloomPolicy.IsUnlocked(isLocalDataLoaded, save)` | `false` — `Workspace.IncubatorDead` still present |
+| Crane ownership | `Library.Client.Save` → `Inventory[uid].Category == "Crane"` | none owned |
+| Crystals held | `Library.Client.CurrencyCmds.Get("SakuraCrystals")` | 0 |
+| Own carry state | `Eggs: AreaEggCarryState` → `{ IsCarrying, Uid }` | local player only |
 | Speed curve | `Library.Util.SpeedUpgradeUtil.GetSpeedModifierFromPower` | |
 | Movement margin | `Library.Globals.Constants.CLIENT_OVERLAP_MARGIN` | 0.95 |
+
+### Remote signatures
+
+Read out of the decompiled client, not guessed:
+
+| Remote | Kind | Arguments |
+| --- | --- | --- |
+| `Bat:Activate` | RemoteEvent | `(target, traceId)` — sent by the tool's own controller |
+| `Sakura: HitTree` | RemoteEvent | `(treeInstance)` |
+| `Sakura: CollectCrystal` | RemoteFunction | `(crystalModel)` |
+| `Sakura: ReturnCrane` | RemoteFunction | none — the server finds your Crane itself |
+| `Sakura: Deposit` | RemoteFunction | `(amount)` |
+| `Sakura: Mutate` | RemoteFunction | none |
+| `Sakura: InsertEgg` | RemoteFunction | `(eggUid)` |
+| `Index: RequestEquipAreaBat` | RemoteFunction | `(areaId)` |
 
 ### What was added
 
@@ -41,19 +60,29 @@ the next reset will contain.
 
 **Bat Aura** (Farm tab) equips the highest `IndexBatTier` bat you own — asking
 the server for it through `Index: RequestEquipAreaBat` when it is not already in
-your backpack — and swings at players carrying eggs inside the server's real 15
-stud range, optionally limited to a radius around your plot. It respects the
-bat's own cooldown attributes, and it will not swap tools while you are holding
-an egg. Swings go through the tool's own `Activate`, so the game's bat
-controller picks the target and sends the request exactly as a manual swing
-would.
+your backpack — and swings at players carrying eggs, optionally limited to a
+radius around your plot. Swings go through the tool's own `Activate`, so the
+game's bat controller picks the target and sends the request exactly as a manual
+swing would.
+
+Worth knowing: the game's own `_isTargetEligible` does **not** care whether a
+target is carrying an egg. It checks that they are alive, not ragdolled, inside
+the gameplay area and within reach. Restricting to carriers is this script's
+choice, layered on top of those four real checks, which it also applies so it
+never swings at someone the server would reject.
 
 **Sakura tab** — Great Bloom tree farming, crystal collection, Cherry Blossom
 egg farming, the incubator unlock, and place/hatch buttons.
 
-- *Auto Farm Trees* only runs while a bloom is actually active (checked via the
-  live tree tag and the `GreatBloomEndsAt` attribute), chops with the real 0.6 s
-  hit cooldown, then sweeps the crystals it dropped.
+- *Auto Farm Trees* does not swing. The Great Bloom client already runs a
+  Heartbeat loop calling its own `tryAutoSwing` every 0.15 s, which hits a tree
+  for you whenever you hold a bat, the incubator is unlocked and a tree is in
+  reach. So the farm equips a bat and parks you inside `Radius + HitRange` of the
+  nearest tree, then sweeps the crystals. Sending `HitTree` yourself is an opt-in
+  toggle, off by default.
+- Hitting trees at all requires the incubator to be unlocked — `tryAutoSwing`
+  checks `SakuraBloomPolicy.IsUnlocked` before it sends anything — so the farm
+  says so plainly instead of running uselessly.
 - *Auto Unlock Incubator* checks that you actually own a Crane and that the
   incubator is still locked. With no Crane it sends nothing at all, and once
   unlocked it stops rather than spending a second one.
@@ -72,11 +101,10 @@ the stock 300, which is what causes the rollbacks.
 
 ### Notes
 
-- `Sakura: HitTree`, `Sakura: CollectCrystal` and `Sakura: ReturnCrane` argument
-  shapes could not be observed directly, because no Great Bloom was running and
-  the executor in use has no decompiler or working remote spy. The features
-  therefore drive the game's own interaction paths — swinging the equipped bat
-  near a tagged tree, and walking inside `CrystalPickupRange` — which need no
-  argument guessing. Direct crystal collection is available as an opt-in toggle,
-  and the unlock falls back from `(craneUid)` to a no-argument call.
+- All of the above was read from the live server: module values through the
+  connector, and call sites from `decompile()` on the shipped client scripts
+  (`BatController.Client`, `AdminAbuseClient.Events.GreatBloom`, the two
+  `SakuraIncubator` scripts, `AreaEggs`). Cobalt's remote spy times out on this
+  Delta build, so decompilation was used instead — it gives the argument lists
+  directly rather than waiting to observe a call.
 - `ExpectedPlaceVersion` was moved from 382 to 385.

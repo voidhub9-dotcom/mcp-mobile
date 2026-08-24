@@ -398,8 +398,10 @@ do
         Ext.GearDirectory = gears.Directory
     end
 
-    Ext.BatConfig  = tryRequire("Library", "Modules", "BatController", "Config") or {}
+    Ext.BatConfig     = tryRequire("Library", "Modules", "BatController", "Config") or {}
     Ext.BloomPolicy   = tryRequire("Library", "Modules", "SakuraBloomPolicy")
+    Ext.ToolGuard     = tryRequire("Library", "Client", "ToolGameplayGuard")
+    Ext.Ragdoll       = tryRequire("Library", "Modules", "Ragdoll")
     Ext.ClientSave    = tryRequire("Library", "Client", "Save")
     Ext.CurrencyCmds  = tryRequire("Library", "Client", "CurrencyCmds")
     Ext.SpeedUtil     = tryRequire("Library", "Util", "SpeedUpgradeUtil")
@@ -443,8 +445,17 @@ function Ext.batHitboxScalar()
     return (ok and tonumber(scalar)) or 1
 end
 
-function Ext.batServerRange()
-    return Ext.BatRange * Ext.batHitboxScalar()
+-- BatClientController builds its selection range as
+--   Config.Range + Config.HitTolerance + gear.BatControllerData.RangeBonus
+-- and then scales the whole thing by GetHitboxScalar(). RangeBonus runs from
+-- 0 on the Forest Bat to 16.875 on the Katana, so the bat you hold matters.
+function Ext.batServerRange(gearName)
+    local bonus = 0
+    local gear  = gearName and Ext.GearDirectory[gearName]
+    if type(gear) == "table" and type(gear.BatControllerData) == "table" then
+        bonus = tonumber(gear.BatControllerData.RangeBonus) or 0
+    end
+    return (Ext.BatRange + Ext.BatTolerance + bonus) * Ext.batHitboxScalar()
 end
 
 local function rarityNum(name)
@@ -2362,7 +2373,7 @@ end
 -- character tells us who is holding it without guessing at field names.
 -- =====================================================================
 
-Ext.CarryWatch = { byUser = {}, at = 0, mineUntil = 0 }
+Ext.CarryWatch = { byUser = {}, at = 0, mineUntil = 0, mine = nil, mineUid = nil }
 
 function Ext.refreshCarryWatch()
     if os.clock() - Ext.CarryWatch.at < 0.75 then return Ext.CarryWatch.byUser end
@@ -2401,7 +2412,22 @@ function Ext.refreshCarryWatch()
     return carriers
 end
 
+-- Eggs: AreaEggCarryState is the authoritative answer for our own hands. It is
+-- local-player only, which is why other players still go through the snapshot
+-- proximity match above.
+do
+    local carryState = Network:FindFirstChild("Eggs: AreaEggCarryState")
+    if carryState and carryState:IsA("RemoteEvent") then
+        trackConn(carryState.OnClientEvent:Connect(function(state)
+            if type(state) ~= "table" then return end
+            Ext.CarryWatch.mine    = state.IsCarrying == true
+            Ext.CarryWatch.mineUid = state.Uid
+        end))
+    end
+end
+
 function Ext.amCarryingEgg()
+    if Ext.CarryWatch.mine ~= nil then return Ext.CarryWatch.mine end
     if os.clock() < Ext.CarryWatch.mineUntil then return true end
     Ext.refreshCarryWatch()
     return Ext.CarryWatch.byUser[LocalPlayer.UserId] ~= nil
@@ -2529,22 +2555,47 @@ function Ext.batOnCooldown(tool)
         if okNow and now < endsAt then return true end
     end
 
-    local minGap = math.max(tonumber(Flags.BatMinInterval) or 0.35, 0.15)
+    -- BatClientController debounces its own Activated handler at 0.6s and logs
+    -- CLIENT_COOLDOWN_ACTIVE for anything faster, so never ask below that.
+    local minGap = math.max(tonumber(Flags.BatMinInterval) or 0.6, 0.6)
     return (os.clock() - Ext.BatAura.lastSwing) < minGap
+end
+
+-- The same checks _isTargetEligible runs before the client will send a swing.
+function Ext.batTargetEligible(player)
+    local char = player and player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not (char and root and hum and hum.Health > 0) then return false end
+
+    if Ext.Ragdoll and type(Ext.Ragdoll.IsRagdolled) == "function" then
+        local ok, ragdolled = pcall(Ext.Ragdoll.IsRagdolled, char)
+        if ok and ragdolled then return false end
+    end
+
+    if Ext.ToolGuard and type(Ext.ToolGuard.IsPlayerInGameplayArea) == "function" then
+        local ok, inArea = pcall(Ext.ToolGuard.IsPlayerInGameplayArea, player)
+        if ok and not inArea then return false end
+    end
+
+    return true
 end
 
 function Ext.batTargets()
     local root = getRoot()
     if not root then return {} end
 
-    local range     = Ext.batServerRange()
+    local bat       = Ext.BatAura.bat
+    local gearName  = bat and tostring(bat:GetAttribute("GearName")) or Ext.bestOwnedBat()
+    local range     = Ext.batServerRange(gearName)
     local carriers  = Ext.refreshCarryWatch()
     local plotRange = tonumber(Flags.BatPlotRadius) or 0
     local center    = plotRange > 0 and getPlotCenter() or nil
 
     local found = {}
     for userId, entry in pairs(carriers) do
-        if userId ~= LocalPlayer.UserId and entry.root and entry.root.Parent then
+        if userId ~= LocalPlayer.UserId and entry.root and entry.root.Parent
+            and Ext.batTargetEligible(entry.player) then
             local dist = (entry.root.Position - root.Position).Magnitude
             if dist <= range then
                 local nearPlot = true
@@ -2570,8 +2621,20 @@ end
 function Ext.swingBat(tool)
     local char = getCharacter()
     if not (tool and char and tool.Parent == char) then return false end
+
+    -- _onActivated bails out with CLIENT_GAMEPLAY_GUARD_REJECTED before it
+    -- sends anything, so there is no point swinging outside the arena.
+    if Ext.ToolGuard and type(Ext.ToolGuard.CanActivateLocal) == "function" then
+        local okGuard, allowed = pcall(Ext.ToolGuard.CanActivateLocal, tool)
+        if okGuard and not allowed then
+            Ext.BatAura.status = "Outside the gameplay area"
+            return false
+        end
+    end
+
     -- Activate the game's own bat controller. It picks the target and fires
-    -- Bat:Activate itself, so the request looks exactly like a real swing.
+    -- Bat:Activate(target, traceId) itself, so the request is byte for byte
+    -- what a manual swing sends.
     local ok = pcall(function() tool:Activate() end)
     if ok then
         Ext.BatAura.lastSwing = os.clock()
@@ -2581,9 +2644,11 @@ function Ext.swingBat(tool)
 end
 
 function Ext.batAuraText()
-    return string.format("Bat Aura: %s | swings %d | range %.0f (+%d tolerance)%s",
-        Ext.BatAura.status, Ext.BatAura.swings, Ext.batServerRange(), Ext.BatTolerance,
-        Ext.BatAura.bat and ("\nBat: " .. tostring(Ext.BatAura.bat:GetAttribute("GearName") or Ext.BatAura.bat.Name)) or "")
+    local bat      = Ext.BatAura.bat
+    local gearName = bat and tostring(bat:GetAttribute("GearName")) or Ext.bestOwnedBat()
+    return string.format("Bat Aura: %s\nSwings %d   Reach %.1f studs%s",
+        Ext.BatAura.status, Ext.BatAura.swings, Ext.batServerRange(gearName),
+        gearName and ("\nBat: " .. gearName .. " (tier " .. Ext.batTier(gearName) .. ")") or "")
 end
 
 -- =====================================================================
@@ -2652,25 +2717,42 @@ function Ext.sortedByDistance(instances)
     return out
 end
 
+function Ext.crystalReach()
+    return Ext.Sakura.PickupRange
+end
+
+-- Trees carry a Radius attribute and the client's findTreeInReach compares the
+-- horizontal distance against Radius + Bloom.HitRange, so a big tree is
+-- reachable from much further out than a small one.
+function Ext.treeReach(tree)
+    local radius = tonumber(tree and tree:GetAttribute("Radius")) or 0
+    return radius + Ext.Sakura.HitRange
+end
+
 function Ext.collectCrystals(budgetSeconds)
-    local deadline = os.clock() + (budgetSeconds or 6)
+    local deadline  = os.clock() + (budgetSeconds or 6)
     local collected = 0
 
     for _, entry in ipairs(Ext.sortedByDistance(Ext.taggedInWorkspace(Ext.Sakura.CrystalTag))) do
         if os.clock() > deadline then break end
-        if not Running["SakuraFarm"] and not Running["SakuraCollect"] then break end
+        if not (Running["SakuraFarm"] or Running["SakuraCollect"]) then break end
+
         if entry.part.Parent then
             local root = getRoot()
-            if root and (entry.part.Position - root.Position).Magnitude > Ext.Sakura.PickupRange * 0.6 then
+            if root and (entry.part.Position - root.Position).Magnitude > Ext.crystalReach() * 0.6 then
                 Move:To(entry.part.Position + Vector3.new(0, 3, 0), 8)
             end
-            -- Standing inside CrystalPickupRange is what the game itself waits
-            -- for. The direct remote is opt-in for people who want it faster.
+
+            -- Standing inside CrystalPickupRange is enough: the Great Bloom
+            -- client flies the crystal to you and invokes CollectCrystal with
+            -- the crystal model once it lands. The direct call is the same
+            -- request, just skipping the fly-in animation.
             if Flags.SakuraDirectCollect then
                 invokeRemote("Sakura: CollectCrystal", entry.inst)
             end
+
             local waited = 0
-            while entry.part.Parent and waited < 0.6 do
+            while entry.part.Parent and waited < 0.8 do
                 waited = waited + task.wait(0.1)
             end
             if not entry.part.Parent then
@@ -2683,19 +2765,31 @@ function Ext.collectCrystals(budgetSeconds)
     return collected
 end
 
+-- The Great Bloom client already runs its own Heartbeat loop calling
+-- tryAutoSwing every 0.15s: if you hold a bat, the incubator is unlocked and a
+-- tree is in reach, it plays HitAnim and fires HitTree for you. So this farm
+-- does not swing at all. It gets you unlocked, holding a bat, and standing in
+-- reach, then lets the game do the hitting and picks up what falls out.
 function Ext.farmBloomTrees()
-    local active, treeCount = Ext.bloomActive()
+    local active = Ext.bloomActive()
     if not active then
         local left = Ext.bloomSecondsLeft()
-        Ext.SakuraStatus.text = left and left > 0
+        Ext.SakuraStatus.text = (left and left > 0)
             and string.format("%s ends in %ds", Ext.Sakura.EventName, left)
             or (Ext.Sakura.EventName .. " is not running")
         return false
     end
 
+    if not Ext.incubatorUnlocked() then
+        -- tryAutoSwing checks SakuraBloomPolicy.IsUnlocked before it will send
+        -- a single hit, so chopping is pointless until the incubator is awake.
+        Ext.SakuraStatus.text = "Incubator locked - trees cannot be hit yet"
+        return false
+    end
+
     local bat = Ext.equipBestBat()
     if not bat then
-        Ext.SakuraStatus.text = "Need a bat to hit trees"
+        Ext.SakuraStatus.text = "Need a bat equipped to hit trees"
         return false
     end
 
@@ -2710,30 +2804,47 @@ function Ext.farmBloomTrees()
     local root   = getRoot()
     if not root then return false end
 
-    if target.dist > Ext.Sakura.HitRange * 0.7 then
-        Ext.SakuraStatus.text = "Travelling to tree"
-        Move:To(target.part.Position + Vector3.new(0, 3, 0), 10)
+    local reach = Ext.treeReach(target.inst)
+    local function horizontal()
+        local here = getRoot()
+        if not here then return math.huge end
+        local delta = target.part.Position - here.Position
+        return Vector3.new(delta.X, 0, delta.Z).Magnitude
     end
 
-    Ext.SakuraStatus.text = string.format("Chopping (%d trees up)", #trees)
-    local swings = 0
-    while target.part.Parent and Running["SakuraFarm"] and swings < 40 do
-        root = getRoot()
-        if not root then break end
-        if (target.part.Position - root.Position).Magnitude > Ext.Sakura.HitRange then
-            Move:To(target.part.Position + Vector3.new(0, 3, 0), 6)
+    if horizontal() > reach * 0.7 then
+        Ext.SakuraStatus.text = "Travelling to tree"
+        Move:To(target.part.Position + Vector3.new(0, 3, 0), 12)
+    end
+
+    -- Hold position while the game's own loop chews through the tree.
+    -- Trees carry Size, Hits and HitsRequired: Small dies in 1 hit and drops
+    -- 1 crystal, Gigantic takes 3 and drops 6.
+    Ext.SakuraStatus.text = string.format("Working a %s tree (%s/%s hits), %d up",
+        tostring(target.inst:GetAttribute("Size") or "?"),
+        tostring(target.inst:GetAttribute("Hits") or "?"),
+        tostring(target.inst:GetAttribute("HitsRequired") or "?"),
+        #trees)
+
+    local held = 0
+    while target.part.Parent and Running["SakuraFarm"] and held < 30 do
+        if getCharacter() and bat.Parent ~= getCharacter() then
+            bat = Ext.equipBestBat()
+            if not bat then break end
         end
-        bat = (bat.Parent == getCharacter()) and bat or Ext.equipBestBat()
-        if not bat then break end
-        Ext.swingBat(bat)
+        if horizontal() > reach * 0.85 then
+            Move:To(target.part.Position + Vector3.new(0, 3, 0), 8)
+        end
+        if Flags.SakuraDirectHit then
+            -- Same request the client sends, addressed by the tree instance.
+            fireRemote("Sakura: HitTree", target.inst)
+        end
         Ext.SakuraStatus.hits = Ext.SakuraStatus.hits + 1
-        swings = swings + 1
-        -- Bloom.HitCooldownSeconds is what the server enforces per tree.
-        task.wait(Ext.Sakura.HitCooldown + 0.05)
+        held = held + task.wait(0.25)
     end
 
     Ext.SakuraStatus.crystals = #Ext.taggedInWorkspace(Ext.Sakura.CrystalTag)
-    Ext.collectCrystals(5)
+    Ext.collectCrystals(6)
     return true
 end
 
@@ -2763,14 +2874,23 @@ function Ext.sakuraCrystals()
 end
 
 function Ext.incubatorUnlocked()
-    local state = Ext.sakuraState()
-    if type(state) == "table" then
-        if state.Unlocked ~= nil then return state.Unlocked == true end
-        if Ext.BloomPolicy and type(Ext.BloomPolicy.IsUnlocked) == "function" then
-            local ok, unlocked = pcall(Ext.BloomPolicy.IsUnlocked, state)
+    -- SakuraBloomPolicy.IsUnlocked(isLocalDataLoaded, save) is the exact call
+    -- the Great Bloom client makes before it will hit a tree.
+    if Ext.BloomPolicy and type(Ext.BloomPolicy.IsUnlocked) == "function"
+        and Ext.ClientSave and type(Ext.ClientSave.Get) == "function" then
+        local okLoaded, loaded = pcall(Ext.ClientSave.IsLocalDataLoaded)
+        local okSave, save     = pcall(Ext.ClientSave.Get)
+        if okLoaded and okSave then
+            local ok, unlocked = pcall(Ext.BloomPolicy.IsUnlocked, loaded, save)
             if ok then return unlocked == true end
         end
     end
+
+    local state = Ext.sakuraState()
+    if type(state) == "table" and state.Unlocked ~= nil then
+        return state.Unlocked == true
+    end
+
     -- The dormant tree model is swapped out once the incubator is awake.
     return Workspace:FindFirstChild("IncubatorDead") == nil
 end
@@ -2832,11 +2952,9 @@ function Ext.unlockSakuraIncubator(travel)
         uid = Ext.ownedCraneUid() or uid
     end
 
-    local ok, res = invokeRemote("Sakura: ReturnCrane", uid)
-    if not (ok and res ~= false and res ~= nil) then
-        -- Older builds took no argument.
-        ok, res = invokeRemote("Sakura: ReturnCrane")
-    end
+    -- The dormant tree prompt invokes REQUEST_RETURN_CRANE with no arguments;
+    -- the server picks the Crane out of your inventory itself.
+    local ok, res = invokeRemote("Sakura: ReturnCrane")
 
     if ok and res ~= false and res ~= nil then
         return true, "Incubator unlocked"
@@ -3657,10 +3775,11 @@ BatGB:AddSlider("BatPlotRadius", {
 
 BatGB:AddSlider("BatMinInterval", {
     Text     = "Minimum Swing Gap",
-    Tooltip  = "Extra spacing on top of the bat's own cooldown attributes.",
-    Min      = 0.15,
-    Max      = 2,
-    Default  = 0.35,
+    Tooltip  = "The bat controller debounces its own swings at 0.6s and drops"
+        .. " anything faster, so this cannot usefully go lower.",
+    Min      = 0.6,
+    Max      = 3,
+    Default  = 0.6,
     Rounding = 2,
     Callback = function(v) Flags.BatMinInterval = v end,
 })
@@ -3855,15 +3974,18 @@ local IncubGB   = Tabs.Sakura:AddRightGroupbox("Sakura Incubator", "gem")
 local SakuraInfoGB = Tabs.Sakura:AddRightGroupbox("Status", "radar")
 
 BloomGB:AddLabel(string.format(
-    "Trees are tagged %s and crystals %s. Hit range %d, cooldown %.2fs,"
-    .. " pickup range %d. A bloom lasts %ds and comes round every %d minutes.",
-    Ext.Sakura.TreeTag, Ext.Sakura.CrystalTag, Ext.Sakura.HitRange, Ext.Sakura.HitCooldown,
+    "The game swings at bloom trees on its own every 0.15s while you hold a"
+    .. " bat and the incubator is unlocked, so this just keeps you in reach."
+    .. "\nTrees %s, crystals %s. Reach is the tree's Radius + %d studs, pickup"
+    .. " %d. A bloom lasts %ds and returns every %d minutes.",
+    Ext.Sakura.TreeTag, Ext.Sakura.CrystalTag, Ext.Sakura.HitRange,
     Ext.Sakura.PickupRange, Ext.Sakura.Duration, math.floor(Ext.Sakura.Interval / 60)), true)
 
 BloomGB:AddToggle("SakuraFarm", {
     Text    = "Auto Farm Trees",
-    Tooltip = "Chops Great Bloom trees and picks up the crystals they drop."
-        .. " Only runs while a bloom is actually active.",
+    Tooltip = "Keeps a bat equipped and parks you inside a tree's reach so the"
+        .. " game's own swing loop works it, then sweeps the crystals. Only"
+        .. " runs while a bloom is actually active.",
     Default = false,
     Callback = function(val)
         Flags.SakuraFarm = val
@@ -3899,6 +4021,14 @@ BloomGB:AddToggle("SakuraCollect", {
             task.wait(0.5)
         end)
     end,
+})
+
+BloomGB:AddToggle("SakuraDirectHit", {
+    Text    = "Direct Tree Hits",
+    Tooltip = "The Great Bloom client already auto-swings for you every 0.15s."
+        .. " Turn this on to also send HitTree yourself.",
+    Default = false,
+    Callback = function(v) Flags.SakuraDirectHit = v end,
 })
 
 BloomGB:AddToggle("SakuraDirectCollect", {
@@ -5765,10 +5895,11 @@ Flags.PredictArea          = nil
 Flags.PredictRows          = 10
 Flags.BatAura              = false
 Flags.BatPlotRadius        = 150
-Flags.BatMinInterval       = 0.35
+Flags.BatMinInterval       = 0.6
 Flags.SakuraFarm           = false
 Flags.SakuraCollect        = false
 Flags.SakuraDirectCollect  = false
+Flags.SakuraDirectHit      = false
 Flags.SakuraAutoMutate     = false
 Flags.AutoIncubator        = false
 Flags.AutoUnlockSakura     = false
