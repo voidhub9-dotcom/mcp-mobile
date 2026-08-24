@@ -1498,91 +1498,151 @@ BFWorldLocationChildren = function()
 -- only holds permanent world islands such as "Hydra Island"/"Submerged Island"), so the
 -- old BFWorldLocation("Island N") lookup always returned nil and Auto Next Island never
 -- moved. Resolve them against the roots the raid actually streams them into instead.
-BFRaidIslandNames = { "Island 1", "Island 2", "Island 3", "Island 4", "Island 5" };
-BFRaidIslandRoots = function()
-		local roots = {};
-		local locations = BFWorldLocations();
-		if locations then
-			roots[#roots + 1] = locations;
+-- Raid island + movement helpers ---------------------------------------------------
+-- Ported from a known-working raid implementation. Two things matter here:
+--   * During a raid the island markers live in workspace._WorldOrigin.Locations as
+--     plain Parts named "Island 1".."Island 5". They are absent outside a raid, which
+--     is why probing for them between raids finds nothing.
+--   * A plain tween on HumanoidRootPart gets rubber-banded by the server over long
+--     distances. Riding an anchored proxy part does not, so raid movement uses that.
+-- Long-distance movement. A plain tween onto HumanoidRootPart is rubber-banded by
+-- the server, and riding an anchored proxy part fares no better here: both stall a
+-- few hundred studs in. What this server does accept is a paced hop -- a direct
+-- CFrame write of a few hundred studs, then a pause. Roughly 250 studs/second holds,
+-- measured end to end over a 9,700 stud crossing. So step, wait, step again.
+BFRaidHopStud = 300;
+BFRaidHopInterval = 1.2;
+BFRaidHopNextAt = 0;
+BFRaidStopTeleport = function()
+		-- Deliberately does NOT reset BFRaidHopNextAt. Another raid loop calls this
+		-- every tick while idle, and clearing the pacing clock let hops fire far
+		-- faster than the server accepts, which is what triggered the rubber-band.
+		local character = d.Character;
+		local part = character and character:FindFirstChild("BFRaidTele");
+		if part then
+			part:Destroy();
 		end;
-		local map = workspace:FindFirstChild("Map");
-		if map then
-			roots[#roots + 1] = map;
-		end;
-		roots[#roots + 1] = workspace;
-		return roots;
 	end;
-BFResolveRaidIsland = function(name)
-		for _, root in ipairs(BFRaidIslandRoots()) do
-			local node = root:FindFirstChild(name);
-			local part = node and BFFirstPart(node);
-			if part then
-				return part;
+-- Returns true once the character has arrived. Safe to call every tick: it paces
+-- itself, so the caller does not need its own retarget throttle.
+BFRaidTeleport = function(target)
+		if typeof(target) ~= "CFrame" then
+			return false;
+		end;
+		local character = d.Character;
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid");
+		local root = character and character:FindFirstChild("HumanoidRootPart");
+		if not humanoid or humanoid.Health <= 0 or not root then
+			return false;
+		end;
+		if root.Anchored then
+			root.Anchored = false;
+		end;
+		local delta = target.Position - root.Position;
+		local distance = delta.Magnitude;
+		if distance <= 20 then
+			return true;
+		end;
+		-- Short range is accepted outright, so do not pace combat repositioning.
+		if distance <= 400 then
+			root.CFrame = target;
+			return true;
+		end;
+		local now = os.clock();
+		if now < BFRaidHopNextAt then
+			return false;
+		end;
+		BFRaidHopNextAt = now + BFRaidHopInterval;
+		root.CFrame = CFrame.new(root.Position + delta.Unit * math.min(BFRaidHopStud, distance));
+		return false;
+	end;
+BFRaidIslandNames = { "Island 1", "Island 2", "Island 3", "Island 4", "Island 5" };
+BFRaidIslandRange = 4500;
+BFRaidIslandAnchor = function(node)
+		if not node then
+			return nil;
+		end;
+		if node:IsA("BasePart") then
+			return node.Position;
+		end;
+		if node:IsA("Model") then
+			local ok, boundingCFrame = pcall(node.GetBoundingBox, node);
+			if ok and boundingCFrame then
+				return boundingCFrame.Position;
 			end;
 		end;
-		return nil;
+		local part = BFFirstPart(node);
+		return part and part.Position or nil;
+	end;
+BFResolveRaidIsland = function(index)
+		local locations = BFWorldLocations();
+		local marker = locations and locations:FindFirstChild("Island " .. index);
+		if marker then
+			local anchor = BFRaidIslandAnchor(marker);
+			if anchor then
+				return anchor;
+			end;
+		end;
+		local map = workspace:FindFirstChild("Map");
+		local raidMap = map and map:FindFirstChild("RaidMap");
+		local model = raidMap and (raidMap:FindFirstChild("RaidIsland" .. index) or raidMap:FindFirstChild("Island " .. index));
+		return model and BFRaidIslandAnchor(model) or nil;
 	end;
 BFRaidIslandList = function()
 		local list = {};
-		for index, name in ipairs(BFRaidIslandNames) do
-			local part = BFResolveRaidIsland(name);
-			if part then
-				list[#list + 1] = { Index = index, Name = name, Part = part };
+		for index = 1, 5 do
+			local anchor = BFResolveRaidIsland(index);
+			if anchor then
+				list[#list + 1] = { Index = index, Name = "Island " .. index, Anchor = anchor };
 			end;
 		end;
 		return list;
 	end;
-BFRaidIslandHasEnemies = function(part, radius)
-		if not part then
+BFRaidIslandTarget = function(anchor)
+		return CFrame.new(anchor + Vector3.new(0, 60, 0));
+	end;
+BFInRaid = function()
+		if GuiShown("TopHUDList", "RaidTimer") or GuiShown("Timer") then
+			return true;
+		end;
+		local locations = BFWorldLocations();
+		return locations ~= nil and locations:FindFirstChild("Island 1") ~= nil;
+	end;
+BFRaidIslandHasEnemies = function(anchor, radius)
+		if typeof(anchor) ~= "Vector3" then
 			return false;
 		end;
 		local enemies = workspace:FindFirstChild("Enemies");
 		if not enemies then
 			return false;
 		end;
-		radius = tonumber(radius) or 900;
+		radius = tonumber(radius) or 1000;
 		for _, enemy in ipairs(enemies:GetChildren()) do
-			local humanoid = enemy:FindFirstChild("Humanoid") or enemy:FindFirstChildOfClass("Humanoid");
-			local root = enemy:FindFirstChild("HumanoidRootPart");
-			if humanoid and root and humanoid.Health > 0 and (root.Position - part.Position).Magnitude <= radius then
+			local humanoid = enemy:FindFirstChildOfClass("Humanoid");
+			local enemyRoot = enemy:FindFirstChild("HumanoidRootPart");
+			if humanoid and enemyRoot and humanoid.Health > 0 and (enemyRoot.Position - anchor).Magnitude <= radius then
 				return true;
 			end;
 		end;
 		return false;
 	end;
--- Pick the island the raid actually wants next: the lowest-numbered island that still
--- has something alive on it, otherwise step forward from whichever island we are stood
--- on. Never re-target the island we are already clearing.
+-- Walk the islands from the far end back, taking the highest-numbered one still
+-- within range. That is how the raid actually progresses: you clear forwards, and
+-- anything beyond BFRaidIslandRange has not been unlocked yet.
 BFRaidNextIsland = function(root)
-		local list = BFRaidIslandList();
-		if #list == 0 then
+		if not root then
 			return nil;
 		end;
-		for _, entry in ipairs(list) do
-			if BFRaidIslandHasEnemies(entry.Part) then
-				return entry.Part, entry.Name;
+		local list = BFRaidIslandList();
+		for index = #list, 1, -1 do
+			local entry = list[index];
+			if (entry.Anchor - root.Position).Magnitude <= BFRaidIslandRange then
+				return entry.Anchor, entry.Name;
 			end;
 		end;
-		if not root then
-			return list[1].Part, list[1].Name;
-		end;
-		local nearest, nearestDistance;
-		for _, entry in ipairs(list) do
-			local distance = (entry.Part.Position - root.Position).Magnitude;
-			if not nearestDistance or distance < nearestDistance then
-				nearest, nearestDistance = entry, distance;
-			end;
-		end;
-		if nearest and nearestDistance and nearestDistance > 350 then
-			return nearest.Part, nearest.Name;
-		end;
-		for _, entry in ipairs(list) do
-			if nearest and entry.Index > nearest.Index then
-				return entry.Part, entry.Name;
-			end;
-		end;
-		return nearest and nearest.Part or list[1].Part, nearest and nearest.Name or list[1].Name;
+		return nil;
 	end;
+
 BFFirstPart = function(root)
 		if not root then
 			return nil;
@@ -13357,14 +13417,29 @@ task.spawn(function()
 					end;
 					detector = BFMapNode("CircleIsland", "RaidSummon2", "Button", "Main", "ClickDetector");
 				elseif World3 then
+					-- requestEntrance only streams the castle in; it does not move us there.
+					-- Firing the detector from across the map still consumes the microchip
+					-- but never starts the raid, so walk to the summon before clicking.
+					local now = os.clock();
+					if now >= UI.RaidStartNextEntranceAt then
+						UI.RaidStartNextEntranceAt = now + 2;
+						pcall(function()
+							BFComm("requestEntrance", Vector3.new(-5097.93164, 316.447021, -3142.66602));
+						end);
+					end;
+					local character = d.Character;
+					local root = character and character:FindFirstChild("HumanoidRootPart");
+					if not root then
+						UI.SetRaidStartStatus("waiting-for-character");
+						return;
+					end;
+					if not BFRaidTeleport(CFrame.new(-5047.88623, 330, -2966.946)) then
+						UI.SetRaidStartStatus("moving-to-third-sea-summoner");
+						return;
+					end;
 					detector = BFMapNode("Boat Castle", "RaidSummon2", "Button", "Main", "ClickDetector");
 					if not detector then
 						UI.SetRaidStartStatus("loading-third-sea-summoner");
-						local now = os.clock();
-						if now >= UI.RaidStartNextEntranceAt then
-							UI.RaidStartNextEntranceAt = now + 2;
-							BFComm("requestEntrance", Vector3.new(-5097.93164, 316.447021, -3142.66602));
-						end;
 						return;
 					end;
 				else
@@ -13380,6 +13455,9 @@ task.spawn(function()
 				if now >= UI.RaidStartNextClickAt then
 					UI.RaidStartNextClickAt = now + 1;
 					UI.SetRaidStartStatus("starting");
+					pcall(function()
+						BFComm("SetSpawnPoint");
+					end);
 					pcall(fireclickdetector, detector);
 				end;
 			end);
@@ -13435,33 +13513,117 @@ Qq:AddToggle("BF_Toggle_Auto_Complete_Raid_Safety", {
 	end,
 });
 UI.RaidCompleteStatusLabel = Qq:AddLabel({ DoesWrap = true, Text = "Raid completion: idle" });
+-- Raid engine ---------------------------------------------------------------------
+-- Rewritten. The old step called BFFindNearestEnemy, which scans every model in
+-- workspace.Enemies with no distance cap at all. Inside a raid that routinely locked
+-- onto an ordinary world mob tens of thousands of studs away, and f.Kill then tweened
+-- the character straight out of the raid, so nothing was ever killed and the raid
+-- simply expired. It also drove the NextIs flag while the Auto Next Island loop was
+-- separately tweening somewhere else, so the two fought over the character.
+-- This version caps target range, keeps targeting inside the raid, and owns movement
+-- itself instead of driving a second loop.
+-- Raid engine ---------------------------------------------------------------------
+-- Rewritten against a known-working raid implementation. The previous version failed
+-- for three separate reasons, all fixed here:
+--   * BFFindNearestEnemy scanned every model in workspace.Enemies with no distance
+--     cap, so it regularly locked onto an ordinary world mob tens of thousands of
+--     studs away and tweened the character clean out of the raid.
+--   * Island lookups used names and a parent folder that never matched a live raid.
+--   * Long tweens straight onto HumanoidRootPart get rubber-banded by the server, so
+--     the character drifted instead of arriving. Movement now rides an anchored proxy.
+UI.RaidEnemyRange = 1000;
+UI.RaidLockRange = 60;
+UI.RaidTarget = nil;
+UI.RaidMoveTarget = nil;
+UI.RaidMoveAt = 0;
+UI.RaidPickTarget = function(root)
+	local enemies = workspace:FindFirstChild("Enemies");
+	if not enemies then
+		return nil;
+	end;
+	-- Stay on the current target until it is dead, the way a player clears a mob,
+	-- instead of flipping between whichever happens to be marginally closer.
+	local locked = UI.RaidTarget;
+	if locked and locked.Parent then
+		local lockedHumanoid = locked:FindFirstChildOfClass("Humanoid");
+		local lockedRoot = locked:FindFirstChild("HumanoidRootPart");
+		if lockedHumanoid and lockedRoot and lockedHumanoid.Health > 0
+			and (lockedRoot.Position - root.Position).Magnitude <= UI.RaidEnemyRange * 2 then
+			return locked, lockedRoot;
+		end;
+	end;
+	UI.RaidTarget = nil;
+	local best, bestRoot, bestDistance;
+	for _, enemy in ipairs(enemies:GetChildren()) do
+		local humanoid = enemy:FindFirstChildOfClass("Humanoid");
+		local enemyRoot = enemy:FindFirstChild("HumanoidRootPart");
+		if humanoid and enemyRoot and humanoid.Health > 0 and not enemy:GetAttribute("IsBoat") then
+			local distance = (enemyRoot.Position - root.Position).Magnitude;
+			if distance <= UI.RaidEnemyRange and (not bestDistance or distance < bestDistance) then
+				best, bestRoot, bestDistance = enemy, enemyRoot, distance;
+			end;
+		end;
+	end;
+	UI.RaidTarget = best;
+	return best, bestRoot;
+end;
+UI.RaidMoveTo = function(root, target, key)
+	UI.RaidMoveTarget = key;
+	if BFRaidTeleport(target) then
+		UI.RaidMoveTarget = nil;
+		return true;
+	end;
+	return false;
+end;
 function UI.RaidCompleteStep(active)
 	if not active then
 		UI.ReleaseManagedOwner("RaidComplete");
-		BFCancelTween();
+		BFRaidStopTeleport();
+		UI.RaidTarget, UI.RaidMoveTarget = nil, nil;
 		return "idle";
 	end;
-	if not GuiShown("TopHUDList", "RaidTimer") then
+	if not BFInRaid() then
 		UI.ReleaseManagedOwner("RaidComplete");
-		BFCancelTween();
+		BFRaidStopTeleport();
+		UI.RaidTarget, UI.RaidMoveTarget = nil, nil;
 		return "waiting-for-raid";
 	end;
 	local character = d.Character;
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid");
 	local root = character and character:FindFirstChild("HumanoidRootPart");
 	if not humanoid or humanoid.Health <= 0 or not root then
-		UI.ReleaseManagedOwner("RaidComplete");
-		BFCancelTween();
+		BFRaidStopTeleport();
+		UI.RaidTarget, UI.RaidMoveTarget = nil, nil;
 		return "waiting-for-respawn";
 	end;
-	local enemy = BFFindNearestEnemy(root.Position);
-	if enemy then
-		UI.SuppressManagedFlag("RaidComplete", "NextIs");
-		f.Kill(enemy, active);
-		return "combat";
+	-- This engine moves the character itself, so the standalone Auto Next Island loop
+	-- must stay parked while it runs or the two tween against each other.
+	UI.SuppressManagedFlag("RaidComplete", "NextIs");
+	local target, targetRoot = UI.RaidPickTarget(root);
+	if target and targetRoot then
+		UI.RaidMoveTarget = nil;
+		EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
+		local above = targetRoot.CFrame * CFrame.new(0, 30, 0);
+		if (targetRoot.Position - root.Position).Magnitude > UI.RaidLockRange then
+			BFRaidTeleport(above);
+		else
+			BFRaidStopTeleport();
+			root.CFrame = above;
+		end;
+		-- Open the shared attack window and swing directly, so combat does not depend
+		-- on Auto Farm Level or Seriality being on for the heartbeat gate to fire.
+		BFTouchAttack();
+		pcall(AttackNoCoolDown, false);
+		return "killing-" .. tostring(target.Name);
 	end;
-	UI.DriveManagedFlag("RaidComplete", "NextIs");
-	return "moving-to-next-island";
+	local anchor, name = BFRaidNextIsland(root);
+	if not anchor then
+		return "waiting-for-enemies";
+	end;
+	if UI.RaidMoveTo(root, BFRaidIslandTarget(anchor), name) then
+		return "holding-" .. tostring(name);
+	end;
+	return "moving-to-" .. tostring(name);
 end;
 task.spawn(function()
 	while IdleWait(_G.Raiding, .1) do
@@ -13511,33 +13673,32 @@ task.spawn(function()
 	while IdleWait(_G.NextIs, T) do
 		if _G.NextIs then
 			pcall(function()
-				if not GuiShown("TopHUDList", "RaidTimer") then
+				if not BFInRaid() then
 					UI.NextIslandTarget = nil;
+					BFRaidStopTeleport();
 					return;
 				end;
 				local character = d.Character;
+				local humanoid = character and character:FindFirstChildOfClass("Humanoid");
 				local root = character and character:FindFirstChild("HumanoidRootPart");
-				if not root then
+				if not root or not humanoid or humanoid.Health <= 0 then
 					return;
 				end;
-				local island, name = BFRaidNextIsland(root);
-				if not island then
+				local anchor, name = BFRaidNextIsland(root);
+				if not anchor then
 					UI.NextIslandTarget = nil;
 					return;
 				end;
-				local target = island.CFrame * CFrame.new(0, 50, 100);
+				local target = BFRaidIslandTarget(anchor);
 				if (root.Position - target.Position).Magnitude <= 25 then
+					UI.NextIslandTarget = nil;
 					return;
 				end;
 				-- Re-issuing _tp on every tick cancelled and restarted the tween each time,
 				-- so the character drifted instead of ever arriving. Only retarget when the
 				-- chosen island changes, or after the previous tween has had time to run.
-				local now = os.clock();
-				if UI.NextIslandTarget ~= name or now >= UI.NextIslandRetargetAt then
-					UI.NextIslandTarget = name;
-					UI.NextIslandRetargetAt = now + 3;
-					_tp(target);
-				end;
+				UI.NextIslandTarget = name;
+				BFRaidTeleport(target);
 			end);
 		end;
 	end;
