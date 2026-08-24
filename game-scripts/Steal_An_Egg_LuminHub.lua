@@ -5381,16 +5381,22 @@ do
     end)
 end
 
-local LOADER_SOURCE = [[
-loadstring(game:HttpGet("]] .. (getgenv().LuminHubSource
-    or "https://raw.githubusercontent.com/voidhub9-dotcom/mcp-mobile/main/game-scripts/Steal_An_Egg_LuminHub.lua")
-    .. [["))()
+local LOADER_SOURCE
+do
+    local env = (type(getgenv) == "function" and getgenv()) or _G
+    local source = env and env.LuminHubSource
+    if type(source) == "string" and source ~= "" then
+        LOADER_SOURCE = [[
+loadstring(game:HttpGet("]] .. source .. [["))()
 ]]
+    end
+end
 
 local function queueLoader()
     if type(queue_on_teleport) ~= "function" then return false end
     local payload = Flags.RejoinPayload
     if not payload or payload == "" then payload = LOADER_SOURCE end
+    if not payload or payload == "" then return false end
     local ok = pcall(queue_on_teleport, payload)
     return ok
 end
@@ -5818,6 +5824,7 @@ end)
 
 local function queueSelfForTeleport()
     if type(queue_on_teleport) ~= "function" then return end
+    if not LOADER_SOURCE or LOADER_SOURCE == "" then return end
     pcall(queue_on_teleport, LOADER_SOURCE)
 end
 
