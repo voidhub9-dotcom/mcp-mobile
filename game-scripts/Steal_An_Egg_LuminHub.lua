@@ -163,35 +163,51 @@ do
 end
 
 do
-    pcall(function()
-        if getconnections then
-            for _, conn in ipairs(getconnections(LogService.MessageOut)) do
-                pcall(function() conn:Disable() end)
-            end
-            for _, conn in ipairs(getconnections(ScriptContext.Error)) do
-                pcall(function() conn:Disable() end)
-            end
-        end
-    end)
-
     local hookFunction = resolveFunction(hookfunction)
     local newCC        = resolveFunction(newcclosure, function(f) return f end)
-    local checkCaller  = resolveFunction(checkcaller, function() return true end)
 
-    if hookFunction then
-        local function muteGlobal(name)
-            local env = (type(getgenv) == "function" and getgenv()) or _G
-            local old = env[name]
-            if type(old) ~= "function" then return end
+    local function silence(name)
+        local env = (type(getgenv) == "function" and getgenv()) or _G
+        local old = env[name]
+        if type(old) == "function" and hookFunction then
+            pcall(function() hookFunction(old, newCC(function() end)) end)
+        end
+        pcall(function() env[name] = function() end end)
+    end
+
+    for _, name in ipairs({
+        "print", "warn", "rconsoleprint", "rconsoleinfo",
+        "rconsolewarn", "rconsoleerr", "printconsole", "printidentity",
+    }) do
+        silence(name)
+    end
+
+    local function killLogListeners()
+        if not getconnections then return end
+        for _, signal in ipairs({ LogService.MessageOut, ScriptContext.Error }) do
             pcall(function()
-                hookFunction(old, newCC(function(...)
-                    if checkCaller() then return old(...) end
-                end))
+                for _, conn in ipairs(getconnections(signal)) do
+                    pcall(function() conn:Disable() end)
+                end
             end)
         end
-        muteGlobal("print")
-        muteGlobal("warn")
     end
+
+    local function clearOutput()
+        pcall(function() LogService:ClearOutput() end)
+    end
+
+    killLogListeners()
+    clearOutput()
+
+    local myGen = ScriptGeneration
+    task.spawn(function()
+        while myGen == _G.LuminHubGeneration do
+            killLogListeners()
+            clearOutput()
+            task.wait(5)
+        end
+    end)
 end
 
 local function neutralizeFrameLoops()
@@ -1140,8 +1156,7 @@ local function startLoop(name, func)
     local myGen = ScriptGeneration
     task.spawn(function()
         while Running[name] and myGen == _G.LuminHubGeneration do
-            local ok, err = pcall(func)
-            if not ok and Flags.DebugMode then warn("[LuminHub] " .. name .. ": " .. tostring(err)) end
+            pcall(func)
             task.wait()
         end
         Running[name] = false
@@ -5126,7 +5141,6 @@ function doRejoin(why)
     if Rejoining then return end
     Rejoining = true
     queueLoader()
-    warn("[LuminHub] rejoining: " .. tostring(why))
     task.spawn(function()
         for attempt = 1, 6 do
             local ok = pcall(function()

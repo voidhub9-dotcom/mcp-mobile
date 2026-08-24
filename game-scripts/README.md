@@ -90,6 +90,18 @@ overlap margin, shaving it further if rollbacks have already been seen. At
 Speed Power 243.7M (walk speed 195.5) that gives 185 instead of the stock 300,
 which is what causes the rollbacks.
 
+## Logging
+
+All console output is suppressed at load. `print`, `warn` and the `rconsole*`
+family are replaced with no-ops via `hookfunction` (so the game's own calls go
+quiet too, not just the script's), every listener on `LogService.MessageOut`
+and `ScriptContext.Error` is disabled, and `LogService:ClearOutput()` runs on a
+5 second sweep to catch listeners that reattach later. The script makes no
+print or warn calls of its own.
+
+Status still surfaces through the menu labels and the on-screen notifications,
+which are GUI, not console output.
+
 ## Auto-execute on rejoin
 
 The rejoin and teleport handlers re-run the script from `getgenv().LuminHubSource`
