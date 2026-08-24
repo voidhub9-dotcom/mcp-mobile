@@ -67,10 +67,6 @@ local TemplateConfig = {
     Branding = {
         WindowTitle  = " ",
         Footer       = "discord.gg/luminhub",
-        IconAssetId  = 73375080218088,
-        IconFile     = "A7.png",
-        IconUrl      = "http://luminon.top/A7.png",
-        IconFallback = "rbxassetid://73375080218088",
     },
     Game = {
         ExpectedPlaceVersion = 385,
@@ -223,16 +219,6 @@ local function neutralizeFrameLoops()
 end
 
 neutralizeFrameLoops()
-
-local function resolveLuminIcon()
-    local b = TemplateConfig.Branding
-    if not (writefile and isfile and getcustomasset) then return b.IconFallback end
-    local ok, asset = pcall(function()
-        if not isfile(b.IconFile) then writefile(b.IconFile, game:HttpGet(b.IconUrl)) end
-        return getcustomasset(b.IconFile)
-    end)
-    return ok and asset or b.IconFallback
-end
 
 local Library = loadstring(game:HttpGet(TemplateConfig.Dependencies.LibraryUrl))()
 _G.LuminHubLibrary = Library
@@ -2883,7 +2869,6 @@ local Window = Library:CreateWindow({
     Title         = TemplateConfig.Branding.WindowTitle,
     Footer        = TemplateConfig.Branding.Footer,
     Size          = windowSize,
-    Icon          = resolveLuminIcon(),
     ToggleKeybind = TemplateConfig.Interface.ToggleKeybind,
     Center        = true,
     AutoShow      = true,
@@ -2891,12 +2876,12 @@ local Window = Library:CreateWindow({
 })
 
 local Tabs = {
-    Home       = Window:AddTab("Home",       "square-user",      "Account, game, and script information."),
-    Farm       = Window:AddTab("Farm",       "flag",             "Egg stealing and filters."),
-    Automation = Window:AddTab("Automation", "cpu",              "Eggs, pets, progression, and inventory."),
-    Intel      = Window:AddTab("Intel",      "eye",              "ESP, server intel, and webhook."),
-    Sakura     = Window:AddTab("Sakura",     "sparkle",          "Great Bloom, crystals, and the Sakura incubator."),
-    System     = Window:AddTab("System",     "settings",         "Player, server, performance, and configs."),
+    Home       = Window:AddTab("Home", nil, "Account, game, and script information."),
+    Farm       = Window:AddTab("Farm", nil, "Egg stealing and filters."),
+    Automation = Window:AddTab("Automation", nil, "Eggs, pets, progression, and inventory."),
+    Intel      = Window:AddTab("Intel", nil, "ESP, server intel, and webhook."),
+    Sakura     = Window:AddTab("Sakura", nil, "Great Bloom, crystals, and the Sakura incubator."),
+    System     = Window:AddTab("System", nil, "Player, server, performance, and configs."),
 }
 
 do
@@ -2955,7 +2940,7 @@ do
         })
     end)
 
-    local Credits = Tabs.Home:AddLeftGroupbox("Credits", "sparkle")
+    local Credits = Tabs.Home:AddLeftGroupbox("Credits")
     Credits:AddLabel("Credits To Lumin Developers:\nThanks for supporting Lumin Hub :p")
     Credits:AddCopyLabel("CopyDiscord", {
         Text    = "discord.gg/luminhub",
@@ -2965,7 +2950,7 @@ do
         Size    = 14,
     })
 
-    local GameBox = Tabs.Home:AddLeftGroupbox("Game", "app-window")
+    local GameBox = Tabs.Home:AddLeftGroupbox("Game")
     GameBox:AddLabel("Place Version: " .. game.PlaceVersion)
     local statLabel = GameBox:AddLabel("Stats:\nLoading...", true)
     local timeLabel = GameBox:AddLabel("Time Elapsed:\nLoading...", true)
@@ -2986,7 +2971,7 @@ do
     end)
     GameBox:AddLabel("Server Variant: " .. serverType)
 
-    local VersionBox = Tabs.Home:AddRightGroupbox("Version", "hash")
+    local VersionBox = Tabs.Home:AddRightGroupbox("Version")
     VersionBox:AddLabel("Script Version: " .. tostring(LRM_ScriptVersion or "v2.0"))
 
     spawnTracked(function()
@@ -3001,7 +2986,7 @@ do
         end)
     end)
 
-    local Support = Tabs.Home:AddRightGroupbox("Games Supported", "gamepad-2")
+    local Support = Tabs.Home:AddRightGroupbox("Games Supported")
     Support:AddLabel(
         '<font color="rgb(0, 255, 0)">*</font> Working and Updated\n' ..
         '<font color="rgb(255, 255, 0)">*</font> Unstable and Experimental\n' ..
@@ -3016,8 +3001,8 @@ do
 end
 
 local TBL, TBR
-local StealGB = Tabs.Farm:AddLeftGroupbox("Auto Farm", "flag")
-local FilterGB = Tabs.Farm:AddRightGroupbox("Filters", "filter")
+local StealGB = Tabs.Farm:AddLeftGroupbox("Auto Farm")
+local FilterGB = Tabs.Farm:AddRightGroupbox("Filters")
 
 FilterGB:AddDropdown("FarmMinRarity", {
     Text    = "Minimum Rarity",
@@ -3248,7 +3233,7 @@ end)
 
 local StealStatus = StealGB:AddLabel("Last Steal: Idle", true)
 
-local SniperGB = Tabs.Farm:AddRightGroupbox("Spawn Sniper", "crosshair")
+local SniperGB = Tabs.Farm:AddRightGroupbox("Spawn Sniper")
 
 SniperGB:AddDropdown("SnipeMinRarity", {
     Text      = "Sniper Min Rarity",
@@ -3268,7 +3253,7 @@ SniperGB:AddToggle("SpawnSniper", {
     end,
 })
 
-local ActionsGB = Tabs.Farm:AddRightGroupbox("Actions", "zap")
+local ActionsGB = Tabs.Farm:AddRightGroupbox("Actions")
 
 ActionsGB:AddButton("Teleport to Base", function()
     local c = getPlotCenter()
@@ -3329,7 +3314,7 @@ ActionsGB:AddToggle("AutoReturnBase", {
 
 do
 
-local GlobalGB = Tabs.Farm:AddLeftGroupbox("Global Auto Farm", "radar")
+local GlobalGB = Tabs.Farm:AddLeftGroupbox("Global Auto Farm")
 
 GlobalGB:AddDropdown("GlobalFarmLastArea", {
     Text      = "Farm Up To",
@@ -3417,7 +3402,7 @@ GlobalGB:AddToggle("GlobalAutoFarm", {
 
 local globalLabel = GlobalGB:AddLabel("Rotation: idle", true)
 
-local TravelGB = Tabs.Farm:AddLeftGroupbox("Fast Travel", "zap")
+local TravelGB = Tabs.Farm:AddLeftGroupbox("Fast Travel")
 
 TravelGB:AddSlider("TravelMargin", {
     Text     = "Safety Margin",
@@ -3453,7 +3438,7 @@ TravelGB:AddToggle("AutoCalibrateTravel", {
     end,
 })
 
-local BatGB = Tabs.Farm:AddRightGroupbox("Bat Aura", "crosshair")
+local BatGB = Tabs.Farm:AddRightGroupbox("Bat Aura")
 
 BatGB:AddSlider("BatPlotRadius", {
     Text     = "Plot Radius",
@@ -3535,7 +3520,7 @@ end)
 
 local batLabel = BatGB:AddLabel("Bat Aura: idle", true)
 
-local FinderGB = Tabs.Intel:AddLeftGroupbox("Egg Finder", "egg")
+local FinderGB = Tabs.Intel:AddLeftGroupbox("Egg Finder")
 
 FinderGB:AddDropdown("FinderMinRarity", {
     Text      = "Minimum Rarity",
@@ -3610,10 +3595,10 @@ end):AddButton("Copy Finder List", function()
     showToast("Lumin Hub", "Egg list copied")
 end)
 
-local BloomGB   = Tabs.Sakura:AddLeftGroupbox("Great Bloom", "sparkle")
-local CherryGB  = Tabs.Sakura:AddLeftGroupbox("Cherry Blossom", "egg")
-local IncubGB   = Tabs.Sakura:AddRightGroupbox("Sakura Incubator", "gem")
-local SakuraInfoGB = Tabs.Sakura:AddRightGroupbox("Status", "radar")
+local BloomGB   = Tabs.Sakura:AddLeftGroupbox("Great Bloom")
+local CherryGB  = Tabs.Sakura:AddLeftGroupbox("Cherry Blossom")
+local IncubGB   = Tabs.Sakura:AddRightGroupbox("Sakura Incubator")
+local SakuraInfoGB = Tabs.Sakura:AddRightGroupbox("Status")
 
 BloomGB:AddLabel(string.format(
     "The game swings at bloom trees on its own every 0.15s while you hold a"
@@ -3832,9 +3817,9 @@ end)
 
 end
 
-TBL = Tabs.Automation:AddLeftGroupbox("Automation", "cpu"):AddTabbox()
-TBR = Tabs.Automation:AddRightGroupbox("Inventory", "coins"):AddTabbox()
-local EggsGB = TBL:AddTab({ Name = "Eggs", Icon = "egg", Tooltip = "Egg automation" })
+TBL = Tabs.Automation:AddLeftGroupbox("Automation"):AddTabbox()
+TBR = Tabs.Automation:AddRightGroupbox("Inventory"):AddTabbox()
+local EggsGB = TBL:AddTab({ Name = "Eggs", Tooltip = "Egg automation" })
 
 EggsGB:AddToggle("AutoHatch", {
     Text    = "Auto Hatch Eggs",
@@ -3934,7 +3919,7 @@ EggsGB:AddDropdown("FavoriteMinRarity", {
     Callback  = function(v) Flags.FavoriteMinRarity = v end,
 })
 
-local ProgGB = TBL:AddTab({ Name = "Progression", Icon = "trending-up", Tooltip = "Rebirths, bases, treadmills" })
+local ProgGB = TBL:AddTab({ Name = "Progression", Tooltip = "Rebirths, bases, treadmills" })
 
 local function getRebirthProgress()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
@@ -4063,7 +4048,7 @@ ProgGB:AddToggle("AutoTrails", {
     end,
 })
 
-local ClaimGB = TBL:AddTab({ Name = "Auto Claim", Icon = "gift", Tooltip = "Index, group, offline rewards" })
+local ClaimGB = TBL:AddTab({ Name = "Auto Claim", Tooltip = "Index, group, offline rewards" })
 
 local claimJobs = {
     { key = "AutoClaimIndex",   text = "Auto Claim Index",       remote = "Index: RequestClaimAll",   wait = 6 },
@@ -4086,7 +4071,7 @@ for _, job in ipairs(claimJobs) do
     })
 end
 
-local CodesGB = Tabs.Automation:AddLeftGroupbox("Codes", "ticket")
+local CodesGB = Tabs.Automation:AddLeftGroupbox("Codes")
 
 local function redeemCode(code)
     local pg  = LocalPlayer:FindFirstChild("PlayerGui")
@@ -4125,7 +4110,7 @@ CodesGB:AddButton("Redeem Codes", function()
     showToast("Lumin Hub", "Submitted " .. n .. " codes")
 end)
 
-local SellGB = TBR:AddTab({ Name = "Auto Sell", Icon = "coins", Tooltip = "Sell pets" })
+local SellGB = TBR:AddTab({ Name = "Auto Sell", Tooltip = "Sell pets" })
 
 SellGB:AddDropdown("KeepMinRarity", {
     Text    = "Keep Min Rarity",
@@ -4190,7 +4175,7 @@ end)
 
 local SellStatus = SellGB:AddLabel("Last Sell: Idle", true)
 
-local FuseGB = TBR:AddTab({ Name = "Auto Fuse", Icon = "git-merge", Tooltip = "Fuse pets" })
+local FuseGB = TBR:AddTab({ Name = "Auto Fuse", Tooltip = "Fuse pets" })
 
 FuseGB:AddSlider("FuseCount", {
     Text = "Fuse Pairs Per Cycle",
@@ -4223,7 +4208,7 @@ end)
 
 local FuseStatus = FuseGB:AddLabel("Last Fuse: Idle", true)
 
-local DeleteGB = TBR:AddTab({ Name = "Cleanup", Icon = "trash-2", Tooltip = "Delete pets" })
+local DeleteGB = TBR:AddTab({ Name = "Cleanup", Tooltip = "Delete pets" })
 
 DeleteGB:AddToggle("AutoDeleteOwnPets", {
     Text    = "Auto Delete Own Pets (FPS)",
@@ -4246,12 +4231,12 @@ DeleteGB:AddButton("Delete All Own Pets", function()
     showToast("Lumin Hub", "Deleted " .. n .. " pets")
 end)
 
-TBL = Tabs.Intel:AddLeftGroupbox("Visuals", "eye"):AddTabbox()
-TBR = Tabs.Intel:AddRightGroupbox("Intel", "radar"):AddTabbox()
-local LiveGB = TBL:AddTab({ Name = "Field Right Now", Icon = "egg", Tooltip = "Current field contents" })
+TBL = Tabs.Intel:AddLeftGroupbox("Visuals"):AddTabbox()
+TBR = Tabs.Intel:AddRightGroupbox("Intel"):AddTabbox()
+local LiveGB = TBL:AddTab({ Name = "Field Right Now", Tooltip = "Current field contents" })
 local liveLabel = LiveGB:AddLabel("Reading field...", true)
 
-local ESPGB = TBL:AddTab({ Name = "ESP", Icon = "eye", Tooltip = "ESP settings" })
+local ESPGB = TBL:AddTab({ Name = "ESP", Tooltip = "ESP settings" })
 
 ESPGB:AddDropdown("EspMinRarity", {
     Text      = "ESP Min Rarity",
@@ -4457,7 +4442,7 @@ ESPGB:AddButton({
     end,
 })
 
-local IntelGB = TBR:AddTab({ Name = "Server Intel", Icon = "radar", Tooltip = "Server intel" })
+local IntelGB = TBR:AddTab({ Name = "Server Intel", Tooltip = "Server intel" })
 
 local guardLabel  = IntelGB:AddLabel("Guards: loading...", true)
 local intelLabel  = IntelGB:AddLabel("Players: loading...", true)
@@ -4481,7 +4466,7 @@ IntelGB:AddButton("Copy Server Intel", function()
     showToast("Lumin Hub", "Copied " .. #lines .. " players")
 end)
 
-local WebhookGB = TBR:AddTab({ Name = "Webhook", Icon = "webhook", Tooltip = "Discord webhook" })
+local WebhookGB = TBR:AddTab({ Name = "Webhook", Tooltip = "Discord webhook" })
 
 local webhookUrl = WebhookGB:AddInput("WebhookUrl", {
     Text = "Discord Webhook URL", Placeholder = "https://discord.com/api/webhooks/...",
@@ -4507,9 +4492,9 @@ WebhookGB:AddToggle("WebhookEnabled", {
     end,
 })
 
-TBL = Tabs.System:AddLeftGroupbox("System", "wrench"):AddTabbox()
-TBR = Tabs.System:AddRightGroupbox("Settings", "settings"):AddTabbox()
-local PlayerGB = TBL:AddTab({ Name = "Player", Icon = "user", Tooltip = "Player utilities" })
+TBL = Tabs.System:AddLeftGroupbox("System"):AddTabbox()
+TBR = Tabs.System:AddRightGroupbox("Settings"):AddTabbox()
+local PlayerGB = TBL:AddTab({ Name = "Player", Tooltip = "Player utilities" })
 
 PlayerGB:AddToggle("GodMode", {
     Text    = "GodMode",
@@ -4645,7 +4630,7 @@ PlayerGB:AddButton("Reset Character", function()
     if hum then hum.Health = 0 end
 end)
 
-local MoveGB2 = TBL:AddTab({ Name = "Movement", Icon = "person-standing", Tooltip = "Fly, noclip, speed" })
+local MoveGB2 = TBL:AddTab({ Name = "Movement", Tooltip = "Fly, noclip, speed" })
 
 MoveGB2:AddSlider("WalkSpeed", {
     Text = "Walk Speed", Min = 16, Max = 500, Default = 16, Rounding = 0,
@@ -4767,7 +4752,7 @@ MoveGB2:AddToggle("FlyUp",   { Text = "Fly Up (hold)",   Default = false,
 MoveGB2:AddToggle("FlyDown", { Text = "Fly Down (hold)", Default = false,
     Callback = function(v) Flags.FlyDown = v end })
 
-local ServerGB = TBL:AddTab({ Name = "Server", Icon = "server", Tooltip = "Server hop and rejoin" })
+local ServerGB = TBL:AddTab({ Name = "Server", Tooltip = "Server hop and rejoin" })
 
 local jobIdInput = ServerGB:AddInput("JobId_Input", {
     Text = "Join JobId", Placeholder = "Enter JobId here",
@@ -4862,7 +4847,7 @@ ServerGB:AddToggle("AutoHopEmpty", {
     end,
 })
 
-local PerfGB = TBR:AddTab({ Name = "Performance", Icon = "refresh-ccw", Tooltip = "Performance tweaks" })
+local PerfGB = TBR:AddTab({ Name = "Performance", Tooltip = "Performance tweaks" })
 
 PerfGB:AddToggle("FPSBoost", {
     Text = "FPS Boost", Default = false,
@@ -4947,7 +4932,7 @@ PerfGB:AddToggle("BlackScreen", {
     end,
 })
 
-local menuGroup = TBR:AddTab({ Name = "Menu", Icon = "text-align-center", Tooltip = "Menu settings" })
+local menuGroup = TBR:AddTab({ Name = "Menu", Tooltip = "Menu settings" })
 
 menuGroup:AddToggle("KeybindMenuOpen", {
     Text = "Open Keybind Menu", Default = false,
@@ -5042,7 +5027,7 @@ menuGroup:AddButton("Unload", function()
 end)
 
 do
-    local ImEx = TBR:AddTab({ Name = "Import / Export", Icon = "file-input", Tooltip = "Config import/export" })
+    local ImEx = TBR:AddTab({ Name = "Import / Export", Tooltip = "Config import/export" })
     local importFile, importName = "File-Link", "LuminFileName"
 
     ImEx:AddInputWithButtons("ImportFile", {
