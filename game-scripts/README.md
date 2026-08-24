@@ -45,12 +45,12 @@ Bat and 33.875 with a Katana.
 ## Features
 
 **Egg Finder** (Intel tab) lists every egg on the field with rarity, area,
-distance, mutations and the real spawn odds as a percentage and 1-in-N. It
+distance, mutations and the drop-table odds as a percentage and 1-in-N. It
 polls on a timer, so there is no per-frame scanning.
 
-**Egg Predictor** (Intel tab) shows an area's drop table rarest first, with
-percentage and 1-in-N next to the current server luck multiplier. It is the
-per-roll spawn chance, not a claim about what the next reset will contain.
+There is no reset prediction. The Field Reset countdown, Most Overdue ranking,
+Rare Reveal and Rarity Mix panels have all been removed, along with the spawn
+history they were built on.
 
 **Bat Aura** (Farm tab) equips the highest `IndexBatTier` bat you own, asking
 the server for it through `Index: RequestEquipAreaBat` when it is not already
