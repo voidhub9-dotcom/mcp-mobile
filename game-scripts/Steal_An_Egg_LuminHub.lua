@@ -102,6 +102,7 @@ local TweenService       = cloneref(game:GetService("TweenService"))
 local HttpService        = cloneref(game:GetService("HttpService"))
 local RunService         = cloneref(game:GetService("RunService"))
 local TeleportService     = cloneref(game:GetService("TeleportService"))
+local GuiService          = cloneref(game:GetService("GuiService"))
 local VirtualUser
 local Workspace          = cloneref(game:GetService("Workspace"))
 local ReplicatedStorage  = cloneref(game:GetService("ReplicatedStorage"))
@@ -5031,7 +5032,12 @@ menuGroup:AddInput("RejoinPayload", {
     Text        = "Rejoin Loader",
     Placeholder = "loadstring(game:HttpGet(\"...\"))()",
     Tooltip     = "Runs on the new server after a rejoin. Leave blank for the default loader.",
-    Callback    = function(v) Flags.RejoinPayload = v end,
+    Callback    = function(v)
+        Flags.RejoinPayload = v
+        if writefile and type(v) == "string" and v ~= "" then
+            pcall(writefile, LOADER_FILE, v)
+        end
+    end,
 })
 
 menuGroup:AddButton({
@@ -5122,6 +5128,7 @@ do
     end)
 end
 
+local LOADER_FILE = "LuminHub_Loader.txt"
 local LOADER_SOURCE
 do
     local env = (type(getgenv) == "function" and getgenv()) or _G
@@ -5130,8 +5137,17 @@ do
         LOADER_SOURCE = [[
 loadstring(game:HttpGet("]] .. source .. [["))()
 ]]
+    elseif isfile and readfile then
+        pcall(function()
+            if isfile(LOADER_FILE) then
+                local saved = readfile(LOADER_FILE)
+                if type(saved) == "string" and saved ~= "" then LOADER_SOURCE = saved end
+            end
+        end)
     end
 end
+
+local Rejoining = false
 
 local function queueLoader()
     if type(queue_on_teleport) ~= "function" then return false end
@@ -5142,7 +5158,7 @@ local function queueLoader()
     return ok
 end
 
-local Rejoining = false
+Rejoining = false
 
 function doRejoin(why)
     if Rejoining then return end
@@ -5161,21 +5177,68 @@ function doRejoin(why)
     end)
 end
 
-local function watchForKick()
-    local overlay
-    for _, root in ipairs({ GuiHost, CoreGui }) do
-        local prompt = root and root:FindFirstChild("RobloxPromptGui")
-        overlay = prompt and prompt:FindFirstChild("promptOverlay")
-        if overlay then break end
-    end
-    if not overlay then return end
+local BoundOverlays = {}
+
+local function bindPromptOverlay(overlay)
+    if not overlay or BoundOverlays[overlay] then return end
+    BoundOverlays[overlay] = true
     trackConn(overlay.ChildAdded:Connect(function(child)
         if not Flags.AutoRejoin then return end
-        if child.Name:find("ErrorPrompt") or child.Name:find("Error") then
+        if child.Name:find("Error") then
             task.wait(1)
             doRejoin("error prompt: " .. child.Name)
         end
     end))
+end
+
+local function watchForKick()
+    for _, root in ipairs({ GuiHost, CoreGui }) do
+        if root then
+            local prompt = root:FindFirstChild("RobloxPromptGui")
+            bindPromptOverlay(prompt and prompt:FindFirstChild("promptOverlay"))
+
+            trackConn(root.ChildAdded:Connect(function(child)
+                if child.Name ~= "RobloxPromptGui" then return end
+                task.spawn(function()
+                    bindPromptOverlay(child:WaitForChild("promptOverlay", 15))
+                end)
+            end))
+        end
+    end
+
+    pcall(function()
+        local signal = GuiService.ErrorMessageChanged
+        if typeof(signal) == "RBXScriptSignal" then
+            trackConn(signal:Connect(function()
+                if not Flags.AutoRejoin then return end
+                local reason = "disconnected"
+                pcall(function()
+                    local message = GuiService:GetErrorMessage()
+                    if type(message) == "string" and message ~= "" then reason = message end
+                end)
+                doRejoin(reason)
+            end))
+        end
+    end)
+
+    pcall(function()
+        trackConn(LocalPlayer.OnTeleport:Connect(function(state)
+            if state == Enum.TeleportState.Started
+                or state == Enum.TeleportState.InProgress then
+                queueLoader()
+            end
+        end))
+    end)
+
+    pcall(function()
+        trackConn(TeleportService.TeleportInitFailed:Connect(function(player)
+            if player ~= LocalPlayer then return end
+            if not Flags.AutoRejoin then return end
+            Rejoining = false
+            task.wait(3)
+            doRejoin("teleport init failed")
+        end))
+    end)
 end
 
 watchForKick()
