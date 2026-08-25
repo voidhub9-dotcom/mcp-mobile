@@ -31,8 +31,17 @@ inside it.
   itself.
 - **autologin-expired** — a saved key is rejected, gets removed from disk, and
   the window stays usable with the key left in the box.
+- **retry-in-same-session** — a second attempt clears the handoff globals the
+  previous loader run left behind (the reason a rejected key used to need a
+  rejoin), passes the key both ways, and leaves unrelated globals alone.
+- **late-rejection** — the window waits rather than guessing, steps aside once
+  the loader is clearly past the auth check, and comes back with the error if
+  the rejection lands afterwards.
 - **dragging** — the window follows the pointer, stays clamped on screen, and
   stops when the mouse is released away from the title bar.
+
+`shim.luau` exposes `advanceClock(seconds)` so the timing-dependent cases reach
+the hand-off without waiting in real time.
 
 ## Limits
 

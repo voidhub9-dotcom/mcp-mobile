@@ -463,11 +463,29 @@ function getgenv()
 	return GENV
 end
 
+-- Controllable clock: the UI paces itself off os.clock(), and the tests need
+-- to reach the optimistic hand-off without waiting twelve real seconds.
+REAL_OS = os
+CLOCK = 0
+os = setmetatable({
+	clock = function()
+		return CLOCK
+	end,
+}, { __index = REAL_OS })
+
+function advanceClock(seconds)
+	CLOCK += seconds
+end
+
 -- The loader body is never really compiled; LOADER_BEHAVIOUR stands in for
 -- "what the FlowAuth loader does with this key".
 LOADER_BEHAVIOUR = function() end
-function loadstring(_)
-	return function()
+CREDENTIALS = {}
+function loadstring(_, _chunkname)
+	-- The real loader opens with `local credential = ...`, so record what the
+	-- caller passes in.
+	return function(credential)
+		CREDENTIALS[#CREDENTIALS + 1] = credential
 		return LOADER_BEHAVIOUR()
 	end
 end

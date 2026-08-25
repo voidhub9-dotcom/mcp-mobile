@@ -58,6 +58,9 @@ check("no handler errors", #ERRORS == 0, ERRORS[1])
 print("\n== failure classification ==")
 CASES = {
 	{ "network:connection failed", "NETWORK" },
+	{ "FlowAuth: automated source fetching is not allowed.", "BLOCKED" },
+	{ "FlowAuth runtime download failed", "NETWORK" },
+	{ "FlowAuth runtime compilation failed: bad chunk", "NETWORK" },
 	{ "key is linked to another device", "HWID" },
 	{ "this key has been blacklisted", "BLACKLISTED" },
 	{ "your key expired 3 days ago", "EXPIRED" },

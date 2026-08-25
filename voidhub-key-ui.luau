@@ -2,9 +2,23 @@
 --[[
 	VoidHub — Key System UI (FlowAuth)
 
-	Rewrite of the previous key UI. FlowAuth's integration contract is simply:
-	set the `script_key` global, then run the project loader with
-	`loadstring(game:HttpGet(<loader url>))()`. Everything else here is UI.
+	Rewrite of the previous key UI. FlowAuth's published contract is to set the
+	`script_key` global and run the project loader with
+	`loadstring(game:HttpGet(<loader url>))()`. Reading the loader shows two
+	things that matter here and are not in the docs:
+
+	  * It opens with `local credential = ...`, so the key can be passed
+	    straight in as a call argument as well as through the globals.
+	  * Before handing off it publishes `_bsdata0` onto getgenv, _G and its
+	    runtime's environment, regenerated on every fetch. A second attempt in
+	    the same Lua state therefore inherits a stale handoff, which is why a
+	    rejected key used to stay rejected until the player rejoined. Every
+	    attempt now clears what the previous one left behind.
+
+	It also downloads a ~270KB runtime before it says anything about the key,
+	so a verdict can take a long time on a phone. The window waits instead of
+	guessing, and if it does step aside early it keeps watching so a late
+	rejection can bring it back.
 
 	Layout rules that the old build got wrong and this one relies on:
 	  * A frame with AutomaticSize can never measure a child that is sized in
@@ -27,9 +41,16 @@ local CONFIG = {
 	SaveFolder = "VoidHub",
 	SavePath = "VoidHub/Key.txt",
 	DiscordInvite = "https://discord.gg/Pq6PheAtgz",
-	-- The loader never returns while the protected script is running, so a
-	-- loader still alive after this many seconds counts as an accepted key.
-	LoaderGrace = 8,
+	-- A loader still running after this long is almost certainly past the auth
+	-- check and busy downloading the script, so the window gets out of the way.
+	-- It keeps watching, though: a rejection that arrives afterwards brings the
+	-- window back rather than leaving the player with a dead screen.
+	OptimisticAfter = 12,
+	-- Once it has run this long with no error, stop watching and tear down.
+	SettleAfter = 45,
+	-- The loader accepts the key as a call argument (`local credential = ...`)
+	-- as well as through the globals. Set false to use the globals alone.
+	PassKeyAsArgument = true,
 	Width = 380,
 	Gateways = {
 		{
@@ -270,10 +291,18 @@ end
 -- Anything the loader can fail with, mapped to something a user can act on.
 -- `code` also decides whether the saved key survives the failure.
 local FAILURE_RULES = {
+	-- FlowAuth serves this instead of the loader when it does not like the
+	-- request the executor made. Retrying with the same executor will not help.
+	{
+		code = "BLOCKED",
+		message = "FlowAuth rejected this executor's request. Try a different executor.",
+		patterns = { "automated source fetching", "not allowed" },
+	},
+	-- Raised by the loader itself while pulling down its runtime.
 	{
 		code = "NETWORK",
 		message = "Could not reach FlowAuth. Check your connection and try again.",
-		patterns = { "^network:" },
+		patterns = { "^network:", "runtime download failed", "runtime compilation failed" },
 	},
 	{
 		code = "HWID",
@@ -333,15 +362,82 @@ function auth.classify(err)
 	return "UNKNOWN", "Validation failed: " .. trim(tostring(err))
 end
 
--- Runs the FlowAuth loader with `key` and reports whether it was accepted.
--- Returns: accepted (bool), err (string?), stillRunning (bool)
-function auth.validate(key)
+-- The FlowAuth loader hands data to the runtime it downloads through a global
+-- (`_bsdata0`, published onto getgenv, _G and the runtime's own environment)
+-- that is regenerated for every fetch. A second attempt in the same Lua state
+-- therefore starts with a stale handoff and whatever else the previous attempt
+-- left behind, which is why a rejected key used to stay rejected until the
+-- player rejoined and got a fresh state. Snapshotting the globals up front lets
+-- a retry start from the same place a rejoin would.
+local LOADER_GLOBALS = { "_bsdata0", "script_key" }
+local PROTECTED_GLOBALS = { VoidHubKeySystem = true }
+
+-- Globals that appeared while the previous loader attempt was running. Only
+-- these get cleared, so a retry cannot disturb unrelated scripts the player
+-- happens to be running.
+local lastRunAdded = {}
+
+local function snapshotGlobals()
+	local seen = {}
+	pcall(function()
+		for name in pairs(ENV) do
+			seen[name] = true
+		end
+	end)
+	return seen
+end
+
+local function recordNewGlobals(before)
+	local added = {}
+	pcall(function()
+		for name in pairs(ENV) do
+			if not before[name] and not PROTECTED_GLOBALS[name] then
+				added[#added + 1] = name
+			end
+		end
+	end)
+	lastRunAdded = added
+end
+
+local function resetLoaderState()
+	for _, name in ipairs(lastRunAdded) do
+		pcall(function()
+			ENV[name] = nil
+		end)
+	end
+	lastRunAdded = {}
+
+	for _, name in ipairs(LOADER_GLOBALS) do
+		pcall(function()
+			ENV[name] = nil
+		end)
+		pcall(function()
+			_G[name] = nil
+		end)
+	end
+end
+
+-- Starts the loader and returns immediately with a handle the caller polls.
+-- The old build blocked here and, when the loader outlived a fixed grace
+-- period, declared the key good and threw the window away — so a rejection
+-- that arrived late left the player staring at nothing.
+function auth.start(key)
+	resetLoaderState()
+
 	ENV.script_key = key
 	pcall(function()
 		_G.script_key = key
 	end)
 
-	local state = { done = false, ok = false, err = nil }
+	local state = {
+		done = false,
+		ok = false,
+		err = nil,
+		stage = "connect",
+		startedAt = os.clock(),
+	}
+
+	local before = snapshotGlobals()
 
 	task.spawn(function()
 		local body, httpErr = httpGet(CONFIG.LoaderUrl)
@@ -352,7 +448,8 @@ function auth.validate(key)
 			return
 		end
 
-		local chunk, parseErr = loadstring(body)
+		state.stage = "compile"
+		local chunk, parseErr = loadstring(body, "=FlowAuthLoader")
 		if not chunk then
 			state.ok = false
 			state.err = "network:loader failed to compile: " .. tostring(parseErr)
@@ -360,24 +457,22 @@ function auth.validate(key)
 			return
 		end
 
-		local ok, err = pcall(chunk)
+		-- The loader opens with `local credential = ...`, so it takes the key
+		-- as a call argument as well as from the globals set above.
+		state.stage = "run"
+		local ok, err
+		if CONFIG.PassKeyAsArgument then
+			ok, err = pcall(chunk, key)
+		else
+			ok, err = pcall(chunk)
+		end
+		recordNewGlobals(before)
 		state.ok = ok
 		state.err = err
 		state.done = true
 	end)
 
-	local deadline = os.clock() + CONFIG.LoaderGrace
-	while not state.done and os.clock() < deadline do
-		task.wait(0.05)
-	end
-
-	if not state.done then
-		-- Loader is still executing, which means the key passed and the
-		-- protected script is now running.
-		return true, nil, true
-	end
-
-	return state.ok, state.err, false
+	return state
 end
 
 --=============================================================================
@@ -1150,6 +1245,7 @@ local function setStatus(message, tone)
 end
 
 local busy = false
+local loaderRunning = false
 
 local function setBusy(state, labelText)
 	busy = state
@@ -1435,6 +1531,41 @@ local function destroyAll()
 	end
 end
 
+-- Hidden rather than destroyed: the loader may still reject the key after the
+-- window has stepped aside, and then it has to come back.
+local hidden = false
+
+local function setWindowHidden(state)
+	if destroyed or hidden == state then
+		return
+	end
+	hidden = state
+
+	if state then
+		tween(Backdrop, { BackgroundTransparency = 1 }, 0.25)
+		tween(Shadow, { ImageTransparency = 1 }, 0.2)
+		tween(WindowStroke, { Transparency = 1 }, 0.2)
+		tween(Window, { BackgroundTransparency = 1 }, 0.25)
+		tween(WindowScale, { Scale = scaleTarget * 0.94 }, 0.25)
+		tween(Content, { GroupTransparency = 1 }, 0.25)
+		task.delay(0.3, function()
+			if hidden and not destroyed then
+				Window.Visible = false
+				Backdrop.Visible = false
+			end
+		end)
+	else
+		Window.Visible = true
+		Backdrop.Visible = true
+		tween(Backdrop, { BackgroundTransparency = 0.4 }, 0.25)
+		tween(Shadow, { ImageTransparency = 0.9 }, 0.25)
+		tween(WindowStroke, { Transparency = 0.85 }, 0.25)
+		tween(Window, { BackgroundTransparency = 0.05 }, 0.25)
+		tween(WindowScale, { Scale = scaleTarget }, 0.25, Enum.EasingStyle.Back)
+		tween(Content, { GroupTransparency = 0 }, 0.25)
+	end
+end
+
 local function closeWindow(fade)
 	if destroyed then
 		return
@@ -1443,14 +1574,8 @@ local function closeWindow(fade)
 		destroyAll()
 		return
 	end
-	tween(Backdrop, { BackgroundTransparency = 1 }, 0.25)
-	tween(Shadow, { ImageTransparency = 1 }, 0.2)
-	tween(WindowStroke, { Transparency = 1 }, 0.2)
-	tween(Window, { BackgroundTransparency = 1 }, 0.25)
-	tween(WindowScale, { Scale = WindowScale.Scale * 0.94 }, 0.25)
-	local out = tween(Content, { GroupTransparency = 1 }, 0.25)
-	out.Completed:Wait()
-	destroyAll()
+	setWindowHidden(true)
+	task.delay(0.3, destroyAll)
 end
 
 ENV.VoidHubKeySystem = {
@@ -1477,7 +1602,7 @@ end
 
 local function attemptRedeem(key, options)
 	options = options or {}
-	if busy or destroyed then
+	if busy or loaderRunning or destroyed then
 		return
 	end
 
@@ -1496,18 +1621,79 @@ local function attemptRedeem(key, options)
 	setBusy(true, options.busyLabel or "Checking...")
 	setStatus(options.busyStatus or "Validating your key with FlowAuth...", "info")
 
+	local function rememberOutcome()
+		if rememberKey and canPersist then
+			storage.save(key)
+		elseif not rememberKey then
+			storage.clear()
+		end
+	end
+
 	task.spawn(function()
-		local accepted, err = auth.validate(key)
+		-- Tracked separately from `busy`: once the window steps aside the
+		-- button goes idle again, but a fresh attempt must not reset the
+		-- globals out from under the loader that is still running.
+		loaderRunning = true
+		local state = auth.start(key)
+		local steppedAside = false
+		local lastNote = nil
+
+		-- The loader pulls down a ~270KB runtime before it says anything about
+		-- the key, so on a slow connection the honest answer for a while is
+		-- "still working" rather than a verdict.
+		local function note(elapsed)
+			local message
+			if elapsed > 20 then
+				message = "Still working — this can take a while on slow connections."
+			elseif elapsed > 6 then
+				message = "Downloading the VoidHub runtime..."
+			else
+				message = options.busyStatus or "Validating your key with FlowAuth..."
+			end
+			if message ~= lastNote then
+				lastNote = message
+				setStatus(message, "info")
+			end
+		end
+
+		while not state.done do
+			if destroyed then
+				loaderRunning = false
+				return
+			end
+			local elapsed = os.clock() - state.startedAt
+
+			if not steppedAside and elapsed >= CONFIG.OptimisticAfter then
+				-- Past the auth check by every indication, so let the player
+				-- have their screen back. Still watching, though.
+				steppedAside = true
+				rememberOutcome()
+				setBusy(false, "Verified")
+				setStatus("Key accepted — launching VoidHub.", "success")
+				toast("Key accepted", "success")
+				setWindowHidden(true)
+			elseif steppedAside and elapsed >= CONFIG.SettleAfter then
+				loaderRunning = false
+				closeWindow(false)
+				return
+			elseif not steppedAside then
+				note(elapsed)
+			end
+
+			task.wait(0.1)
+		end
+
+		loaderRunning = false
 
 		if destroyed then
 			return
 		end
 
-		if accepted then
-			if rememberKey and canPersist then
-				storage.save(key)
-			elseif not rememberKey then
-				storage.clear()
+		if state.ok then
+			rememberOutcome()
+			if steppedAside then
+				closeWindow(false)
+				return
 			end
 			setBusy(false, "Verified")
 			setStatus("Key accepted — launching VoidHub.", "success")
@@ -1518,8 +1704,15 @@ local function attemptRedeem(key, options)
 			return
 		end
 
+		-- Rejected. If the window had already stepped aside, bring it back
+		-- rather than leaving the player looking at nothing.
+		if steppedAside then
+			setWindowHidden(false)
+			toast("Key rejected", "error")
+		end
+
 		setBusy(false, "Redeem Key")
-		local code = handleFailure(err, options.context or "redeem")
+		local code = handleFailure(state.err, options.context or "redeem")
 		if DISCARD_ON[code] and options.clearInputOnFailure then
 			KeyInput.Text = ""
 		end
