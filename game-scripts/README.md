@@ -102,6 +102,16 @@ print or warn calls of its own.
 Status still surfaces through the menu labels and the on-screen notifications,
 which are GUI, not console output.
 
+## GUI parenting
+
+Every ScreenGui and Highlight the script creates goes into `gethui()`, resolved
+once at load through a pcall and cached as `GuiHost`. `CoreGui` is kept only as
+the fallback for executors that do not expose `gethui`, and for locating
+Roblox's own `RobloxPromptGui` in the kick watcher, which is a CoreScript GUI
+and never lives in the hidden container.
+
+The menu window itself is parented by the external Library, not by this file.
+
 ## Auto-execute on rejoin
 
 The rejoin and teleport handlers re-run the script from `getgenv().LuminHubSource`

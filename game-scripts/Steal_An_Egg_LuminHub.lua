@@ -113,7 +113,14 @@ local CollectionService  = cloneref(game:GetService("CollectionService"))
 
 local LocalPlayer = Players.LocalPlayer
 
-local GuiHost = (gethui and gethui()) or CoreGui
+local GuiHost
+do
+    if type(gethui) == "function" then
+        local ok, hidden = pcall(gethui)
+        if ok and typeof(hidden) == "Instance" then GuiHost = hidden end
+    end
+    GuiHost = GuiHost or CoreGui
+end
 
 do
     local hookFunction   = resolveFunction(hookfunction)
@@ -5155,8 +5162,12 @@ function doRejoin(why)
 end
 
 local function watchForKick()
-    local prompt = CoreGui:FindFirstChild("RobloxPromptGui")
-    local overlay = prompt and prompt:FindFirstChild("promptOverlay")
+    local overlay
+    for _, root in ipairs({ GuiHost, CoreGui }) do
+        local prompt = root and root:FindFirstChild("RobloxPromptGui")
+        overlay = prompt and prompt:FindFirstChild("promptOverlay")
+        if overlay then break end
+    end
     if not overlay then return end
     trackConn(overlay.ChildAdded:Connect(function(child)
         if not Flags.AutoRejoin then return end
