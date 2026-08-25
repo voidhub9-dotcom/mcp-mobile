@@ -1,35 +1,4 @@
 --!nocheck
---[[
-	VoidHub — Key System UI (FlowAuth)
-
-	Rewrite of the previous key UI. FlowAuth's published contract is to set the
-	`script_key` global and run the project loader with
-	`loadstring(game:HttpGet(<loader url>))()`. Reading the loader shows two
-	things that matter here and are not in the docs:
-
-	  * It opens with `local credential = ...`, so the key can be passed
-	    straight in as a call argument as well as through the globals.
-	  * Before handing off it publishes `_bsdata0` onto getgenv, _G and its
-	    runtime's environment, regenerated on every fetch. A second attempt in
-	    the same Lua state therefore inherits a stale handoff, which is why a
-	    rejected key used to stay rejected until the player rejoined. Every
-	    attempt now clears what the previous one left behind.
-
-	It also downloads a ~270KB runtime before it says anything about the key,
-	so a verdict can take a long time on a phone. The window waits instead of
-	guessing, and if it does step aside early it keeps watching so a late
-	rejection can bring it back.
-
-	Layout rules that the old build got wrong and this one relies on:
-	  * A frame with AutomaticSize can never measure a child that is sized in
-	    scale — the window height is driven by an offset/auto-sized content
-	    column instead.
-	  * Children of a UIListLayout have their Position overwritten by the
-	    layout, so intro animation runs on transparency/scale, never Position.
-	  * Anything drawn outside the window bounds (the drop shadow) is a
-	    sibling, otherwise AutomaticSize feeds back on itself and the window
-	    grows every frame.
-]]
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -41,15 +10,8 @@ local CONFIG = {
 	SaveFolder = "VoidHub",
 	SavePath = "VoidHub/Key.txt",
 	DiscordInvite = "https://discord.gg/Pq6PheAtgz",
-	-- A loader still running after this long is almost certainly past the auth
-	-- check and busy downloading the script, so the window gets out of the way.
-	-- It keeps watching, though: a rejection that arrives afterwards brings the
-	-- window back rather than leaving the player with a dead screen.
 	OptimisticAfter = 12,
-	-- Once it has run this long with no error, stop watching and tear down.
 	SettleAfter = 45,
-	-- The loader accepts the key as a call argument (`local credential = ...`)
-	-- as well as through the globals. Set false to use the globals alone.
 	PassKeyAsArgument = true,
 	Width = 380,
 	Gateways = {
@@ -80,10 +42,6 @@ local THEME = {
 	Font = Enum.Font.Gotham,
 	FontBold = Enum.Font.GothamBold,
 }
-
---=============================================================================
--- Executor compatibility
---=============================================================================
 
 local ENV = (typeof(getgenv) == "function" and getgenv()) or _G
 
@@ -117,15 +75,9 @@ if not LocalPlayer then
 	LocalPlayer = Players.LocalPlayer
 end
 
--- A second execution should replace the old window rather than leave two
--- stacked on top of each other, so tear down whatever the last run left.
 if typeof(ENV.VoidHubKeySystem) == "table" and typeof(ENV.VoidHubKeySystem.Destroy) == "function" then
 	pcall(ENV.VoidHubKeySystem.Destroy)
 end
-
---=============================================================================
--- Small helpers
---=============================================================================
 
 local function tween(object, goal, duration, style, direction)
 	local info = TweenInfo.new(
@@ -188,7 +140,6 @@ local function listLayout(parent, props)
 		Parent = parent,
 	})
 	if props and props.wraps then
-		-- UIListLayout.Wraps only exists on newer clients.
 		pcall(function()
 			layout.Wraps = true
 		end)
@@ -200,8 +151,6 @@ local function trim(text)
 	return (tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", ""))
 end
 
--- Keys are usually pasted out of a browser, so they arrive with newlines,
--- stray quotes and the occasional zero-width character attached.
 local function sanitizeKey(text)
 	local cleaned = tostring(text or "")
 	cleaned = cleaned:gsub("[%c]", "")
@@ -216,10 +165,6 @@ local function log(message, isError)
 		print("[VoidHub] " .. tostring(message))
 	end
 end
-
---=============================================================================
--- Saved key storage
---=============================================================================
 
 local storage = {}
 
@@ -264,10 +209,6 @@ function storage.clear()
 	end)
 end
 
---=============================================================================
--- FlowAuth
---=============================================================================
-
 local auth = {}
 
 local function httpGet(url)
@@ -288,17 +229,12 @@ local function httpGet(url)
 	return nil, (not ok and tostring(body)) or "empty response from loader host"
 end
 
--- Anything the loader can fail with, mapped to something a user can act on.
--- `code` also decides whether the saved key survives the failure.
 local FAILURE_RULES = {
-	-- FlowAuth serves this instead of the loader when it does not like the
-	-- request the executor made. Retrying with the same executor will not help.
 	{
 		code = "BLOCKED",
 		message = "FlowAuth rejected this executor's request. Try a different executor.",
 		patterns = { "automated source fetching", "not allowed" },
 	},
-	-- Raised by the loader itself while pulling down its runtime.
 	{
 		code = "NETWORK",
 		message = "Could not reach FlowAuth. Check your connection and try again.",
@@ -343,8 +279,6 @@ local FAILURE_RULES = {
 	},
 }
 
--- Codes where the key can never work as-is; anything else is kept so a
--- network blip or an unknown loader message does not wipe a good key.
 local DISCARD_ON = { INVALID = true, EXPIRED = true, BLACKLISTED = true }
 
 function auth.classify(err)
@@ -362,19 +296,9 @@ function auth.classify(err)
 	return "UNKNOWN", "Validation failed: " .. trim(tostring(err))
 end
 
--- The FlowAuth loader hands data to the runtime it downloads through a global
--- (`_bsdata0`, published onto getgenv, _G and the runtime's own environment)
--- that is regenerated for every fetch. A second attempt in the same Lua state
--- therefore starts with a stale handoff and whatever else the previous attempt
--- left behind, which is why a rejected key used to stay rejected until the
--- player rejoined and got a fresh state. Snapshotting the globals up front lets
--- a retry start from the same place a rejoin would.
 local LOADER_GLOBALS = { "_bsdata0", "script_key" }
 local PROTECTED_GLOBALS = { VoidHubKeySystem = true }
 
--- Globals that appeared while the previous loader attempt was running. Only
--- these get cleared, so a retry cannot disturb unrelated scripts the player
--- happens to be running.
 local lastRunAdded = {}
 
 local function snapshotGlobals()
@@ -417,10 +341,6 @@ local function resetLoaderState()
 	end
 end
 
--- Starts the loader and returns immediately with a handle the caller polls.
--- The old build blocked here and, when the loader outlived a fixed grace
--- period, declared the key good and threw the window away — so a rejection
--- that arrived late left the player staring at nothing.
 function auth.start(key)
 	resetLoaderState()
 
@@ -457,8 +377,6 @@ function auth.start(key)
 			return
 		end
 
-		-- The loader opens with `local credential = ...`, so it takes the key
-		-- as a call argument as well as from the globals set above.
 		state.stage = "run"
 		local ok, err
 		if CONFIG.PassKeyAsArgument then
@@ -474,10 +392,6 @@ function auth.start(key)
 
 	return state
 end
-
---=============================================================================
--- UI: root
---=============================================================================
 
 local ScreenGui = new("ScreenGui", {
 	Name = "VoidHubKeySystem",
@@ -548,8 +462,6 @@ corner(16, Window)
 local WindowStroke = stroke(Window, 0.85, 1.2)
 local WindowScale = new("UIScale", { Name = "WindowScale", Scale = 1, Parent = Window })
 
--- Toasts live outside the window: it clips its descendants, and it is
--- destroyed the moment a key is accepted.
 local ToastLayer = new("Frame", {
 	Name = "ToastLayer",
 	AnchorPoint = Vector2.new(0.5, 1),
@@ -580,10 +492,6 @@ local Content = new("CanvasGroup", {
 padding(Content, 18, 18, 18, 18)
 listLayout(Content, { padding = 12 })
 
---=============================================================================
--- UI: scaling and placement
---=============================================================================
-
 local BASE_RESOLUTION = Vector2.new(1920, 1080)
 local MIN_SCALE, MAX_SCALE = 0.7, 1.35
 
@@ -609,12 +517,8 @@ local function effectiveScale(instance)
 	return total > 0 and total or 1
 end
 
--- AbsoluteSize changes while the scale tween runs, so the target is tracked
--- separately: without it every frame of the tween would restart the tween.
 local scaleTarget = 1
 
--- Keeps the window on screen and, on small/phone viewports, shrinks it until
--- it actually fits instead of letting the bottom half hang off the display.
 local function applyScale(animate)
 	local viewport = viewportSize()
 	local desired = math.min(viewport.X / BASE_RESOLUTION.X, viewport.Y / BASE_RESOLUTION.Y)
@@ -682,10 +586,6 @@ do
 	end)
 end
 
---=============================================================================
--- UI: interaction helpers
---=============================================================================
-
 local function guiInset()
 	local ok, topLeft = pcall(function()
 		return (GuiService:GetGuiInset())
@@ -696,7 +596,6 @@ local function guiInset()
 	return Vector2.new(0, 0)
 end
 
--- `host` must clip its descendants or the ripple leaks past rounded corners.
 local function ripple(host, screenPosition)
 	if not host or not host.Parent then
 		return
@@ -740,12 +639,7 @@ local function ripple(host, screenPosition)
 	end)
 end
 
--- GuiState covers mouse and touch, and it always returns to Idle — the old
--- MouseButton1Down/Up pair left buttons stuck mid-press when the pointer was
--- released outside them.
 local function attachStates(button, visual, handlers)
-	-- A press scale on something the layout measures makes the surrounding
-	-- list twitch, so text rows opt out with `press = false`.
 	local pressScale = nil
 	if not handlers or handlers.press ~= false then
 		pressScale = new("UIScale", { Scale = 1, Parent = visual })
@@ -795,14 +689,7 @@ local function readClipboard()
 	return nil
 end
 
---=============================================================================
--- UI: toasts
---=============================================================================
-
 local function toast(message, tone)
-	-- Toast cards size themselves to their text, so a long loader error would
-	-- otherwise stretch off both edges of the screen. The full text still goes
-	-- to the status line and the console.
 	message = tostring(message or "")
 	if #message > 68 then
 		message = message:sub(1, 65) .. "..."
@@ -858,10 +745,6 @@ local function toast(message, tone)
 		card:Destroy()
 	end)
 end
-
---=============================================================================
--- UI: header
---=============================================================================
 
 local TopBar = new("Frame", {
 	Name = "TopBar",
@@ -963,10 +846,6 @@ local Heading = new("TextLabel", {
 	ZIndex = 4,
 	Parent = Content,
 })
-
---=============================================================================
--- UI: key field
---=============================================================================
 
 local KeyBlock = new("Frame", {
 	Name = "KeyBlock",
@@ -1140,10 +1019,6 @@ local function renderRemember()
 end
 renderRemember()
 
---=============================================================================
--- UI: redeem button + status
---=============================================================================
-
 local RedeemButton = new("Frame", {
 	Name = "RedeemButton",
 	Size = UDim2.new(1, 0, 0, 38),
@@ -1170,7 +1045,6 @@ local RedeemLabel = new("TextLabel", {
 	Parent = RedeemButton,
 })
 
--- Indeterminate progress bar, drawn instead of an asset-dependent spinner.
 local ProgressTrack = new("Frame", {
 	Name = "ProgressTrack",
 	AnchorPoint = Vector2.new(0, 1),
@@ -1267,10 +1141,6 @@ local function setBusy(state, labelText)
 		end)
 	end
 end
-
---=============================================================================
--- UI: gateways, steps, footer
---=============================================================================
 
 new("Frame", {
 	Name = "Divider",
@@ -1511,10 +1381,6 @@ local DiscordClick = new("TextButton", {
 	Parent = DiscordLabel,
 })
 
---=============================================================================
--- Behaviour
---=============================================================================
-
 local destroyed = false
 
 local function destroyAll()
@@ -1531,8 +1397,6 @@ local function destroyAll()
 	end
 end
 
--- Hidden rather than destroyed: the loader may still reject the key after the
--- window has stepped aside, and then it has to come back.
 local hidden = false
 
 local function setWindowHidden(state)
@@ -1590,7 +1454,6 @@ local function handleFailure(err, context)
 		storage.clear()
 	end
 	if code == "HWID" or code == "PAUSED" then
-		-- Key may work again once the dashboard is fixed up, so keep it.
 		log("key kept on disk: " .. code, false)
 	end
 	setStatus(message, "error")
@@ -1630,17 +1493,11 @@ local function attemptRedeem(key, options)
 	end
 
 	task.spawn(function()
-		-- Tracked separately from `busy`: once the window steps aside the
-		-- button goes idle again, but a fresh attempt must not reset the
-		-- globals out from under the loader that is still running.
 		loaderRunning = true
 		local state = auth.start(key)
 		local steppedAside = false
 		local lastNote = nil
 
-		-- The loader pulls down a ~270KB runtime before it says anything about
-		-- the key, so on a slow connection the honest answer for a while is
-		-- "still working" rather than a verdict.
 		local function note(elapsed)
 			local message
 			if elapsed > 20 then
@@ -1664,8 +1521,6 @@ local function attemptRedeem(key, options)
 			local elapsed = os.clock() - state.startedAt
 
 			if not steppedAside and elapsed >= CONFIG.OptimisticAfter then
-				-- Past the auth check by every indication, so let the player
-				-- have their screen back. Still watching, though.
 				steppedAside = true
 				rememberOutcome()
 				setBusy(false, "Verified")
@@ -1704,8 +1559,6 @@ local function attemptRedeem(key, options)
 			return
 		end
 
-		-- Rejected. If the window had already stepped aside, bring it back
-		-- rather than leaving the player looking at nothing.
 		if steppedAside then
 			setWindowHidden(false)
 			toast("Key rejected", "error")
@@ -1733,8 +1586,6 @@ attachStates(RedeemClick, RedeemButton, {
 	end,
 })
 
--- Enter in the key box redeems. The old build tried to `:Fire()` the click
--- signal, which is not a thing you can do to an RBXScriptSignal.
 KeyInput.FocusLost:Connect(function(enterPressed)
 	tween(KeyBox, { BackgroundTransparency = 0.9 }, 0.18)
 	tween(KeyBoxStroke, { Transparency = 0.75, Thickness = 1 }, 0.18)
@@ -1756,8 +1607,6 @@ attachStates(PasteClick, PasteChip, {
 	activated = function()
 		local clip = readClipboard()
 		if not clip then
-			-- No clipboard read on this executor: fall back to copying what is
-			-- already typed so the value is at least recoverable.
 			if #trim(KeyInput.Text) > 0 and copyToClipboard(KeyInput.Text) then
 				toast("Key copied")
 			else
@@ -1827,10 +1676,6 @@ attachStates(DiscordClick, DiscordLabel, {
 	end,
 })
 
---=============================================================================
--- Dragging
---=============================================================================
-
 do
 	local dragging = false
 	local dragInput = nil
@@ -1878,9 +1723,6 @@ do
 		if not dragging or destroyed then
 			return
 		end
-		-- Touch drags must follow the exact finger that started the drag;
-		-- mouse drags follow any movement, including movement that leaves the
-		-- title bar entirely.
 		local matches = (input == dragInput)
 			or (
 				dragInput ~= nil
@@ -1902,10 +1744,6 @@ do
 		end
 	end)
 end
-
---=============================================================================
--- Intro + boot
---=============================================================================
 
 applyScale(false)
 syncShadow()
