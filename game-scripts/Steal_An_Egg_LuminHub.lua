@@ -2789,10 +2789,7 @@ end
 
 function Ext.calibrateFastTravel(apply)
     local limit, source = Ext.movementLimit()
-    local margin = tonumber(Flags.TravelMargin)
-    if not margin then
-        margin = tonumber(Ext.Constants.CLIENT_OVERLAP_MARGIN) or 0.95
-    end
+    local margin = tonumber(Flags.TravelMargin) or 1.5
 
     local speed = limit * margin
     if Move.rollbacks and Move.rollbacks > 0 then
@@ -3204,8 +3201,8 @@ StealGB:AddInput("TweenSpeedInput", {
 
 StealGB:AddToggle("AdaptiveSpeed", {
     Text    = "Adaptive Speed",
-    Tooltip = "Backs the speed off if the server ever refuses the movement. Off by default: with velocity zeroing it is not needed.",
-    Default = false,
+    Tooltip = "Drops travel speed 35% each time the server rolls a move back, and eases it up again on clean trips. Worth leaving on above 1.0x.",
+    Default = true,
     Callback = function(v) Flags.AdaptiveSpeed = v end,
 })
 
@@ -3405,12 +3402,15 @@ local globalLabel = GlobalGB:AddLabel("Rotation: idle", true)
 local TravelGB = Tabs.Farm:AddLeftGroupbox("Fast Travel", "zap")
 
 TravelGB:AddSlider("TravelMargin", {
-    Text     = "Safety Margin",
-    Tooltip  = "Fraction of the movement limit to travel at. The game's own"
-        .. " client margin is 0.95.",
+    Text     = "Speed Multiplier",
+    Suffix   = "x walk speed",
+    Tooltip  = "Travel speed as a multiple of your live walk speed. 0.95 is the"
+        .. " game's own client margin and the quietest. Above 1.0 you are moving"
+        .. " faster than the server thinks you can, so leave Adaptive Speed on to"
+        .. " back off automatically when it starts correcting you.",
     Min      = 0.5,
-    Max      = 1,
-    Default  = tonumber(Ext.Constants.CLIENT_OVERLAP_MARGIN) or 0.95,
+    Max      = 3,
+    Default  = 1.5,
     Rounding = 2,
     Callback = function(v) Flags.TravelMargin = v end,
 })
@@ -5448,7 +5448,7 @@ Flags.SelectEggs        = {}
 Flags.SelectMutations   = {}
 Flags.FarmMinRarity     = nil
 Flags.MinEggWeight      = 0
-Flags.AdaptiveSpeed     = false
+Flags.AdaptiveSpeed     = true
 Flags.MoveMode          = "Tween"
 Flags.TweenSpeed        = 300
 Flags.InstantMove       = false
@@ -5497,7 +5497,7 @@ Flags.GlobalAreaSeconds    = 45
 Flags.GlobalFarmSkipGuards = true
 Flags.AutoCalibrateTravel  = false
 Flags.SilenceConsole       = false
-Flags.TravelMargin         = tonumber(Ext.Constants.CLIENT_OVERLAP_MARGIN) or 0.95
+Flags.TravelMargin         = 1.5
 
 task.spawn(function()
     for _ = 1, 20 do
