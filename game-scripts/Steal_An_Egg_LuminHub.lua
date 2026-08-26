@@ -3152,8 +3152,10 @@ StealGB:AddInput("TweenSpeedInput", {
 
 StealGB:AddToggle("AdaptiveSpeed", {
     Text    = "Adaptive Speed",
-    Tooltip = "Backs the speed off if the server ever refuses the movement.",
-    Default = false,
+    Tooltip = "Starts at your Tween Speed and drops it 35% each time the server rolls"
+        .. " a move back, easing up again on clean trips. 300 gets corrected without"
+        .. " it; around 190 travels clean.",
+    Default = true,
     Callback = function(v) Flags.AdaptiveSpeed = v end,
 })
 
@@ -5396,7 +5398,7 @@ Flags.SelectEggs        = {}
 Flags.SelectMutations   = {}
 Flags.FarmMinRarity     = nil
 Flags.MinEggWeight      = 0
-Flags.AdaptiveSpeed     = false
+Flags.AdaptiveSpeed     = true
 Flags.MoveMode          = "Tween"
 Flags.TweenSpeed        = 300
 Flags.InstantMove       = false
