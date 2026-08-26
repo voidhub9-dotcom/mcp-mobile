@@ -5504,7 +5504,7 @@ task.spawn(function()
         if getHumanoid() then break end
         task.wait(0.5)
     end
-    local ok, speed = pcall(calibrateFastTravel, true)
+    local ok, speed = pcall(Ext.calibrateFastTravel, true)
     if ok and speed then
         pcall(function()
             Library:Notify({
