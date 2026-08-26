@@ -3192,7 +3192,7 @@ StealGB:AddSlider("TweenSpeed", {
     Tooltip  = "Studs per second for Tween mode. 200 measured clean with the frame loops disabled.",
     Min      = 50,
     Max      = 900,
-    Default  = 300,
+    Default  = 190,
     Rounding = 0,
     Callback = function(v) Flags.TweenSpeed = v end,
 })
@@ -5364,7 +5364,7 @@ Flags.FarmMinRarity     = nil
 Flags.MinEggWeight      = 0
 Flags.AdaptiveSpeed     = false
 Flags.MoveMode          = "Tween"
-Flags.TweenSpeed        = 300
+Flags.TweenSpeed        = 190
 Flags.InstantMove       = false
 Flags.DistantTarget     = false
 Flags.FarmDelay         = 0
