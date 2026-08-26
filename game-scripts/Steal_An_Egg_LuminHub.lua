@@ -533,6 +533,24 @@ function Move:Stop()
     if root and root.Anchored then root.Anchored = false end
 end
 
+function Move:Halt()
+    local root = getRoot()
+    local hum  = getHumanoid()
+    if hum and root then
+        pcall(function()
+            hum.WalkToPart  = nil
+            hum.WalkToPoint = root.Position
+            hum:Move(Vector3.zero, false)
+        end)
+    end
+    if root then
+        pcall(function()
+            root.AssemblyLinearVelocity  = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+        end)
+    end
+end
+
 function Move:Attempt(targetPos, timeout)
     local root = getRoot()
     if not root then return false, false end
@@ -771,6 +789,7 @@ function Move:To(targetPos, timeoutSeconds)
             if not (root and hum) then self.moving = false return false end
             if (root.Position - ground).Magnitude <= 6 then
                 self.moving = false
+                self:Halt()
                 return true
             end
             hum:MoveTo(ground)
@@ -778,6 +797,7 @@ function Move:To(targetPos, timeoutSeconds)
         end
         local root = getRoot()
         self.moving = false
+        self:Halt()
         return (root and (root.Position - ground).Magnitude <= 10) or false
     end
 
@@ -1765,14 +1785,19 @@ local function stealOnce(target)
         return false
     end
 
+    local walking = (Flags.MoveMode or "Walk") == "Walk"
     local carried, reason = false, nil
     for _ = 1, 6 do
         root = getRoot()
         if not root then break end
 
-        root.CFrame = CFrame.new(targetPos)
-        root.AssemblyLinearVelocity  = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
+        if walking then
+            Move:Halt()
+        else
+            root.CFrame = CFrame.new(targetPos)
+            root.AssemblyLinearVelocity  = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+        end
         local remote = Network:FindFirstChild("Eggs: RequestAreaEggCarry")
         if not remote then break end
         local ok, res, why = pcall(function()
@@ -2985,7 +3010,8 @@ FilterGB:AddDropdown("FarmMinRarity", {
 
 FilterGB:AddDropdown("StealRarities", {
     Text     = "Exact Rarities",
-    Tooltip  = "Optional. When set, ONLY these exact tiers are farmed.",
+    Tooltip  = "Optional. When set, ONLY these exact tiers are farmed. This stacks"
+        .. " on top of Minimum Rarity, so leaving both set can match nothing.",
     Values   = RarityOrder,
     Multi     = true,
     AllowNull = true,
@@ -3204,6 +3230,7 @@ StealGB:AddButton("Force Resume", function()
 end)
 
 local StealStatus = StealGB:AddLabel("Last Steal: Idle", true)
+local FilterStatus = StealGB:AddLabel("Filter: not checked yet", true)
 
 local SniperGB = Tabs.Farm:AddRightGroupbox("Spawn Sniper", "crosshair")
 
@@ -5383,6 +5410,23 @@ spawnTracked(function()
             end
             liveLabel:SetText(string.format("%d eggs up\nBest: %s\n%s",
                 total, best or "none", table.concat(parts, "  ")))
+
+            local matched, bestMatch = 0, nil
+            for _, egg in pairs(getAreaEggs()) do
+                if eggPassesFilters(egg) then
+                    matched = matched + 1
+                    local info = AssetInfo[egg.AssetCategory]
+                    if info and not bestMatch then
+                        bestMatch = egg.AssetCategory .. " [" .. info.rarity .. "]"
+                    end
+                end
+            end
+            FilterStatus:SetText(string.format(
+                "Filter: %d of %d eggs match\nMin rarity: %s   Exact: %s\nFirst match: %s",
+                matched, total,
+                tostring(Flags.FarmMinRarity or "any"),
+                listToSet(Flags.StealRarities) and "on" or "off",
+                bestMatch or "none"))
         end
 
         local pg = LocalPlayer:FindFirstChild("PlayerGui")
