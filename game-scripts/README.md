@@ -124,6 +124,13 @@ your real walk speed — the speed the server already expects. Tween and Instant
 remain available but both move the root faster than the humanoid can walk, and
 with the frame-loop killer gone the position validator is free to correct them.
 
+## Icons
+
+Tab, groupbox and tabbox icons are back, along with the window icon, which
+`resolveLuminIcon()` caches to `A7.png` from the branding URL. They were never
+a detection vector — the live run confirmed the menu's ScreenGuis sit in
+`gethui()` and CoreGui holds only Roblox's own CoreScript GUIs.
+
 ## GUI parenting
 
 Every ScreenGui and Highlight the script creates goes into `gethui()`, resolved
