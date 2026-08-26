@@ -106,7 +106,6 @@ local TweenService       = cloneref(game:GetService("TweenService"))
 local HttpService        = cloneref(game:GetService("HttpService"))
 local RunService         = cloneref(game:GetService("RunService"))
 local TeleportService     = cloneref(game:GetService("TeleportService"))
-local GuiService          = cloneref(game:GetService("GuiService"))
 local VirtualUser
 local Workspace          = cloneref(game:GetService("Workspace"))
 local ReplicatedStorage  = cloneref(game:GetService("ReplicatedStorage"))
@@ -118,50 +117,35 @@ local CollectionService  = cloneref(game:GetService("CollectionService"))
 
 local LocalPlayer = Players.LocalPlayer
 
-local GuiHost
+local GuiHost = (gethui and gethui()) or CoreGui
+
 do
-    if type(gethui) == "function" then
-        local ok, hidden = pcall(gethui)
-        if ok and typeof(hidden) == "Instance" then GuiHost = hidden end
-    end
-    GuiHost = GuiHost or CoreGui
-end
-
-local ConsoleSilenced = false
-
-local function silenceConsole()
-    if ConsoleSilenced then return end
-    ConsoleSilenced = true
+    pcall(function()
+        if getconnections then
+            for _, conn in ipairs(getconnections(LogService.MessageOut)) do
+                pcall(function() conn:Disable() end)
+            end
+        end
+    end)
 
     local hookFunction = resolveFunction(hookfunction)
     local newCC        = resolveFunction(newcclosure, function(f) return f end)
-    local env          = (type(getgenv) == "function" and getgenv()) or _G
+    local checkCaller  = resolveFunction(checkcaller, function() return true end)
 
-    for _, name in ipairs({
-        "print", "warn", "rconsoleprint", "rconsoleinfo",
-        "rconsolewarn", "rconsoleerr", "printconsole", "printidentity",
-    }) do
-        local old = env[name]
-        if type(old) == "function" and hookFunction then
-            pcall(function() hookFunction(old, newCC(function() end)) end)
+    if hookFunction then
+        local function muteGlobal(name)
+            local env = (type(getgenv) == "function" and getgenv()) or _G
+            local old = env[name]
+            if type(old) ~= "function" then return end
+            pcall(function()
+                hookFunction(old, newCC(function(...)
+                    if checkCaller() then return old(...) end
+                end))
+            end)
         end
-        pcall(function() env[name] = function() end end)
+        muteGlobal("print")
+        muteGlobal("warn")
     end
-
-    local myGen = ScriptGeneration
-    task.spawn(function()
-        while myGen == _G.LuminHubGeneration and ConsoleSilenced do
-            if getconnections then
-                pcall(function()
-                    for _, conn in ipairs(getconnections(LogService.MessageOut)) do
-                        pcall(function() conn:Disable() end)
-                    end
-                end)
-            end
-            pcall(function() LogService:ClearOutput() end)
-            task.wait(5)
-        end
-    end)
 end
 
 local function resolveLuminIcon()
@@ -1094,7 +1078,8 @@ local function startLoop(name, func)
     local myGen = ScriptGeneration
     task.spawn(function()
         while Running[name] and myGen == _G.LuminHubGeneration do
-            pcall(func)
+            local ok, err = pcall(func)
+            if not ok and Flags.DebugMode then warn("[LuminHub] " .. name .. ": " .. tostring(err)) end
             task.wait()
         end
         Running[name] = false
@@ -1723,6 +1708,55 @@ local function placeHeldEggs(limit)
     return placed
 end
 
+local function findEggPrompt(target)
+    local uid = tostring(target.Uid)
+    local pos
+    if typeof(target.BoundsCFrame) == "CFrame" then pos = target.BoundsCFrame.Position end
+
+    for _, name in ipairs({ "AreaEggSlotsClient", "ClientRenderedAssets", "PlacedEggRenders" }) do
+        local container = Workspace:FindFirstChild(name)
+        if container then
+            local model = container:FindFirstChild(uid, true)
+            if model then
+                local prompt = model:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if prompt then return prompt end
+            end
+        end
+    end
+
+    if not pos then return nil end
+    local best, bestDist = nil, 14
+    for _, inst in ipairs(Workspace:GetDescendants()) do
+        if inst:IsA("ProximityPrompt") and inst.Name == "CarryAreaEgg" then
+            local part = inst.Parent
+            if part and part:IsA("BasePart") then
+                local d = (part.Position - pos).Magnitude
+                if d < bestDist then best, bestDist = inst, d end
+            end
+        end
+    end
+    return best
+end
+
+local function grabViaPrompt(target)
+    local prompt = findEggPrompt(target)
+    if not prompt then return false, "no prompt" end
+
+    local savedHold, savedDist = prompt.HoldDuration, prompt.MaxActivationDistance
+    local fired = false
+    pcall(function()
+        prompt.HoldDuration = 0
+        prompt.MaxActivationDistance = math.max(savedDist, 20)
+        fireproximityprompt(prompt, 1)
+        fired = true
+    end)
+    pcall(function()
+        prompt.HoldDuration = savedHold
+        prompt.MaxActivationDistance = savedDist
+    end)
+    return fired, fired and "fired" or "fire failed"
+end
+
 local function stealOnce(target)
     local root = getRoot()
     local plotCenter = getPlotCenter()
@@ -1752,6 +1786,22 @@ local function stealOnce(target)
         root.CFrame = CFrame.new(targetPos)
         root.AssemblyLinearVelocity  = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
+        if Flags.GrabWithPrompt ~= false then
+            local okPrompt = grabViaPrompt(target)
+            if okPrompt then
+                local waited = 0
+                while waited < 0.8 do
+                    waited = waited + task.wait(0.1)
+                    if Ext.CarryWatch and Ext.CarryWatch.mine then break end
+                end
+                if Ext.CarryWatch and Ext.CarryWatch.mine then
+                    carried = true
+                    clearCarryFail(target.Uid)
+                    break
+                end
+            end
+        end
+
         local remote = Network:FindFirstChild("Eggs: RequestAreaEggCarry")
         if not remote then break end
         local ok, res, why = pcall(function()
@@ -2743,7 +2793,10 @@ end
 
 function Ext.calibrateFastTravel(apply)
     local limit, source = Ext.movementLimit()
-    local margin = tonumber(Flags.TravelMargin) or 0.95
+    local margin = tonumber(Flags.TravelMargin)
+    if not margin then
+        margin = tonumber(Ext.Constants.CLIENT_OVERLAP_MARGIN) or 0.95
+    end
 
     local speed = limit * margin
     if Move.rollbacks and Move.rollbacks > 0 then
@@ -2961,8 +3014,7 @@ FilterGB:AddDropdown("FarmMinRarity", {
 
 FilterGB:AddDropdown("StealRarities", {
     Text     = "Exact Rarities",
-    Tooltip  = "Optional. When set, ONLY these exact tiers are farmed. This stacks"
-        .. " on top of Minimum Rarity, so leaving both set can match nothing.",
+    Tooltip  = "Optional. When set, ONLY these exact tiers are farmed.",
     Values   = RarityOrder,
     Multi     = true,
     AllowNull = true,
@@ -3100,6 +3152,15 @@ StealGB:AddToggle("InstantPlace", {
     Callback = function(v) Flags.InstantPlace = v end,
 })
 
+StealGB:AddToggle("GrabWithPrompt", {
+    Text    = "Grab With Proximity Prompt",
+    Tooltip = "Fires the egg's own Steal prompt with the hold time set to 0, so the"
+        .. " grab goes through the game's normal path. Falls back to the carry"
+        .. " remote if no prompt is rendered.",
+    Default = true,
+    Callback = function(v) Flags.GrabWithPrompt = v end,
+})
+
 StealGB:AddToggle("SnipeDropped", {
     Text    = "Snipe Dropped Eggs",
     Tooltip = "Also targets eggs that are not sitting in a nest slot.",
@@ -3116,7 +3177,7 @@ StealGB:AddToggle("ForestGuardBypass", {
 
 StealGB:AddDropdown("MoveMode", {
     Text    = "Travel Mode",
-    Tooltip = "Tween glides the root at distance/speed, locked to your current height. Instant snaps.",
+    Tooltip = "Tween glides the root at distance/speed, locked to your current height; the anti-cheat frame loops are disabled so it sticks. Instant snaps.",
     Values  = { "Tween", "Instant" },
     Default = "Tween",
     Callback = function(v)
@@ -3128,7 +3189,7 @@ StealGB:AddDropdown("MoveMode", {
 StealGB:AddSlider("TweenSpeed", {
     Text     = "Tween Speed",
     Suffix   = " studs/s",
-    Tooltip  = "Studs per second for Tween mode.",
+    Tooltip  = "Studs per second for Tween mode. 200 measured clean with the frame loops disabled.",
     Min      = 50,
     Max      = 900,
     Default  = 300,
@@ -3152,10 +3213,8 @@ StealGB:AddInput("TweenSpeedInput", {
 
 StealGB:AddToggle("AdaptiveSpeed", {
     Text    = "Adaptive Speed",
-    Tooltip = "Starts at your Tween Speed and drops it 35% each time the server rolls"
-        .. " a move back, easing up again on clean trips. 300 gets corrected without"
-        .. " it; around 190 travels clean.",
-    Default = true,
+    Tooltip = "Backs the speed off if the server ever refuses the movement. Off by default: with velocity zeroing it is not needed.",
+    Default = false,
     Callback = function(v) Flags.AdaptiveSpeed = v end,
 })
 
@@ -3181,7 +3240,6 @@ StealGB:AddButton("Force Resume", function()
 end)
 
 local StealStatus = StealGB:AddLabel("Last Steal: Idle", true)
-local FilterStatus = StealGB:AddLabel("Filter: not checked yet", true)
 
 local SniperGB = Tabs.Farm:AddRightGroupbox("Spawn Sniper", "crosshair")
 
@@ -4935,18 +4993,6 @@ menuGroup:AddDropdown("DPIDropdown", {
     Callback = function(v) Library:SetDPIScale(tonumber((v:gsub("%%", "")))) end,
 })
 
-menuGroup:AddToggle("SilenceConsole", {
-    Text    = "Silence Console",
-    Tooltip = "Blanks print, warn and the rconsole family and keeps clearing the log."
-        .. " The hub prints nothing on its own, so this only hides other scripts'"
-        .. " output, and replacing shared globals is itself something a game can notice.",
-    Default = false,
-    Callback = function(v)
-        Flags.SilenceConsole = v
-        if v then silenceConsole() end
-    end,
-})
-
 menuGroup:AddToggle("ShowCustomCursor", {
     Text = "Custom Cursor", Default = false,
     Callback = function(v) Library.ShowCustomCursor = v end,
@@ -4971,12 +5017,7 @@ menuGroup:AddInput("RejoinPayload", {
     Text        = "Rejoin Loader",
     Placeholder = "loadstring(game:HttpGet(\"...\"))()",
     Tooltip     = "Runs on the new server after a rejoin. Leave blank for the default loader.",
-    Callback    = function(v)
-        Flags.RejoinPayload = v
-        if writefile and type(v) == "string" and v ~= "" then
-            pcall(writefile, LOADER_FILE, v)
-        end
-    end,
+    Callback    = function(v) Flags.RejoinPayload = v end,
 })
 
 menuGroup:AddButton({
@@ -5067,7 +5108,6 @@ do
     end)
 end
 
-local LOADER_FILE = "LuminHub_Loader.txt"
 local LOADER_SOURCE
 do
     local env = (type(getgenv) == "function" and getgenv()) or _G
@@ -5076,17 +5116,8 @@ do
         LOADER_SOURCE = [[
 loadstring(game:HttpGet("]] .. source .. [["))()
 ]]
-    elseif isfile and readfile then
-        pcall(function()
-            if isfile(LOADER_FILE) then
-                local saved = readfile(LOADER_FILE)
-                if type(saved) == "string" and saved ~= "" then LOADER_SOURCE = saved end
-            end
-        end)
     end
 end
-
-local Rejoining = false
 
 local function queueLoader()
     if type(queue_on_teleport) ~= "function" then return false end
@@ -5097,12 +5128,13 @@ local function queueLoader()
     return ok
 end
 
-Rejoining = false
+local Rejoining = false
 
 function doRejoin(why)
     if Rejoining then return end
     Rejoining = true
     queueLoader()
+    warn("[LuminHub] rejoining: " .. tostring(why))
     task.spawn(function()
         for attempt = 1, 6 do
             local ok = pcall(function()
@@ -5116,68 +5148,17 @@ function doRejoin(why)
     end)
 end
 
-local BoundOverlays = {}
-
-local function bindPromptOverlay(overlay)
-    if not overlay or BoundOverlays[overlay] then return end
-    BoundOverlays[overlay] = true
+local function watchForKick()
+    local prompt = CoreGui:FindFirstChild("RobloxPromptGui")
+    local overlay = prompt and prompt:FindFirstChild("promptOverlay")
+    if not overlay then return end
     trackConn(overlay.ChildAdded:Connect(function(child)
         if not Flags.AutoRejoin then return end
-        if child.Name:find("Error") then
+        if child.Name:find("ErrorPrompt") or child.Name:find("Error") then
             task.wait(1)
             doRejoin("error prompt: " .. child.Name)
         end
     end))
-end
-
-local function watchForKick()
-    for _, root in ipairs({ GuiHost, CoreGui }) do
-        if root then
-            local prompt = root:FindFirstChild("RobloxPromptGui")
-            bindPromptOverlay(prompt and prompt:FindFirstChild("promptOverlay"))
-
-            trackConn(root.ChildAdded:Connect(function(child)
-                if child.Name ~= "RobloxPromptGui" then return end
-                task.spawn(function()
-                    bindPromptOverlay(child:WaitForChild("promptOverlay", 15))
-                end)
-            end))
-        end
-    end
-
-    pcall(function()
-        local signal = GuiService.ErrorMessageChanged
-        if typeof(signal) == "RBXScriptSignal" then
-            trackConn(signal:Connect(function()
-                if not Flags.AutoRejoin then return end
-                local reason = "disconnected"
-                pcall(function()
-                    local message = GuiService:GetErrorMessage()
-                    if type(message) == "string" and message ~= "" then reason = message end
-                end)
-                doRejoin(reason)
-            end))
-        end
-    end)
-
-    pcall(function()
-        trackConn(LocalPlayer.OnTeleport:Connect(function(state)
-            if state == Enum.TeleportState.Started
-                or state == Enum.TeleportState.InProgress then
-                queueLoader()
-            end
-        end))
-    end)
-
-    pcall(function()
-        trackConn(TeleportService.TeleportInitFailed:Connect(function(player)
-            if player ~= LocalPlayer then return end
-            if not Flags.AutoRejoin then return end
-            Rejoining = false
-            task.wait(3)
-            doRejoin("teleport init failed")
-        end))
-    end)
 end
 
 watchForKick()
@@ -5361,23 +5342,6 @@ spawnTracked(function()
             end
             liveLabel:SetText(string.format("%d eggs up\nBest: %s\n%s",
                 total, best or "none", table.concat(parts, "  ")))
-
-            local matched, bestMatch = 0, nil
-            for _, egg in pairs(getAreaEggs()) do
-                if eggPassesFilters(egg) then
-                    matched = matched + 1
-                    local info = AssetInfo[egg.AssetCategory]
-                    if info and not bestMatch then
-                        bestMatch = egg.AssetCategory .. " [" .. info.rarity .. "]"
-                    end
-                end
-            end
-            FilterStatus:SetText(string.format(
-                "Filter: %d of %d eggs match\nMin rarity: %s   Exact: %s\nFirst match: %s",
-                matched, total,
-                tostring(Flags.FarmMinRarity or "any"),
-                listToSet(Flags.StealRarities) and "on" or "off",
-                bestMatch or "none"))
         end
 
         local pg = LocalPlayer:FindFirstChild("PlayerGui")
@@ -5398,7 +5362,7 @@ Flags.SelectEggs        = {}
 Flags.SelectMutations   = {}
 Flags.FarmMinRarity     = nil
 Flags.MinEggWeight      = 0
-Flags.AdaptiveSpeed     = true
+Flags.AdaptiveSpeed     = false
 Flags.MoveMode          = "Tween"
 Flags.TweenSpeed        = 300
 Flags.InstantMove       = false
@@ -5409,6 +5373,7 @@ Flags.PrioritySystem    = true
 Flags.AutoPlaceAfterSteal = true
 Flags.InstantPlace      = false
 Flags.SnipeDropped      = false
+Flags.GrabWithPrompt    = true
 Flags.ForestGuardBypass = false
 Flags.NeverSellMutated  = true
 Flags.NeverSellEquipped = true
@@ -5446,7 +5411,6 @@ Flags.GlobalFarmLastArea   = nil
 Flags.GlobalAreaSeconds    = 45
 Flags.GlobalFarmSkipGuards = true
 Flags.AutoCalibrateTravel  = false
-Flags.SilenceConsole       = false
 Flags.TravelMargin         = tonumber(Ext.Constants.CLIENT_OVERLAP_MARGIN) or 0.95
 
 _G.LuminHubDebug = function()
