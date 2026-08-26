@@ -90,17 +90,39 @@ overlap margin, shaving it further if rollbacks have already been seen. At
 Speed Power 243.7M (walk speed 195.5) that gives 185 instead of the stock 300,
 which is what causes the rollbacks.
 
+## Anti-cheat posture
+
+`ReplicatedFirst.UGI.ContentCatalog.Exchange` is this game's integrity client.
+It removes itself from the instance tree — `game:GetDescendants()` returns
+nothing for it — while staying the only live listener on
+`ClientCharacter: Update`. It is left completely alone. Three things that used
+to interfere with it are gone:
+
+- A `neutralizeFrameLoops()` pass that disabled every Heartbeat, Stepped and
+  RenderStepped connection whose source matched `UGI.ContentCatalog`, re-run on
+  a 5 second `ACSweep` loop.
+- A `hookfunction` on `Library.Client.Network.Fire` plus a `__namecall` hook to
+  swallow `RuntimeSync.REPORT`. That remote does not exist in this place, so
+  the hook blocked nothing and only altered a function the game holds.
+- Blanket disabling of `ScriptContext.Error` listeners, which is the channel
+  the integrity client reports through.
+
 ## Logging
 
-All console output is suppressed at load. `print`, `warn` and the `rconsole*`
-family are replaced with no-ops via `hookfunction` (so the game's own calls go
-quiet too, not just the script's), every listener on `LogService.MessageOut`
-and `ScriptContext.Error` is disabled, and `LogService:ClearOutput()` runs on a
-5 second sweep to catch listeners that reattach later. The script makes no
-print or warn calls of its own.
+Console silencing is opt-in through **Silence Console** in the Menu tab,
+default off. When enabled it blanks `print`, `warn` and the `rconsole*` family
+and keeps clearing `LogService`, but it no longer touches `ScriptContext.Error`.
+The hub prints nothing of its own, so this only hides other scripts' output,
+and replacing shared globals is itself detectable.
 
-Status still surfaces through the menu labels and the on-screen notifications,
-which are GUI, not console output.
+Status surfaces through the menu labels and notifications, which are GUI.
+
+## Movement
+
+Travel Mode defaults to **Walk**, which steers the humanoid with `MoveTo` at
+your real walk speed — the speed the server already expects. Tween and Instant
+remain available but both move the root faster than the humanoid can walk, and
+with the frame-loop killer gone the position validator is free to correct them.
 
 ## GUI parenting
 

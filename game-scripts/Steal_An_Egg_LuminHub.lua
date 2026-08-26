@@ -123,59 +123,20 @@ do
     GuiHost = GuiHost or CoreGui
 end
 
-do
-    local hookFunction   = resolveFunction(hookfunction)
-    local hookMetamethod = resolveFunction(hookmetamethod)
-    local getNamecall    = resolveFunction(getnamecallmethod)
+local ConsoleSilenced = false
 
-    local okNet, ClientNetwork = pcall(function()
-        local rs = cloneref and game:GetService("ReplicatedStorage") or ReplicatedStorage
-        return require(rs:WaitForChild("Library"):WaitForChild("Client"):WaitForChild("Network"))
-    end)
-    local okConst, Constants = pcall(function()
-        local rs = game:GetService("ReplicatedStorage")
-        return require(rs:WaitForChild("Library"):WaitForChild("Globals"):WaitForChild("Constants"))
-    end)
+local function silenceConsole()
+    if ConsoleSilenced then return end
+    ConsoleSilenced = true
 
-    local ReportRemote
-    if okConst and type(Constants) == "table" then
-        local sync = Constants.NETWORK_MAP and Constants.NETWORK_MAP.RuntimeSync
-        if type(sync) == "table" then
-            ReportRemote = sync.REPORT
-        end
-    end
-
-    if okNet and type(ClientNetwork) == "table" and type(ClientNetwork.Fire) == "function" and hookFunction then
-        pcall(function()
-            local origFire
-            origFire = hookFunction(ClientNetwork.Fire, function(remote, ...)
-                if ReportRemote ~= nil and remote == ReportRemote then
-                    return
-                end
-                return origFire(remote, ...)
-            end)
-        end)
-    end
-
-    if hookMetamethod and getNamecall and ReportRemote ~= nil and typeof(ReportRemote) == "Instance" then
-        pcall(function()
-            local origNamecall
-            origNamecall = hookMetamethod(game, "__namecall", function(self, ...)
-                if self == ReportRemote and getNamecall() == "FireServer" then
-                    return
-                end
-                return origNamecall(self, ...)
-            end)
-        end)
-    end
-end
-
-do
     local hookFunction = resolveFunction(hookfunction)
     local newCC        = resolveFunction(newcclosure, function(f) return f end)
+    local env          = (type(getgenv) == "function" and getgenv()) or _G
 
-    local function silence(name)
-        local env = (type(getgenv) == "function" and getgenv()) or _G
+    for _, name in ipairs({
+        "print", "warn", "rconsoleprint", "rconsoleinfo",
+        "rconsolewarn", "rconsoleerr", "printconsole", "printidentity",
+    }) do
         local old = env[name]
         if type(old) == "function" and hookFunction then
             pcall(function() hookFunction(old, newCC(function() end)) end)
@@ -183,66 +144,21 @@ do
         pcall(function() env[name] = function() end end)
     end
 
-    for _, name in ipairs({
-        "print", "warn", "rconsoleprint", "rconsoleinfo",
-        "rconsolewarn", "rconsoleerr", "printconsole", "printidentity",
-    }) do
-        silence(name)
-    end
-
-    local function killLogListeners()
-        if not getconnections then return end
-        for _, signal in ipairs({ LogService.MessageOut, ScriptContext.Error }) do
-            pcall(function()
-                for _, conn in ipairs(getconnections(signal)) do
-                    pcall(function() conn:Disable() end)
-                end
-            end)
-        end
-    end
-
-    local function clearOutput()
-        pcall(function() LogService:ClearOutput() end)
-    end
-
-    killLogListeners()
-    clearOutput()
-
     local myGen = ScriptGeneration
     task.spawn(function()
-        while myGen == _G.LuminHubGeneration do
-            killLogListeners()
-            clearOutput()
+        while myGen == _G.LuminHubGeneration and ConsoleSilenced do
+            if getconnections then
+                pcall(function()
+                    for _, conn in ipairs(getconnections(LogService.MessageOut)) do
+                        pcall(function() conn:Disable() end)
+                    end
+                end)
+            end
+            pcall(function() LogService:ClearOutput() end)
             task.wait(5)
         end
     end)
 end
-
-local function neutralizeFrameLoops()
-    if not (getconnections and debug and debug.getinfo) then return end
-    local signals = {
-        RunService.Heartbeat,
-        RunService.Stepped,
-        RunService.PreSimulation,
-        RunService.PostSimulation,
-        RunService.PreRender,
-        RunService.RenderStepped,
-    }
-    for _, signal in ipairs(signals) do
-        for _, conn in ipairs(getconnections(signal)) do
-            local ok, fn = pcall(function() return conn.Function end)
-            if ok and type(fn) == "function" then
-                local info = debug.getinfo(fn, "S")
-                local src  = (info and info.short_src) or ""
-                if src == "" or src:find("UGI.ContentCatalog", 1, true) then
-                    pcall(function() conn:Disable() end)
-                end
-            end
-        end
-    end
-end
-
-neutralizeFrameLoops()
 
 local Library = loadstring(game:HttpGet(TemplateConfig.Dependencies.LibraryUrl))()
 _G.LuminHubLibrary = Library
@@ -830,6 +746,27 @@ function Move:To(targetPos, timeoutSeconds)
         timeout = math.clamp(dist0 / math.max(sp, 20) * 3 + 3, 4, 30)
     end
 
+    if mode == "Walk" then
+        local ground = groundAt(targetPos)
+        self.moving = true
+        local deadline = os.clock() + math.max(timeout, dist0 / 16 + 5)
+        while os.clock() < deadline do
+            if self.cancel then self.moving = false return false end
+            local root = getRoot()
+            local hum  = getHumanoid()
+            if not (root and hum) then self.moving = false return false end
+            if (root.Position - ground).Magnitude <= 6 then
+                self.moving = false
+                return true
+            end
+            hum:MoveTo(ground)
+            task.wait(0.15)
+        end
+        local root = getRoot()
+        self.moving = false
+        return (root and (root.Position - ground).Magnitude <= 10) or false
+    end
+
     if mode == "Instant" or Flags.InstantMove then
         local root = getRoot()
         if not root then return false end
@@ -1172,11 +1109,6 @@ local function startLoop(name, func)
 end
 
 local function stopLoop(name) Running[name] = false end
-
-startLoop("ACSweep", function()
-    neutralizeFrameLoops()
-    task.wait(5)
-end)
 
 local function spawnTracked(fn)
     local handle = { alive = true }
@@ -3192,9 +3124,11 @@ StealGB:AddToggle("ForestGuardBypass", {
 
 StealGB:AddDropdown("MoveMode", {
     Text    = "Travel Mode",
-    Tooltip = "Tween glides the root at distance/speed, locked to your current height; the anti-cheat frame loops are disabled so it sticks. Instant snaps.",
-    Values  = { "Tween", "Instant" },
-    Default = "Tween",
+    Tooltip = "Walk steers the humanoid at your real speed and is what the server expects to see."
+        .. " Tween glides the root and Instant snaps it: both move faster than your walk speed"
+        .. " and the position validator can correct or flag them.",
+    Values  = { "Walk", "Tween", "Instant" },
+    Default = "Walk",
     Callback = function(v)
         Flags.MoveMode = v
         Flags.InstantMove = (v == "Instant")
@@ -5008,6 +4942,18 @@ menuGroup:AddDropdown("DPIDropdown", {
     Callback = function(v) Library:SetDPIScale(tonumber((v:gsub("%%", "")))) end,
 })
 
+menuGroup:AddToggle("SilenceConsole", {
+    Text    = "Silence Console",
+    Tooltip = "Blanks print, warn and the rconsole family and keeps clearing the log."
+        .. " The hub prints nothing on its own, so this only hides other scripts'"
+        .. " output, and replacing shared globals is itself something a game can notice.",
+    Default = false,
+    Callback = function(v)
+        Flags.SilenceConsole = v
+        if v then silenceConsole() end
+    end,
+})
+
 menuGroup:AddToggle("ShowCustomCursor", {
     Text = "Custom Cursor", Default = false,
     Callback = function(v) Library.ShowCustomCursor = v end,
@@ -5443,7 +5389,7 @@ Flags.SelectMutations   = {}
 Flags.FarmMinRarity     = nil
 Flags.MinEggWeight      = 0
 Flags.AdaptiveSpeed     = false
-Flags.MoveMode          = "Tween"
+Flags.MoveMode          = "Walk"
 Flags.TweenSpeed        = 300
 Flags.InstantMove       = false
 Flags.DistantTarget     = false
@@ -5490,6 +5436,7 @@ Flags.GlobalFarmLastArea   = nil
 Flags.GlobalAreaSeconds    = 45
 Flags.GlobalFarmSkipGuards = true
 Flags.AutoCalibrateTravel  = false
+Flags.SilenceConsole       = false
 Flags.TravelMargin         = tonumber(Ext.Constants.CLIENT_OVERLAP_MARGIN) or 0.95
 
 _G.LuminHubDebug = function()
