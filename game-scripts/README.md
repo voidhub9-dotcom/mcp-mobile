@@ -119,10 +119,21 @@ Status surfaces through the menu labels and notifications, which are GUI.
 
 ## Movement
 
-Travel Mode defaults to **Walk**, which steers the humanoid with `MoveTo` at
-your real walk speed — the speed the server already expects. Tween and Instant
-remain available but both move the root faster than the humanoid can walk, and
-with the frame-loop killer gone the position validator is free to correct them.
+Travel Mode defaults to **Tween**, and the script calibrates it once at load:
+travel speed becomes your live `Humanoid.WalkSpeed` times the client's own 0.95
+overlap margin, instead of the stock 300. At walk speed ~201 that is ~191
+studs/s, so the pace matches what the server expects even though the path is a
+straight line rather than real ground.
+
+**Walk** steers the humanoid with `MoveTo` instead. Slower, but it follows
+terrain and is the least distinguishable from normal play. **Instant** snaps
+the root and is the easiest to spot.
+
+Carrying an egg no longer fights the humanoid. `Move:Halt()` clears
+`WalkToPart`, pins `WalkToPoint` to the current position and zeroes
+`MoveDirection`; in Walk mode the carry loop calls it instead of rewriting the
+root CFrame, which is what used to make the character jitter on top of an egg
+and drop the grab.
 
 ## Icons
 

@@ -1785,7 +1785,7 @@ local function stealOnce(target)
         return false
     end
 
-    local walking = (Flags.MoveMode or "Walk") == "Walk"
+    local walking = (Flags.MoveMode or "Tween") == "Walk"
     local carried, reason = false, nil
     for _ = 1, 6 do
         root = getRoot()
@@ -3165,11 +3165,12 @@ StealGB:AddToggle("ForestGuardBypass", {
 
 StealGB:AddDropdown("MoveMode", {
     Text    = "Travel Mode",
-    Tooltip = "Walk steers the humanoid at your real speed and is what the server expects to see."
-        .. " Tween glides the root and Instant snaps it: both move faster than your walk speed"
-        .. " and the position validator can correct or flag them.",
-    Values  = { "Walk", "Tween", "Instant" },
-    Default = "Walk",
+    Tooltip = "Tween glides the root in a straight line and is calibrated to your own"
+        .. " walk speed at load, so the pace matches what the server expects."
+        .. " Walk steers the humanoid instead: slower, but it follows real ground."
+        .. " Instant snaps and is the easiest to spot.",
+    Values  = { "Tween", "Walk", "Instant" },
+    Default = "Tween",
     Callback = function(v)
         Flags.MoveMode = v
         Flags.InstantMove = (v == "Instant")
@@ -5448,7 +5449,7 @@ Flags.SelectMutations   = {}
 Flags.FarmMinRarity     = nil
 Flags.MinEggWeight      = 0
 Flags.AdaptiveSpeed     = false
-Flags.MoveMode          = "Walk"
+Flags.MoveMode          = "Tween"
 Flags.TweenSpeed        = 300
 Flags.InstantMove       = false
 Flags.DistantTarget     = false
@@ -5497,6 +5498,23 @@ Flags.GlobalFarmSkipGuards = true
 Flags.AutoCalibrateTravel  = false
 Flags.SilenceConsole       = false
 Flags.TravelMargin         = tonumber(Ext.Constants.CLIENT_OVERLAP_MARGIN) or 0.95
+
+task.spawn(function()
+    for _ = 1, 20 do
+        if getHumanoid() then break end
+        task.wait(0.5)
+    end
+    local ok, speed = pcall(calibrateFastTravel, true)
+    if ok and speed then
+        pcall(function()
+            Library:Notify({
+                Title = "Lumin Hub",
+                Description = string.format("Travel calibrated to %d studs/s", speed),
+                Time = 4,
+            })
+        end)
+    end
+end)
 
 _G.LuminHubDebug = function()
     return {
