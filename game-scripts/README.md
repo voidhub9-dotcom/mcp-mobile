@@ -119,28 +119,15 @@ Status surfaces through the menu labels and notifications, which are GUI.
 
 ## Movement
 
-Travel Mode defaults to **Tween**, and the script calibrates it once at load:
-travel speed becomes your live `Humanoid.WalkSpeed` times the client's own 0.95
-overlap margin, instead of the stock 300. At walk speed ~201 that is ~191
-studs/s, so the pace matches what the server expects even though the path is a
-straight line rather than real ground.
+Travel Mode is the original **Tween** at a 300 studs/s default, `AdaptiveSpeed`
+off, and the `Move` object unchanged from the pre-rewrite build. The Walk mode
+and the load-time speed calibration that briefly replaced it are gone.
 
-**Walk** steers the humanoid with `MoveTo` instead. Slower, but it follows
-terrain and is the least distinguishable from normal play. **Instant** snaps
-the root and is the easiest to spot.
-
-Carrying an egg no longer fights the humanoid. `Move:Halt()` clears
-`WalkToPart`, pins `WalkToPoint` to the current position and zeroes
-`MoveDirection`; in Walk mode the carry loop calls it instead of rewriting the
-root CFrame, which is what used to make the character jitter on top of an egg
-and drop the grab.
-
-## Icons
-
-Tab, groupbox and tabbox icons are back, along with the window icon, which
-`resolveLuminIcon()` caches to `A7.png` from the branding URL. They were never
-a detection vector — the live run confirmed the menu's ScreenGuis sit in
-`gethui()` and CoreGui holds only Roblox's own CoreScript GUIs.
+Note the trade this leaves in place: 300 studs/s is roughly 1.5x a ~200 walk
+speed, and the frame-loop suppression that used to stop the server correcting
+that is not coming back. Calibrate Fast Travel is still on the Farm tab if you
+want to pull the speed down to your real walk speed on demand, and Adaptive
+Speed backs off automatically when switched on.
 
 ## GUI parenting
 

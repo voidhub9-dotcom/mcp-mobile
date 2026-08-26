@@ -533,24 +533,6 @@ function Move:Stop()
     if root and root.Anchored then root.Anchored = false end
 end
 
-function Move:Halt()
-    local root = getRoot()
-    local hum  = getHumanoid()
-    if hum and root then
-        pcall(function()
-            hum.WalkToPart  = nil
-            hum.WalkToPoint = root.Position
-            hum:Move(Vector3.zero, false)
-        end)
-    end
-    if root then
-        pcall(function()
-            root.AssemblyLinearVelocity  = Vector3.zero
-            root.AssemblyAngularVelocity = Vector3.zero
-        end)
-    end
-end
-
 function Move:Attempt(targetPos, timeout)
     local root = getRoot()
     if not root then return false, false end
@@ -776,29 +758,6 @@ function Move:To(targetPos, timeoutSeconds)
     if not timeout then
         local sp = self:CurrentSpeed()
         timeout = math.clamp(dist0 / math.max(sp, 20) * 3 + 3, 4, 30)
-    end
-
-    if mode == "Walk" then
-        local ground = groundAt(targetPos)
-        self.moving = true
-        local deadline = os.clock() + math.max(timeout, dist0 / 16 + 5)
-        while os.clock() < deadline do
-            if self.cancel then self.moving = false return false end
-            local root = getRoot()
-            local hum  = getHumanoid()
-            if not (root and hum) then self.moving = false return false end
-            if (root.Position - ground).Magnitude <= 6 then
-                self.moving = false
-                self:Halt()
-                return true
-            end
-            hum:MoveTo(ground)
-            task.wait(0.15)
-        end
-        local root = getRoot()
-        self.moving = false
-        self:Halt()
-        return (root and (root.Position - ground).Magnitude <= 10) or false
     end
 
     if mode == "Instant" or Flags.InstantMove then
@@ -1785,19 +1744,14 @@ local function stealOnce(target)
         return false
     end
 
-    local walking = (Flags.MoveMode or "Tween") == "Walk"
     local carried, reason = false, nil
     for _ = 1, 6 do
         root = getRoot()
         if not root then break end
 
-        if walking then
-            Move:Halt()
-        else
-            root.CFrame = CFrame.new(targetPos)
-            root.AssemblyLinearVelocity  = Vector3.zero
-            root.AssemblyAngularVelocity = Vector3.zero
-        end
+        root.CFrame = CFrame.new(targetPos)
+        root.AssemblyLinearVelocity  = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
         local remote = Network:FindFirstChild("Eggs: RequestAreaEggCarry")
         if not remote then break end
         local ok, res, why = pcall(function()
@@ -2789,7 +2743,7 @@ end
 
 function Ext.calibrateFastTravel(apply)
     local limit, source = Ext.movementLimit()
-    local margin = tonumber(Flags.TravelMargin) or 1.5
+    local margin = tonumber(Flags.TravelMargin) or 0.95
 
     local speed = limit * margin
     if Move.rollbacks and Move.rollbacks > 0 then
@@ -3162,11 +3116,8 @@ StealGB:AddToggle("ForestGuardBypass", {
 
 StealGB:AddDropdown("MoveMode", {
     Text    = "Travel Mode",
-    Tooltip = "Tween glides the root in a straight line and is calibrated to your own"
-        .. " walk speed at load, so the pace matches what the server expects."
-        .. " Walk steers the humanoid instead: slower, but it follows real ground."
-        .. " Instant snaps and is the easiest to spot.",
-    Values  = { "Tween", "Walk", "Instant" },
+    Tooltip = "Tween glides the root at distance/speed, locked to your current height. Instant snaps.",
+    Values  = { "Tween", "Instant" },
     Default = "Tween",
     Callback = function(v)
         Flags.MoveMode = v
@@ -3177,7 +3128,7 @@ StealGB:AddDropdown("MoveMode", {
 StealGB:AddSlider("TweenSpeed", {
     Text     = "Tween Speed",
     Suffix   = " studs/s",
-    Tooltip  = "Studs per second for Tween mode. 200 measured clean with the frame loops disabled.",
+    Tooltip  = "Studs per second for Tween mode.",
     Min      = 50,
     Max      = 900,
     Default  = 300,
@@ -3201,8 +3152,8 @@ StealGB:AddInput("TweenSpeedInput", {
 
 StealGB:AddToggle("AdaptiveSpeed", {
     Text    = "Adaptive Speed",
-    Tooltip = "Drops travel speed 35% each time the server rolls a move back, and eases it up again on clean trips. Worth leaving on above 1.0x.",
-    Default = true,
+    Tooltip = "Backs the speed off if the server ever refuses the movement.",
+    Default = false,
     Callback = function(v) Flags.AdaptiveSpeed = v end,
 })
 
@@ -3402,15 +3353,12 @@ local globalLabel = GlobalGB:AddLabel("Rotation: idle", true)
 local TravelGB = Tabs.Farm:AddLeftGroupbox("Fast Travel", "zap")
 
 TravelGB:AddSlider("TravelMargin", {
-    Text     = "Speed Multiplier",
-    Suffix   = "x walk speed",
-    Tooltip  = "Travel speed as a multiple of your live walk speed. 0.95 is the"
-        .. " game's own client margin and the quietest. Above 1.0 you are moving"
-        .. " faster than the server thinks you can, so leave Adaptive Speed on to"
-        .. " back off automatically when it starts correcting you.",
+    Text     = "Safety Margin",
+    Tooltip  = "Fraction of the movement limit to travel at. The game's own"
+        .. " client margin is 0.95.",
     Min      = 0.5,
-    Max      = 3,
-    Default  = 1.5,
+    Max      = 1,
+    Default  = tonumber(Ext.Constants.CLIENT_OVERLAP_MARGIN) or 0.95,
     Rounding = 2,
     Callback = function(v) Flags.TravelMargin = v end,
 })
@@ -5448,7 +5396,7 @@ Flags.SelectEggs        = {}
 Flags.SelectMutations   = {}
 Flags.FarmMinRarity     = nil
 Flags.MinEggWeight      = 0
-Flags.AdaptiveSpeed     = true
+Flags.AdaptiveSpeed     = false
 Flags.MoveMode          = "Tween"
 Flags.TweenSpeed        = 300
 Flags.InstantMove       = false
@@ -5497,24 +5445,7 @@ Flags.GlobalAreaSeconds    = 45
 Flags.GlobalFarmSkipGuards = true
 Flags.AutoCalibrateTravel  = false
 Flags.SilenceConsole       = false
-Flags.TravelMargin         = 1.5
-
-task.spawn(function()
-    for _ = 1, 20 do
-        if getHumanoid() then break end
-        task.wait(0.5)
-    end
-    local ok, speed = pcall(Ext.calibrateFastTravel, true)
-    if ok and speed then
-        pcall(function()
-            Library:Notify({
-                Title = "Lumin Hub",
-                Description = string.format("Travel calibrated to %d studs/s", speed),
-                Time = 4,
-            })
-        end)
-    end
-end)
+Flags.TravelMargin         = tonumber(Ext.Constants.CLIENT_OVERLAP_MARGIN) or 0.95
 
 _G.LuminHubDebug = function()
     return {
