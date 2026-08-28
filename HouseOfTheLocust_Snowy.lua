@@ -3,6 +3,7 @@ local Snowy = loadstring(readfile("SnowyStudios.luau"))()
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
@@ -67,15 +68,16 @@ local function colorFor(name, fallback)
 end
 
 local function setLabel(handle, text)
-    if not handle then
-        return
-    end
-    local root = rawget(handle, "Instance") or handle.Instance
+    local root = handle and handle.Instance
     if typeof(root) ~= "Instance" then
         return
     end
+    if root:IsA("TextLabel") then
+        root.Text = text
+        return
+    end
     for _, item in ipairs(root:GetDescendants()) do
-        if item:IsA("TextLabel") and item.Name ~= "Info" then
+        if item:IsA("TextLabel") then
             item.Text = text
             return
         end
@@ -149,16 +151,41 @@ local function teleportTo(position, offset)
     return true
 end
 
-local function travelTo(position, stopDistance)
-    stopDistance = stopDistance or 6
+local function glideTo(position, stopDistance)
     local root = rootPart()
     if not root or root.Anchored then
         return false
     end
+    local mine = root.Position
+    local gap = (position - mine).Magnitude
+    if gap <= stopDistance then
+        return true
+    end
+    local speed = math.max(20, tonumber(flag("hotl_travel_speed", 90)) or 90)
+    local duration = math.clamp((gap - stopDistance) / speed, 0.05, 6)
+    local goal = position - (position - mine).Unit * stopDistance
+    local tween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        CFrame = CFrame.new(goal + Vector3.new(0, 3, 0)),
+    })
+    tween:Play()
+    tween.Completed:Wait()
+    root.AssemblyLinearVelocity = Vector3.zero
+    return true
+end
+
+local function travelTo(position, stopDistance)
+    stopDistance = stopDistance or 6
+    local root = rootPart()
+    if not root or root.Anchored or not position then
+        return false
+    end
+    if isOn("hotl_smooth_movement") then
+        return glideTo(position, stopDistance)
+    end
     local steps = 0
     while steps < 60 do
         local mine = myPosition()
-        if not mine or not position then
+        if not mine then
             return false
         end
         local gap = (position - mine).Magnitude
@@ -522,6 +549,30 @@ local function refreshVision()
         end
     end
 
+    if isOn("hotl_player_esp") then
+        local color = colorFor("hotl_player_color", "Green")
+        for index, other in ipairs(Players:GetPlayers()) do
+            local char = other ~= LocalPlayer and other.Character or nil
+            local position = char and pivotOf(char)
+            if position and distanceTo(position) <= maxDistance then
+                local key = "player" .. index
+                alive[key] = true
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                local health = hum and math.floor(hum.Health) or 0
+                local downed = health <= 0
+                local text = string.format("%s%s", other.DisplayName, downed and " (down)" or "")
+                drawMarker(key, position + Vector3.new(0, 3.5, 0),
+                    describe(text, position), downed and COLORS.Red or color,
+                    isOn("hotl_player_tracer"))
+                if isOn("hotl_player_chams") then
+                    applyHighlight(key, char, downed and COLORS.Red or color)
+                else
+                    releaseHighlight(key)
+                end
+            end
+        end
+    end
+
     if isOn("hotl_objective_esp") then
         local color = colorFor("hotl_objective_color", "Yellow")
         for index, target in ipairs(objectiveTargets()) do
@@ -852,6 +903,102 @@ local function unstickCamera()
     end
 end
 
+local savedSpot = nil
+
+local function collectRewardPrompts()
+    local claimed = 0
+    for _, item in ipairs(Workspace:GetDescendants()) do
+        if item:IsA("ProximityPrompt") and item.Enabled then
+            local text = (tostring(item.ActionText) .. " " .. tostring(item.ObjectText)):lower()
+            if text:find("claim", 1, true) or text:find("reward", 1, true)
+                or text:find("collect", 1, true) or text:find("pick", 1, true) then
+                local holder = item.Parent
+                local position = holder and pivotOf(holder)
+                if position and distanceTo(position) <= 400 then
+                    travelTo(position, 5)
+                    firePrompt(item)
+                    claimed += 1
+                    task.wait(0.35)
+                end
+            end
+        end
+    end
+
+    local gui = LocalPlayer:FindFirstChild("PlayerGui")
+    if gui then
+        for _, item in ipairs(gui:GetDescendants()) do
+            if (item:IsA("TextButton") or item:IsA("ImageButton")) and item.Visible then
+                local text = (tostring(item.Name) .. " " .. tostring(item:IsA("TextButton") and item.Text or "")):lower()
+                if text:find("claim", 1, true) or text:find("reward", 1, true) or text:find("collect", 1, true) then
+                    pcall(function()
+                        for _, connection in ipairs(getconnections(item.MouseButton1Click)) do
+                            connection:Fire()
+                        end
+                    end)
+                    claimed += 1
+                    task.wait(0.25)
+                end
+            end
+        end
+    end
+    return claimed
+end
+
+local function applyFastProgression()
+    local speed = tonumber(flag("hotl_walk_speed", 16)) or 16
+    local hum = humanoid()
+    if hum and not hum.PlatformStand and hum.Health > 0 then
+        if math.abs(hum.WalkSpeed - speed) > 0.5 then
+            hum.WalkSpeed = speed
+        end
+    end
+    for _, item in ipairs(Workspace:GetDescendants()) do
+        if item:IsA("ProximityPrompt") and item.HoldDuration > 0 then
+            pcall(function()
+                item.HoldDuration = 0
+            end)
+        end
+    end
+end
+
+local function teleportTarget(choice)
+    if choice == "Exit" then
+        local target = findObjective("exit")
+        return target and target.position or nil
+    elseif choice == "Nearest cabinet" or choice == "Nearest unsearched cabinet" then
+        local best, bestGap = nil, math.huge
+        for _, cabinet in ipairs(cabinets()) do
+            local position = pivotOf(cabinet)
+            local skip = choice == "Nearest unsearched cabinet" and cabinetSearched(cabinet)
+            if position and not skip then
+                local gap = distanceTo(position)
+                if gap < bestGap then
+                    best, bestGap = position, gap
+                end
+            end
+        end
+        return best
+    elseif choice == "Wirecutter" then
+        local tool = Workspace:FindFirstChild("WireCutter")
+        return tool and pivotOf(tool) or nil
+    elseif choice == "Keycard" then
+        local target = findObjective("keycard")
+        return target and target.position or nil
+    elseif choice == "Cube puzzle" then
+        local target = findObjective("cube")
+        return target and target.position or nil
+    elseif choice == "Locust" then
+        local monster = nearestLocust()
+        return monster and pivotOf(monster) or nil
+    elseif choice == "Spawn" then
+        local spawn = Workspace:FindFirstChild("SpawnLocation")
+        return spawn and spawn.Position or nil
+    elseif choice == "Saved spot" then
+        return savedSpot
+    end
+    return nil
+end
+
 local function panicTeleport()
     local mine = myPosition()
     if not mine then
@@ -945,6 +1092,35 @@ cabinetBox:Dropdown({
     Flag = "hotl_cabinet_color",
     Options = COLOR_NAMES,
     Default = "Cyan",
+})
+
+local playerBox = espTab:Section({ Title = "Players", Column = 2 })
+
+playerBox:Toggle({
+    Text = "Player ESP",
+    Info = "Names and distance for everyone else in the house",
+    Flag = "hotl_player_esp",
+    Default = true,
+})
+
+playerBox:Toggle({
+    Text = "Player chams",
+    Flag = "hotl_player_chams",
+    Default = false,
+})
+
+playerBox:Toggle({
+    Text = "Player tracer",
+    Flag = "hotl_player_tracer",
+    Default = false,
+})
+
+playerBox:Dropdown({
+    Text = "Player colour",
+    Info = "Downed players always show red",
+    Flag = "hotl_player_color",
+    Options = COLOR_NAMES,
+    Default = "Green",
 })
 
 local objectiveBox = espTab:Section({ Title = "Objectives", Column = 2 })
@@ -1136,6 +1312,237 @@ optionBox:Button({
     end,
 })
 
+local autoTab = window:Tab({
+    Name = "Automation",
+    Icon = "gauge",
+    Description = "Auto win, farming, rewards and progression",
+})
+
+local winBox = autoTab:Section({ Title = "Auto win", Column = 1 })
+
+local farmLabel = winBox:Label("Rounds won this session: 0")
+
+winBox:Toggle({
+    Text = "Auto win",
+    Info = "Runs the whole escape the moment a round is playable",
+    Flag = "hotl_auto_win",
+    Default = false,
+    Callback = function(on)
+        window:Notify({
+            Type = on and "success" or "info",
+            Title = on and "Auto win armed" or "Auto win off",
+            Text = on and "It will escape as soon as you can move." or "No longer escaping automatically.",
+            Duration = 3,
+        })
+    end,
+})
+
+winBox:Toggle({
+    Text = "Auto farm rounds",
+    Info = "Keeps winning round after round without you touching it",
+    Flag = "hotl_auto_farm",
+    Default = false,
+})
+
+winBox:Slider({
+    Text = "Delay between rounds",
+    Flag = "hotl_farm_delay",
+    Min = 1,
+    Max = 60,
+    Default = 8,
+    Suffix = "s",
+})
+
+local rewardBox = autoTab:Section({ Title = "Rewards", Column = 1 })
+
+rewardBox:Toggle({
+    Text = "Auto collect rewards",
+    Info = "Claims reward prompts in the map and claim buttons on screen",
+    Flag = "hotl_auto_rewards",
+    Default = true,
+})
+
+rewardBox:Button({
+    Text = "Collect rewards now",
+    ButtonText = "Collect",
+    Callback = function()
+        task.spawn(function()
+            local claimed = collectRewardPrompts()
+            window:Notify({
+                Type = claimed > 0 and "success" or "info",
+                Title = "Rewards",
+                Text = claimed > 0 and (claimed .. " claimed.") or "Nothing to claim right now.",
+                Duration = 3,
+            })
+        end)
+    end,
+})
+
+local progressBox = autoTab:Section({ Title = "Fast progression", Column = 2 })
+
+progressBox:Toggle({
+    Text = "Fast progression",
+    Info = "Zeroes prompt hold times and applies your walk speed",
+    Flag = "hotl_fast_progression",
+    Default = false,
+})
+
+progressBox:Slider({
+    Text = "Walk speed",
+    Flag = "hotl_walk_speed",
+    Min = 16,
+    Max = 120,
+    Default = 26,
+})
+
+local smoothBox = autoTab:Section({ Title = "Smooth GUI", Column = 2 })
+
+smoothBox:Toggle({
+    Text = "Smooth movement",
+    Info = "Glides between targets instead of snapping, much less jarring",
+    Flag = "hotl_smooth_movement",
+    Default = true,
+})
+
+smoothBox:Slider({
+    Text = "Travel speed",
+    Flag = "hotl_travel_speed",
+    Min = 20,
+    Max = 400,
+    Default = 90,
+    Suffix = " studs/s",
+})
+
+smoothBox:Slider({
+    Text = "ESP refresh rate",
+    Info = "Lower this if the menu feels heavy on mobile",
+    Flag = "hotl_esp_rate",
+    Min = 5,
+    Max = 60,
+    Default = 20,
+    Suffix = " hz",
+})
+
+local teleportTab = window:Tab({
+    Name = "Teleports",
+    Icon = "globe",
+    Description = "Jump to objectives, cabinets and players",
+})
+
+local tpBox = teleportTab:Section({ Title = "Objectives", Column = 1 })
+
+tpBox:Dropdown({
+    Text = "Destination",
+    Flag = "hotl_tp_target",
+    Options = {
+        "Exit", "Nearest cabinet", "Nearest unsearched cabinet", "Wirecutter",
+        "Keycard", "Cube puzzle", "Locust", "Spawn", "Saved spot",
+    },
+    Default = "Exit",
+})
+
+tpBox:Button({
+    Text = "Teleport",
+    ButtonText = "Go",
+    Callback = function()
+        task.spawn(function()
+            local choice = flag("hotl_tp_target", "Exit")
+            local position = teleportTarget(choice)
+            if not position then
+                window:Notify({
+                    Type = "warning",
+                    Title = "Teleport",
+                    Text = choice .. " is not in the map right now.",
+                    Duration = 3,
+                })
+                return
+            end
+            if not travelTo(position, 4) then
+                window:Notify({
+                    Type = "warning",
+                    Title = "Teleport",
+                    Text = "You are anchored, so the game is holding you in place.",
+                    Duration = 4,
+                })
+                return
+            end
+            window:Notify({ Type = "success", Title = "Teleport", Text = "Arrived at " .. choice .. ".", Duration = 2 })
+        end)
+    end,
+})
+
+tpBox:Button({
+    Text = "Save current spot",
+    ButtonText = "Save",
+    Callback = function()
+        savedSpot = myPosition()
+        window:Notify({
+            Type = savedSpot and "success" or "warning",
+            Title = "Saved spot",
+            Text = savedSpot and "Position stored, pick Saved spot to come back." or "Could not read your position.",
+            Duration = 3,
+        })
+    end,
+})
+
+local tpPlayerBox = teleportTab:Section({ Title = "Players", Column = 2 })
+
+local NOBODY = "Nobody else in the server"
+local playerOptions = { NOBODY }
+
+local playerDropdown = tpPlayerBox:Dropdown({
+    Text = "Player",
+    Info = "Hit refresh after someone joins or leaves",
+    Flag = "hotl_tp_player",
+    Options = playerOptions,
+    Default = NOBODY,
+})
+
+local function refreshPlayerList()
+    table.clear(playerOptions)
+    for _, other in ipairs(Players:GetPlayers()) do
+        if other ~= LocalPlayer then
+            playerOptions[#playerOptions + 1] = other.Name
+        end
+    end
+    if #playerOptions == 0 then
+        playerOptions[1] = NOBODY
+    end
+    playerDropdown:Set(playerOptions[1])
+    return #playerOptions, playerOptions[1] ~= NOBODY
+end
+
+tpPlayerBox:Button({
+    Text = "Refresh player list",
+    ButtonText = "Refresh",
+    Callback = function()
+        local count, real = refreshPlayerList()
+        window:Notify({
+            Type = real and "success" or "info",
+            Title = "Players",
+            Text = real and (count .. " other players listed.") or "You are alone in this server.",
+            Duration = 3,
+        })
+    end,
+})
+
+tpPlayerBox:Button({
+    Text = "Teleport to player",
+    ButtonText = "Go",
+    Callback = function()
+        task.spawn(function()
+            local name = flag("hotl_tp_player", nil)
+            local other = name and Players:FindFirstChild(name)
+            local position = other and other.Character and pivotOf(other.Character)
+            if not position then
+                window:Notify({ Type = "warning", Title = "Teleport", Text = "That player has no character right now.", Duration = 3 })
+                return
+            end
+            travelTo(position, 5)
+        end)
+    end,
+})
+
 local protectionTab = window:Tab({
     Name = "Protection",
     Icon = "shield",
@@ -1220,15 +1627,81 @@ safetyBox:Button({
     end,
 })
 
-RunService.RenderStepped:Connect(function()
-    local ok = pcall(refreshVision)
-    if not ok then
+local visionClock = 0
+
+RunService.RenderStepped:Connect(function(delta)
+    visionClock += delta
+    local rate = math.clamp(tonumber(flag("hotl_esp_rate", 20)) or 20, 5, 60)
+    if visionClock < (1 / rate) then
+        return
+    end
+    visionClock = 0
+    if not pcall(refreshVision) then
         clearVision()
     end
     if isOn("hotl_unstick_camera") then
         pcall(unstickCamera)
     end
 end)
+
+local function roundPlayable()
+    local hum = humanoid()
+    local root = rootPart()
+    return hum ~= nil and root ~= nil
+        and hum.Health > 0
+        and not hum.PlatformStand
+        and not root.Anchored
+end
+
+task.spawn(function()
+    local wins = 0
+    while true do
+        task.wait(1)
+        if (isOn("hotl_auto_win") or isOn("hotl_auto_farm")) and not state.escapeRunning then
+            if roundPlayable() then
+                setStatus("Auto win: starting")
+                local ok = pcall(runFullEscape)
+                if ok then
+                    wins += 1
+                    setLabel(farmLabel, "Rounds won this session: " .. wins)
+                end
+                if isOn("hotl_auto_farm") then
+                    local delay = tonumber(flag("hotl_farm_delay", 8)) or 8
+                    setStatus("Waiting " .. delay .. "s for the next round")
+                    task.wait(delay)
+                else
+                    Flags.hotl_auto_win = false
+                end
+            else
+                setStatus("Waiting for a playable round")
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(6)
+        if isOn("hotl_auto_rewards") then
+            pcall(collectRewardPrompts)
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if isOn("hotl_fast_progression") then
+            pcall(applyFastProgression)
+        end
+    end
+end)
+
+Players.PlayerAdded:Connect(refreshPlayerList)
+Players.PlayerRemoving:Connect(function()
+    task.delay(0.5, refreshPlayerList)
+end)
+refreshPlayerList()
 
 task.spawn(function()
     while true do

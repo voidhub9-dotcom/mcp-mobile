@@ -737,9 +737,10 @@ local function updateRebirthLabel()
     else
         text = "Next rebirth at: ?"
     end
-    pcall(function()
-        rebirthLabel:Set(text)
-    end)
+    local instance = rebirthLabel.Instance
+    if typeof(instance) == "Instance" and instance:IsA("TextLabel") then
+        instance.Text = text
+    end
 end
 
 local function chestModels()
