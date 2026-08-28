@@ -1,28 +1,4 @@
---[[
-    Muscle Legends — Snowy Studios UI
-    Built against Muscle Legends: New Players (PlaceId 90438204717601)
-
-    Remotes were mapped from the live client and verified in game:
-      tool training   tool:Activate()                             (raw muscleEvent "rep" is rejected)
-      machine mount   machineInteractRemote "useMachine", seat
-      machine rep     muscleEvent "rep", seat
-      machine leave   machineInteractRemote "leaveMachine"
-      rebirth         rebirthRemote "rebirthRequest"
-      quests          questsEvent "collectQuest", quest
-      chests          checkChestRemote chestName
-      group reward    groupRemote "groupRewards"
-      free gifts      freeGiftClaimRemote "claimGift", giftNumber
-      fortune wheel   openFortuneWheelRemote "openFortuneWheel", chances
-      countdown       giveCountdownRewardEvent "giveCountdownReward"
-      ultimates       ultimatesRemote "upgradeUltimate", name
-      crystals        openCrystalRemote "openCrystal" / "openCrystalBulk"
-      pets            equipPetEvent / petEvolveEvent / sellPetEvent
-      pet shop        cPetShopRemote shopEntry
-      boosts          consumeBoostEvent consumable, amount
-      travel          areaTravelRemote "travelToArea", areaCircle
-]]
-
-local SNOWY_URL = ""            -- optional raw URL for SnowyStudios.luau
+local SNOWY_URL = ""
 local SNOWY_FILE = "SnowyStudios.luau"
 
 local Players = game:GetService("Players")
@@ -32,8 +8,6 @@ local VirtualUser = game:GetService("VirtualUser")
 local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
-
---// Library ------------------------------------------------------------------
 
 local function loadSnowy()
     if getgenv and typeof(getgenv().SnowyStudiosLibrary) == "table" then
@@ -49,7 +23,7 @@ local function loadSnowy()
         source = ok and body or nil
     end
     if not source then
-        error("SnowyStudios.luau not found — place it next to your executor or set SNOWY_URL at the top of this script", 0)
+        error("SnowyStudios.luau not found: put it in your executor folder or set SNOWY_URL", 0)
     end
     local chunk = loadstring(source)
     local lib = chunk()
@@ -60,8 +34,6 @@ local function loadSnowy()
 end
 
 local Snowy = loadSnowy()
-
---// Game bindings -------------------------------------------------------------
 
 local rEvents = ReplicatedStorage:WaitForChild("rEvents", 10)
 if not rEvents then
@@ -130,8 +102,6 @@ local RARITY_RANK = {
     Epic = 4,
     Unique = 5,
 }
-
---// Small helpers -------------------------------------------------------------
 
 local Flags = Snowy.Flags
 local window
@@ -262,8 +232,6 @@ local function pacedWait(base)
     task.wait(delay)
 end
 
---// Busy lock so movement tasks never fight each other -------------------------
-
 local busy = false
 
 local function withMovement(fn)
@@ -278,8 +246,6 @@ local function withMovement(fn)
     end
     return ok
 end
-
---// Machines -----------------------------------------------------------------
 
 local function isMuscleKingMachine(machine)
     return machine.Name:lower():find("muscle king", 1, true) ~= nil
@@ -357,8 +323,6 @@ end
 
 local currentSeat = nil
 
--- The server keeps the humanoid seated after "leaveMachine", and a seated
--- humanoid silently blocks tools and treadmills, so always unseat as well.
 local function dismount()
     if currentSeat ~= nil or machineInUse.Value ~= nil then
         currentSeat = nil
@@ -422,8 +386,6 @@ local function trainOnMachine(stat)
     leaveMachine()
     return true
 end
-
---// Tools --------------------------------------------------------------------
 
 local function toolCadence(tool)
     local repTime = tool:FindFirstChild("repTime")
@@ -551,8 +513,6 @@ local function trainWithTool(mode)
     return true
 end
 
---// Treadmills ---------------------------------------------------------------
-
 local function pickTreadmill()
     local root = rootPart()
     local best
@@ -590,7 +550,6 @@ local function runTreadmill()
     end
     task.wait(1)
     if treadmillInUse.Value == nil then
-        -- contact did not register; nudge once before giving up on this one
         teleportTo(CFrame.new(top + Vector3.new(1, 0, 1)))
         task.wait(1)
     end
@@ -607,8 +566,6 @@ local function runTreadmill()
     end
     return treadmillInUse.Value ~= nil
 end
-
---// Rebirth ------------------------------------------------------------------
 
 local rebirthLabel
 
@@ -800,8 +757,6 @@ local function updateRebirthLabel()
     end)
 end
 
---// Collectors ---------------------------------------------------------------
-
 local function chestModels()
     local list = {}
     for _, model in ipairs(Workspace:GetChildren()) do
@@ -918,8 +873,6 @@ local function spinFortuneWheel()
     return ok and typeof(result) == "table"
 end
 
---// Boosts & ultimates --------------------------------------------------------
-
 local BIG_BOOSTS = {
     ["TOUGH Bar"] = true,
     ["ULTRA Shake"] = true,
@@ -984,8 +937,6 @@ local function upgradeUltimates()
     end
     return upgraded
 end
-
---// Crystals & pets ----------------------------------------------------------
 
 local function crystalNames()
     local folder = catalogs:FindFirstChild("crystalPrices")
@@ -1148,8 +1099,6 @@ local function buyShopPet(name)
     return false
 end
 
---// Teleports ----------------------------------------------------------------
-
 local function areaEntries()
     local seen, list = {}, {}
     for _, circle in ipairs(areaCircles:GetChildren()) do
@@ -1173,9 +1122,6 @@ local function areaNames()
     return list
 end
 
--- travelToArea is gated server-side by the area's rebirth/strength requirement,
--- so walk the character onto the circle first and then ask the server; that way
--- unlocked areas travel properly and locked ones still get you there visually.
 local function travelToArea(name)
     for _, entry in ipairs(areaEntries()) do
         if entry.name == name then
@@ -1203,8 +1149,6 @@ local function rejoinServer()
         TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
     end)
 end
-
---// Interface ----------------------------------------------------------------
 
 window = Snowy:Window({
     Title = "Snowy Studios",
@@ -1733,8 +1677,6 @@ uiBox:Button({
     end,
 })
 
---// Loops --------------------------------------------------------------------
-
 local function targetStat()
     local target = flag("ml_stat_target", "Auto (weakest stat)")
     if target == "Auto (weakest stat)" then
@@ -1782,7 +1724,6 @@ local function runTrainingCycle()
         end
     end
 
-    -- Auto (fastest): compare the best tool rate against the best machine rate.
     local tool = pickTool("Auto")
     local machine = pickMachine(stat)
     local toolRate = tool and (tool.gain / math.max(tool.cadence, 0.1)) or 0
