@@ -1,5 +1,4 @@
-local SNOWY_URL = ""
-local SNOWY_FILE = "SnowyStudios.luau"
+local Snowy = loadstring(readfile("SnowyStudios.luau"))()
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9,31 +8,15 @@ local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
 
-local function loadSnowy()
-    if getgenv and typeof(getgenv().SnowyStudiosLibrary) == "table" then
-        return getgenv().SnowyStudiosLibrary
-    end
-    local source
-    if isfile and readfile and isfile(SNOWY_FILE) then
-        source = readfile(SNOWY_FILE)
-    elseif SNOWY_URL ~= "" then
-        local ok, body = pcall(function()
-            return game:HttpGet(SNOWY_URL)
-        end)
-        source = ok and body or nil
-    end
-    if not source then
-        error("SnowyStudios.luau not found: put it in your executor folder or set SNOWY_URL", 0)
-    end
-    local chunk = loadstring(source)
-    local lib = chunk()
-    if getgenv then
-        getgenv().SnowyStudiosLibrary = lib
-    end
-    return lib
-end
-
-local Snowy = loadSnowy()
+local window = Snowy:Window({
+    Title = "Snowy Studios",
+    Subtitle = "Muscle Legends",
+    IconPack = "phosphor",
+    Logo = "rbxassetid://123802801726537",
+    LogoRectOffset = Vector2.new(40, 256),
+    LogoRectSize = Vector2.new(945, 457),
+    Keybind = Enum.KeyCode.RightShift,
+})
 
 local rEvents = ReplicatedStorage:WaitForChild("rEvents", 10)
 if not rEvents then
@@ -104,7 +87,6 @@ local RARITY_RANK = {
 }
 
 local Flags = Snowy.Flags
-local window
 
 local function flag(name, fallback)
     local value = Flags[name]
@@ -116,13 +98,6 @@ end
 
 local function isOn(name)
     return Flags[name] == true
-end
-
-local function notify(kind, title, text, duration)
-    if not window then
-        return
-    end
-    window:Notify({ Type = kind, Title = title, Text = text, Duration = duration or 4 })
 end
 
 local function character()
@@ -728,9 +703,19 @@ local function doRebirth(manual)
             equipBestPets("Strength")
         end
         if ok and result ~= false then
-            notify("success", "Rebirth", "Rebirthed at " .. shortNumber(StrengthValue.Value) .. " strength.", 4)
+            window:Notify({
+                Type = "success",
+                Title = "Rebirth",
+                Text = "Rebirthed at " .. shortNumber(StrengthValue.Value) .. " strength.",
+                Duration = 4,
+            })
         elseif manual then
-            notify("warning", "Rebirth", "The server refused the rebirth request.", 4)
+            window:Notify({
+                Type = "warning",
+                Title = "Rebirth",
+                Text = "The server refused the rebirth request.",
+                Duration = 4,
+            })
         end
     end)
 end
@@ -788,12 +773,12 @@ local function claimChest(chestName, travel)
     end
     local ok, claimed, reward, amount = invoke(NET.checkChest, chestName)
     if ok and claimed == true then
-        notify("success", "Chest claimed", string.format(
-            "%s gave %s %s",
-            chestName,
-            shortNumber(amount or 0),
-            tostring(reward or "reward")
-        ), 4)
+        window:Notify({
+            Type = "success",
+            Title = "Chest claimed",
+            Text = string.format( "%s gave %s %s", chestName, shortNumber(amount or 0), tostring(reward or "reward") ),
+            Duration = 4,
+        })
         return true
     end
     return false
@@ -931,7 +916,7 @@ local function upgradeUltimates()
         local ok, result = invoke(NET.ultimates, "upgradeUltimate", name)
         if ok and result == true then
             upgraded += 1
-            notify("success", "Ultimate upgraded", name, 3)
+            window:Notify({ Type = "success", Title = "Ultimate upgraded", Text = name, Duration = 3 })
             task.wait(0.4)
         end
     end
@@ -1132,7 +1117,12 @@ local function travelToArea(name)
             local action = entry.circle:FindFirstChild("universeTeleport") and "teleportToArea" or "travelToArea"
             local ok, result = invoke(NET.areaTravel, action, entry.circle)
             if ok and result == false then
-                notify("warning", "Area locked", name .. " needs more rebirths or strength — moved you there anyway.", 4)
+                window:Notify({
+                    Type = "warning",
+                    Title = "Area locked",
+                    Text = name .. " needs more rebirths or strength — moved you there anyway.",
+                    Duration = 4,
+                })
             end
             return true
         end
@@ -1150,14 +1140,6 @@ local function rejoinServer()
     end)
 end
 
-window = Snowy:Window({
-    Title = "Snowy Studios",
-    Subtitle = "Muscle Legends",
-    IconPack = "phosphor",
-    Keybind = Enum.KeyCode.RightShift,
-    MobileButton = true,
-})
-
 local farmTab = window:Tab({
     Name = "Farm",
     Icon = "zap",
@@ -1172,8 +1154,12 @@ farmBox:Toggle({
     Flag = "ml_autofarm",
     Default = false,
     Callback = function(on)
-        notify(on and "success" or "info", on and "Auto farm on" or "Auto farm off",
-            on and "Training loop is running." or "Training loop stopped.", 3)
+        window:Notify({
+            Type = on and "success" or "info",
+            Title = on and "Auto farm on" or "Auto farm off",
+            Text = on and "Training loop is running." or "Training loop stopped.",
+            Duration = 3,
+        })
         if not on then
             leaveMachine()
         end
@@ -1309,8 +1295,12 @@ boostBox:Button({
     Callback = function()
         task.spawn(function()
             local used = useBoosts(true)
-            notify(used > 0 and "success" or "info", "Boosts",
-                used > 0 and ("Used " .. used .. " boosts.") or "No boosts in your inventory.", 3)
+            window:Notify({
+                Type = used > 0 and "success" or "info",
+                Title = "Boosts",
+                Text = used > 0 and ("Used " .. used .. " boosts.") or "No boosts in your inventory.",
+                Duration = 3,
+            })
         end)
     end,
 })
@@ -1340,8 +1330,12 @@ ultimateBox:Button({
     Callback = function()
         task.spawn(function()
             local count = upgradeUltimates()
-            notify(count > 0 and "success" or "info", "Ultimates",
-                count > 0 and ("Upgraded " .. count .. ".") or "Nothing affordable right now.", 3)
+            window:Notify({
+                Type = count > 0 and "success" or "info",
+                Title = "Ultimates",
+                Text = count > 0 and ("Upgraded " .. count .. ".") or "Nothing affordable right now.",
+                Duration = 3,
+            })
         end)
     end,
 })
@@ -1387,8 +1381,12 @@ chestBox:Button({
     Callback = function()
         task.spawn(function()
             local claimed = claimAllChests(isOn("ml_chest_travel"))
-            notify(claimed > 0 and "success" or "info", "Chests",
-                claimed > 0 and ("Claimed " .. claimed .. " chests.") or "No chests are ready yet.", 3)
+            window:Notify({
+                Type = claimed > 0 and "success" or "info",
+                Title = "Chests",
+                Text = claimed > 0 and ("Claimed " .. claimed .. " chests.") or "No chests are ready yet.",
+                Duration = 3,
+            })
         end)
     end,
 })
@@ -1412,7 +1410,12 @@ collectorBox:Button({
             local gifts = claimFreeGifts()
             invoke(NET.group, "groupRewards")
             fire(NET.countdown, "giveCountdownReward")
-            notify("success", "Collectors", string.format("%d quests, %d gifts collected.", quests, gifts), 4)
+            window:Notify({
+                Type = "success",
+                Title = "Collectors",
+                Text = string.format("%d quests, %d gifts collected.", quests, gifts),
+                Duration = 4,
+            })
         end)
     end,
 })
@@ -1448,7 +1451,9 @@ hatchBox:Toggle({
 hatchBox:Slider({
     Text = "Hatch interval",
     Flag = "ml_hatch_interval",
-    Min = 1, Max = 60, Default = 5,
+    Min = 1,
+    Max = 60,
+    Default = 5,
     Suffix = "s",
 })
 
@@ -1456,14 +1461,18 @@ hatchBox:Slider({
     Text = "Bulk amount",
     Info = "How many crystals each purchase opens",
     Flag = "ml_hatch_bulk",
-    Min = 1, Max = 10, Default = 1,
+    Min = 1,
+    Max = 10,
+    Default = 1,
 })
 
 hatchBox:Slider({
     Text = "Currency reserve",
     Info = "Keeps this much currency unspent",
     Flag = "ml_crystal_reserve",
-    Min = 0, Max = 1000000, Default = 0,
+    Min = 0,
+    Max = 1000000,
+    Default = 0,
 })
 
 hatchBox:Toggle({
@@ -1478,8 +1487,12 @@ hatchBox:Button({
     Callback = function()
         task.spawn(function()
             local name = pickCrystal() or flag("ml_crystal_pick", nil)
-            notify(openCrystal(name, 1) and "success" or "warning", "Hatch",
-                tostring(name or "No crystal"), 3)
+            window:Notify({
+                Type = openCrystal(name, 1) and "success" or "warning",
+                Title = "Hatch",
+                Text = tostring(name or "No crystal"),
+                Duration = 3,
+            })
         end)
     end,
 })
@@ -1490,8 +1503,12 @@ hatchBox:Button({
     Callback = function()
         task.spawn(function()
             local name = pickCrystal() or flag("ml_crystal_pick", nil)
-            notify(openCrystal(name, 10) and "success" or "warning", "Hatch x10",
-                tostring(name or "No crystal"), 3)
+            window:Notify({
+                Type = openCrystal(name, 10) and "success" or "warning",
+                Title = "Hatch x10",
+                Text = tostring(name or "No crystal"),
+                Duration = 3,
+            })
         end)
     end,
 })
@@ -1517,8 +1534,12 @@ petBox:Button({
     Callback = function()
         task.spawn(function()
             local count = equipBestPets()
-            notify(count > 0 and "success" or "info", "Pets",
-                count > 0 and ("Equipped " .. count .. " pets.") or "You do not own any pets yet.", 3)
+            window:Notify({
+                Type = count > 0 and "success" or "info",
+                Title = "Pets",
+                Text = count > 0 and ("Equipped " .. count .. " pets.") or "You do not own any pets yet.",
+                Duration = 3,
+            })
         end)
     end,
 })
@@ -1536,8 +1557,12 @@ petBox:Button({
     Callback = function()
         task.spawn(function()
             local ready = duplicateReport()
-            notify(#ready > 0 and "success" or "info", "Evolve scan",
-                #ready > 0 and table.concat(ready, ", ") or "No pet has five copies yet.", 5)
+            window:Notify({
+                Type = #ready > 0 and "success" or "info",
+                Title = "Evolve scan",
+                Text = #ready > 0 and table.concat(ready, ", ") or "No pet has five copies yet.",
+                Duration = 5,
+            })
         end)
     end,
 })
@@ -1581,8 +1606,12 @@ shopBox:Button({
     Callback = function()
         task.spawn(function()
             local name = flag("ml_shop_pet", nil)
-            notify(buyShopPet(name) and "success" or "warning", "Pet shop",
-                tostring(name or "Nothing selected"), 3)
+            window:Notify({
+                Type = buyShopPet(name) and "success" or "warning",
+                Title = "Pet shop",
+                Text = tostring(name or "Nothing selected"),
+                Duration = 3,
+            })
         end)
     end,
 })
@@ -1621,7 +1650,12 @@ utilityBox:Button({
             Flags[name] = false
         end
         leaveMachine()
-        notify("warning", "Stopped", "Every automated feature is now off.", 4)
+        window:Notify({
+            Type = "warning",
+            Title = "Stopped",
+            Text = "Every automated feature is now off.",
+            Duration = 4,
+        })
     end,
 })
 
@@ -1640,8 +1674,12 @@ teleportBox:Button({
     Callback = function()
         task.spawn(function()
             local name = flag("ml_area", nil)
-            notify(travelToArea(name) and "success" or "warning", "Travel",
-                tostring(name or "No area selected"), 3)
+            window:Notify({
+                Type = travelToArea(name) and "success" or "warning",
+                Title = "Travel",
+                Text = tostring(name or "No area selected"),
+                Duration = 3,
+            })
         end)
     end,
 })
@@ -1876,6 +1914,11 @@ end)
 
 updateRebirthLabel()
 
-notify("success", "Muscle Legends", "Loaded. Press RightShift or the MENU pill to toggle.", 5)
+window:Notify({
+    Type = "success",
+    Title = "Muscle Legends",
+    Text = "Loaded. Press RightShift or the MENU pill to toggle.",
+    Duration = 5,
+})
 
 return window
