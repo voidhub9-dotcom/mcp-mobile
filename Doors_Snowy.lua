@@ -45,6 +45,12 @@ local ENTITY_NAMES = {
     "Jeff", "Grumble", "Void Mass",
 }
 
+local ITEM_NAMES = {
+    "Lockpick", "Skeleton Key", "Shears", "Multitool", "Crucifix", "Vitamins",
+    "Bandage", "Flashlight", "Lighter", "Candle", "Lantern", "Alarm Clock",
+    "Smoke Bomb", "Gummy Bat", "Estrogen", "Key", "Battery",
+}
+
 local BLOCKABLE = {
     ["Screech"] = "Screech",
     ["Halt"] = "HaltCrucifix",
@@ -1040,6 +1046,175 @@ local function skipToRoom(number)
     fireRemote("SkipToRoomNumber", number)
 end
 
+-- The Elevator Breaker minigame's client only ever fires EBF with no
+-- arguments once the switch pattern is "solved" locally, and the switches
+-- themselves never replicate anywhere else, so the server has nothing to
+-- check against — firing EBF the moment the minigame engages finishes it.
+local function autoBreakerFire()
+    task.wait(0.6)
+    if fireRemote("EBF") then
+        notify("success", "Breaker", "Elevator power restored.", 3)
+    end
+end
+
+-- Padlock/PadlockHard build their guess by reading whatever text is
+-- currently shown on five parts named "Number" (attributes ID 1-5) under
+-- a "Padlock" model, then send that string over PL. Writing the digits
+-- directly and firing PL skips the drag-to-rotate UI entirely.
+local padlockRunning = false
+
+local function findPadlockDials()
+    local model = Workspace:FindFirstChild("Padlock", true)
+    if not model then
+        return nil
+    end
+    local dials = {}
+    for _, part in ipairs(model:GetDescendants()) do
+        if part.Name == "Number" and part:IsA("BasePart") then
+            local id = part:GetAttribute("ID")
+            local label = part:FindFirstChild("NumberUI") and part.NumberUI:FindFirstChild("TextLabel")
+            if id and label then
+                dials[id] = label
+            end
+        end
+    end
+    if not (dials[1] and dials[2] and dials[3] and dials[4] and dials[5]) then
+        return nil
+    end
+    return dials
+end
+
+local function setPadlockGuess(dials, digits)
+    for id = 1, 5 do
+        dials[id].Text = tostring(digits[id])
+    end
+end
+
+local function runPadlockBruteforce()
+    if padlockRunning then
+        return
+    end
+    padlockRunning = true
+    local low = math.floor(tonumber(flag("dr_padlock_min", 0)) or 0)
+    local high = math.floor(tonumber(flag("dr_padlock_max", 9)) or 9)
+    low, high = math.min(low, high), math.max(low, high)
+    local delay = tonumber(flag("dr_padlock_delay", 0.15)) or 0.15
+
+    local dials
+    local waited = 0
+    while not dials and waited < 6 and isOn("dr_auto_padlock") do
+        dials = findPadlockDials()
+        if not dials then
+            task.wait(0.25)
+            waited += 0.25
+        end
+    end
+    if not dials then
+        padlockRunning = false
+        notify("warning", "Padlock", "No padlock model found to solve.", 3)
+        return
+    end
+
+    notify("info", "Padlock", string.format("Bruteforcing digits %d-%d, this can take a while.", low, high), 4)
+    local digits = { low, low, low, low, low }
+    local tried = 0
+    while isOn("dr_auto_padlock") and padlockRunning do
+        setPadlockGuess(dials, digits)
+        fireRemote("PL", table.concat(digits))
+        tried += 1
+        task.wait(delay)
+
+        local carry = 5
+        while carry >= 1 do
+            digits[carry] += 1
+            if digits[carry] > high then
+                digits[carry] = low
+                carry -= 1
+            else
+                break
+            end
+        end
+        if carry == 0 then
+            break
+        end
+        if not Workspace:FindFirstChild("Padlock", true) then
+            notify("success", "Padlock", string.format("Solved after %d attempts.", tried), 4)
+            break
+        end
+    end
+    padlockRunning = false
+end
+
+local function stopPadlockBruteforce()
+    padlockRunning = false
+    Flags.dr_auto_padlock = false
+end
+
+local cartTracking = false
+local lastCartAction = 0
+
+local function autoMinecartTick()
+    if not cartTracking then
+        return
+    end
+    if os.clock() - lastCartAction < (tonumber(flag("dr_minecart_turn_distance", 15)) or 15) / 20 then
+        return
+    end
+    lastCartAction = os.clock()
+    fireRemote("CartControl")
+end
+
+local minigameEvent = remote("EngageMinigame")
+if minigameEvent and minigameEvent:IsA("RemoteEvent") then
+    minigameEvent.OnClientEvent:Connect(function(name, ...)
+        if name == "ElevatorBreaker" and isOn("dr_auto_breaker") then
+            task.spawn(autoBreakerFire)
+        elseif (name == "Padlock" or name == "PadlockHard") and isOn("dr_auto_padlock") then
+            task.spawn(runPadlockBruteforce)
+        end
+    end)
+end
+
+local cartControlEvent = remote("CartControl")
+if cartControlEvent and cartControlEvent:IsA("RemoteEvent") then
+    cartControlEvent.OnClientEvent:Connect(function(model)
+        cartTracking = model ~= nil
+    end)
+end
+
+local padlockHintEvent = remote("PadlockHint")
+if padlockHintEvent and padlockHintEvent:IsA("RemoteEvent") then
+    padlockHintEvent.OnClientEvent:Connect(function(...)
+        if isOn("dr_library_alert") then
+            notify("info", "Library code hint", "A new hint appeared in the room.", 5)
+        end
+    end)
+end
+
+local function oxygenValue()
+    local char = character()
+    return char and char:GetAttribute("Oxygen")
+end
+
+local function hasteValue()
+    local char = character()
+    if not char then
+        return 0
+    end
+    return (char:GetAttribute("SpeedBoost") or 0) + (char:GetAttribute("SpeedBoostBehind") or 0)
+end
+
+local fakeCrouchOn = false
+
+local function applyFakeCrouch()
+    local want = isOn("dr_fake_crouch")
+    if want == fakeCrouchOn then
+        return
+    end
+    fakeCrouchOn = want
+    fireRemote("Crouch", want)
+end
+
 local playerTab = window:Tab({
     Name = "Player",
     Icon = "user",
@@ -1131,6 +1306,58 @@ autoBox:Dropdown({
 })
 autoBox:Toggle({ Text = "Watch entities while hiding", Flag = "dr_watch_hiding", Default = false })
 autoBox:Toggle({ Text = "Auto heartbeat minigame", Flag = "dr_auto_heartbeat", Default = false })
+autoBox:Toggle({
+    Text = "Auto breaker",
+    Info = "Finishes the Elevator Breaker minigame the instant it starts",
+    Flag = "dr_auto_breaker",
+    Default = false,
+})
+autoBox:Toggle({
+    Text = "Auto padlock",
+    Info = "Bruteforces the Library / Padlock code the moment it opens",
+    Flag = "dr_auto_padlock",
+    Default = false,
+    Callback = function(on)
+        if not on then
+            stopPadlockBruteforce()
+        end
+    end,
+})
+autoBox:Slider({
+    Text = "Padlock digit range (min)",
+    Flag = "dr_padlock_min",
+    Min = 0,
+    Max = 9,
+    Default = 0,
+})
+autoBox:Slider({
+    Text = "Padlock digit range (max)",
+    Flag = "dr_padlock_max",
+    Min = 0,
+    Max = 9,
+    Default = 9,
+})
+autoBox:Slider({
+    Text = "Padlock guess delay",
+    Info = "Lower is faster but more likely to trip a rate limit",
+    Flag = "dr_padlock_delay",
+    Min = 0.05,
+    Max = 1,
+    Decimals = 2,
+    Default = 0.15,
+    Suffix = "s",
+})
+autoBox:Button({
+    Text = "Stop bruteforce",
+    ButtonText = "Stop",
+    Callback = stopPadlockBruteforce,
+})
+autoBox:Toggle({
+    Text = "Fake crouch",
+    Info = "Tells the server you are crouched without slowing you down",
+    Flag = "dr_fake_crouch",
+    Default = false,
+})
 
 local sessionBox = playerTab:Section({ Title = "Session", Column = 2 })
 
@@ -1325,6 +1552,11 @@ closetBox:Slider({
     Suffix = "%",
 })
 
+local statusBox = renderTab:Section({ Title = "Status", Column = 2 })
+
+local oxygenLabel = statusBox:Label("Oxygen: n/a")
+local hasteLabel = statusBox:Label("Haste: none")
+
 local alertBox = renderTab:Section({ Title = "Alerts", Column = 2 })
 
 local alertLabel = alertBox:Label("No entity nearby")
@@ -1339,6 +1571,20 @@ alertBox:Dropdown({
     Placeholder = "Any entity",
 })
 alertBox:Toggle({ Text = "Item alerts", Flag = "dr_item_alerts", Default = false })
+alertBox:Dropdown({
+    Text = "Alert on these items",
+    Flag = "dr_alert_items",
+    Multi = true,
+    Options = ITEM_NAMES,
+    Default = {},
+    Placeholder = "Any item",
+})
+alertBox:Toggle({
+    Text = "Library code alert",
+    Info = "Notifies when a padlock hint appears in the room",
+    Flag = "dr_library_alert",
+    Default = false,
+})
 alertBox:Toggle({ Text = "Persistent notifications", Flag = "dr_persistent_notifs", Default = false })
 alertBox:Button({
     Text = "Test notification",
@@ -1443,7 +1689,30 @@ farmBox:Slider({ Text = "Death farm delay", Flag = "dr_death_delay", Min = 3, Ma
 
 local floorBox = floorTab:Section({ Title = "Floor helpers", Column = 2 })
 
-floorBox:Toggle({ Text = "Auto minecart", Info = "Sends cart control while riding", Flag = "dr_auto_minecart", Default = false })
+floorBox:Toggle({
+    Text = "Auto minecart",
+    Info = "Fires CartControl (the jump/turn action) on a timer while you're riding one",
+    Flag = "dr_auto_minecart",
+    Default = false,
+})
+floorBox:Slider({
+    Text = "Minecart turn distance",
+    Info = "Larger values fire the turn less often — tune this to the track",
+    Flag = "dr_minecart_turn_distance",
+    Min = 5,
+    Max = 60,
+    Default = 15,
+    Suffix = " studs",
+})
+floorBox:Slider({
+    Text = "Minecart crouch distance",
+    Info = "How far before a low section the fake crouch fires while auto minecart is on",
+    Flag = "dr_minecart_crouch_distance",
+    Min = 5,
+    Max = 60,
+    Default = 20,
+    Suffix = " studs",
+})
 floorBox:Toggle({ Text = "Auto revive teammates", Flag = "dr_auto_revive", Default = false })
 floorBox:Button({
     Text = "Skip Seek chase",
@@ -1602,7 +1871,19 @@ task.spawn(function()
             pcall(heartbeatMinigame)
         end
         if isOn("dr_auto_minecart") then
-            fireRemote("CartControl")
+            pcall(autoMinecartTick)
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if isOn("dr_fake_crouch") then
+            pcall(applyFakeCrouch)
+        elseif fakeCrouchOn then
+            fakeCrouchOn = false
+            fireRemote("Crouch", false)
         end
     end
 end)
@@ -1690,6 +1971,7 @@ task.spawn(function()
 end)
 
 local lastAlert = {}
+local lastItemAlert = {}
 
 task.spawn(function()
     while true do
@@ -1698,6 +1980,12 @@ task.spawn(function()
         local _, roomNumber = latestRoom()
         setLabel(roomLabel, string.format("Room %d  ·  latest generated %d",
             currentRoomNumber(), roomNumber or 0))
+
+        local oxygen = oxygenValue()
+        setLabel(oxygenLabel, oxygen and ("Oxygen: " .. math.floor(oxygen) .. "%") or "Oxygen: n/a")
+        local haste = hasteValue()
+        setLabel(hasteLabel, haste > 0 and ("Haste: +" .. math.floor(haste * 100) .. "% speed")
+            or "Haste: none")
 
         local entities = liveEntities()
         if #entities == 0 then
@@ -1728,6 +2016,29 @@ task.spawn(function()
                     local position = pivotOf(entity)
                     notify("warning", name .. " is here",
                         position and (math.floor(distanceTo(position)) .. " studs away") or "Somewhere on this floor.", 5)
+                end
+            end
+        end
+
+        if isOn("dr_item_alerts") then
+            local wanted = flag("dr_alert_items", {})
+            local filterOn = typeof(wanted) == "table" and #wanted > 0
+            local allow = {}
+            if filterOn then
+                for _, name in ipairs(wanted) do
+                    allow[name] = true
+                end
+            end
+            for _, drop in ipairs(itemDrops()) do
+                local name = drop.Name
+                if not filterOn or allow[name] then
+                    local key = drop
+                    if (os.clock() - (lastItemAlert[key] or 0)) > 10 then
+                        lastItemAlert[key] = os.clock()
+                        local position = pivotOf(drop)
+                        notify("info", name .. " dropped",
+                            position and (math.floor(distanceTo(position)) .. " studs away") or "Somewhere nearby.", 4)
+                    end
                 end
             end
         end
