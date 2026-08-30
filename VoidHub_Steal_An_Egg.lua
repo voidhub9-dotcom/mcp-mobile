@@ -1,5 +1,5 @@
 -- VoidHub | Steal An Egg | by von63rd | v1
--- Powered by ProxyLib
+-- Powered by VoidHub- UI Library
 
 if not game:IsLoaded() then
 	game.Loaded:Wait()
@@ -10,7 +10,7 @@ local function applyBypass()
 	local setrawmetatable = setrawmetatable or debug.setmetatable or setmetatable
 
 	local targets = filtergc("function", {
-		Constants = { "gmatch", "GetFullName" },
+		Constants = { "gmatch", "GetFullName" }
 	})
 
 	if type(targets) == "function" then
@@ -28,7 +28,7 @@ local function applyBypass()
 					setrawmetatable(tableObj, {
 						__newindex = function(_, index, value)
 							warn(`[VoidHub] Blocked detection {index} {value}`)
-						end,
+						end
 					})
 					hookedCount = hookedCount + 1
 				end
@@ -44,14 +44,14 @@ for _ = 1, 30 do
 	local ok, hooked = pcall(applyBypass)
 	if ok and hooked then
 		bypassSuccess = true
-		print("[VoidHub] Anti-Cheat bypassed successfully!")
+		print("[VoidHub] Anti-Cheat Bypassed successfully!")
 		break
 	end
 	task.wait(0.2)
 end
 
 if not bypassSuccess then
-	warn("[VoidHub] Anti-cheat function not found yet, proceeding with fallback...")
+	warn("[VoidHub] Warning: Anti-cheat function not found yet, proceeding with fallback...")
 end
 
 task.wait(0.5)
@@ -68,134 +68,31 @@ local VirtualUser = game:GetService("VirtualUser")
 local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
-local Camera = Workspace.CurrentCamera
 
 local GAME_NAME = "Steal An Egg"
 local HUB_NAME = "VoidHub"
-local HUB_VERSION = "v1"
-local DISCORD_INVITE = "https://discord.gg/Wsarxj9Gzz"
 local HUB_ICON = "rbxassetid://101833678008843"
+local DISCORD_INVITE = "https://discord.gg/Wsarxj9Gzz"
 
-local ICONS = {
-	activity = "rbxassetid://10709752035",
-	bone = "rbxassetid://10709781605",
-	bookopen = "rbxassetid://10709781717",
-	charge = "rbxassetid://10709790202",
-	clock = "rbxassetid://10709805144",
-	coins = "rbxassetid://10709811110",
-	crown = "rbxassetid://10709818626",
-	egg = "rbxassetid://10723345518",
-	eye = "rbxassetid://10723346959",
-	feather = "rbxassetid://10723354671",
-	flame = "rbxassetid://10723376114",
-	gauge = "rbxassetid://10723395708",
-	globe = "rbxassetid://10723404337",
-	hand = "rbxassetid://10723405649",
-	heart = "rbxassetid://10723406885",
-	info = "rbxassetid://10723415903",
-	listordered = "rbxassetid://10723427199",
-	mappin = "rbxassetid://10734886004",
-	menu = "rbxassetid://10734887784",
-	move = "rbxassetid://10734900011",
-	refreshcw = "rbxassetid://10734933222",
-	save = "rbxassetid://10734941499",
-	send = "rbxassetid://10734943902",
-	server = "rbxassetid://10734949856",
-	settings = "rbxassetid://10734950309",
-	shoppingcart = "rbxassetid://10734952479",
-	star = "rbxassetid://10734966248",
-	sword = "rbxassetid://10734975486",
-	tags = "rbxassetid://10734976739",
-	target = "rbxassetid://10734977012",
-	trendingup = "rbxassetid://10747363465",
-	user = "rbxassetid://10747373176",
-	users = "rbxassetid://10747373426",
-}
+-- The new library has no TextBox control, so the webhook URL and ping ID
+-- are edited here instead of typed in-game. Leave WEBHOOK_URL empty to
+-- keep the Webhooks tab inert.
+local WEBHOOK_URL = ""
+local WEBHOOK_PING_ID = ""
 
-local ProxyLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProxyHubDev/ProxyLib/refs/heads/main/Documents/ProxyLibrary"))()
-local Lib = ProxyLib.new()
+local Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes"))
+local Constants = require(ReplicatedStorage.Shared.Globals.Constants)
+local Save = require(ReplicatedStorage.Shared.Save)
+local BaseUpgradeClient = require(ReplicatedStorage.Client.BaseUpgrade)
+local EggTypes = require(ReplicatedStorage.Shared.Types.Eggs)
+local Areas = require(ReplicatedStorage.Data.Areas)
+local Assets = require(ReplicatedStorage.Data.Assets)
+local Gears = require(ReplicatedStorage.Data.Gears)
+local Trails = require(ReplicatedStorage.Data.Trails)
+local Treadmills = require(ReplicatedStorage.Data.Treadmills)
 
-local Window = Lib:CreateWindow({
-	Title = HUB_NAME,
-	Subtitle = GAME_NAME .. " | by von63rd | " .. HUB_VERSION,
-	Icon = HUB_ICON,
-	Size = Vector2.new(560, 420),
-	MinSize = Vector2.new(380, 260),
-	MaxSize = Vector2.new(820, 620),
-	TypeUI = "Modern",
-	Theme = "Purple",
-	Language = "English",
-	AutoSave = true,
-	AutoLoad = true,
-
-	Acrylic = {
-		Enabled = true,
-		Opacity = 1,
-	},
-
-	BackgroundImage = {
-		Id = "rbxassetid://000000000",
-		Active = false,
-	},
-
-	TitleConfig = {
-		Gradient = true,
-		Colors = { Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 255, 255) },
-		Words = {
-			{ Text = "Void", Colors = { Color3.fromRGB(255, 255, 255) } },
-			{ Text = "Hub", Colors = { Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 255, 255) } },
-		},
-	},
-
-	FloatButton = {
-		Shape = "Circle",
-		Color = "Black",
-		Size = 46,
-		Icon = HUB_ICON,
-	},
-
-	ConfigPanel = {
-		Enabled = true,
-		Acrylic = true,
-		Theme = true,
-		Fps = true,
-		Ping = true,
-		Profile = true,
-		HideNotify = true,
-		Language = true,
-		BackgroundImage = false,
-	},
-})
-
-local Unloaded = false
-
-local function Notify(text, duration, title)
-	Window:Notify({
-		Title = title or HUB_NAME,
-		Text = tostring(text),
-		Duration = tonumber(duration) or 4,
-	})
-end
-
-Notify(GAME_NAME .. " | by von63rd | " .. HUB_VERSION, 4, "VoidHub Loaded")
-
-local Remotes, Constants, Save, BaseUpgradeClient, EggTypes
-local Areas, Assets, Gears, Trails, Treadmills
-local EggCmds, PlotCmds, AreaEggSlotIdentity, AssetCmds, AssetItemSerialization, FuseKernelUtil
-local NET
-
-local modulesLoaded = pcall(function()
-	Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes"))
-	Constants = require(ReplicatedStorage.Shared.Globals.Constants)
-	Save = require(ReplicatedStorage.Shared.Save)
-	BaseUpgradeClient = require(ReplicatedStorage.Client.BaseUpgrade)
-	EggTypes = require(ReplicatedStorage.Shared.Types.Eggs)
-	Areas = require(ReplicatedStorage.Data.Areas)
-	Assets = require(ReplicatedStorage.Data.Assets)
-	Gears = require(ReplicatedStorage.Data.Gears)
-	Trails = require(ReplicatedStorage.Data.Trails)
-	Treadmills = require(ReplicatedStorage.Data.Treadmills)
-
+local EggCmds
+do
 	local eggState = require(ReplicatedStorage.Client.EggState)
 	EggCmds = {
 		GetAreaEggSnapshot = eggState.ReadFieldEggs,
@@ -211,7 +108,10 @@ local modulesLoaded = pcall(function()
 		RequestEquipTool = eggState.WearEggTool,
 		RequestPlaceEgg = eggState.PlantEgg,
 	}
+end
 
+local PlotCmds
+do
 	local plotState = require(ReplicatedStorage.Client.PlotState)
 	PlotCmds = {
 		GetRespawnPointCFrame = plotState.FindRespawnCFrame,
@@ -219,89 +119,170 @@ local modulesLoaded = pcall(function()
 		IsWorldPositionWithinLocalPlotBounds = plotState.ContainsLocalPoint,
 		GetSlotOwner = plotState.LookupOwner,
 	}
+end
 
+local AreaEggSlotIdentity
+do
 	local slotId = require(ReplicatedStorage.Shared.Util.AreaEggSlotIdentity)
 	AreaEggSlotIdentity = {
 		IsFirstAreaUid = slotId.LooksLikeFirstAreaUid,
 		BuildSlotKey = slotId.SlotKey,
 	}
+end
 
+local AssetCmds
+do
 	local roster = require(ReplicatedStorage.Client.AssetRoster)
 	AssetCmds = {
 		GetRuntimeSnapshot = roster.ReadSnapshot,
 	}
+end
 
+local AssetItemSerialization
+do
 	local items = require(ReplicatedStorage.Shared.Util.AssetItems)
 	AssetItemSerialization = {
 		Deserialize = items.Decode,
 	}
+end
 
+local FuseKernelUtil
+do
 	local fuse = require(ReplicatedStorage.Shared.Util.FuseKernel)
 	FuseKernelUtil = {
 		CanSelectPet = fuse.MayEnterFuse,
 		CalculateFusePrice = fuse.PriceFor,
 	}
-
-	NET = {
-		Backpack = {
-			EQUIP_BEST = Remotes.Haul.WearBest,
-		},
-		Plots = {
-			REQUEST_BASE_UPGRADE = Remotes.Homestead.AskBaseTierRaise,
-		},
-		Treadmills = {
-			REQUEST_UPGRADE = Remotes.Treadmill.AskTierRaise,
-			REQUEST_EQUIP_STATIC = Remotes.Treadmill.AskWearStill,
-			REQUEST_UNEQUIP = Remotes.Treadmill.AskDoff,
-		},
-		Index = {
-			REQUEST_CLAIM_ALL = Remotes.Codex.AskRedeemAll,
-		},
-		AssetInventory = {
-			SELL_ASSET = Remotes.PetSatchel.SellPet,
-		},
-		OfflineAssets = {
-			GET_SUMMARY = Remotes.AwayEarnings.FetchSummary,
-			REQUEST_REDEEM = Remotes.AwayEarnings.AskCollect,
-		},
-		FuseMachine = {
-			COMPLETE_REVEAL = Remotes.Fusery.FinishReveal,
-			ACKNOWLEDGE_INFO = Remotes.Fusery.ConfirmBriefing,
-			INSERT_MOB = Remotes.Fusery.LoadPet,
-			START_FUSE = Remotes.Fusery.BeginFuse,
-		},
-		Trails = {
-			REQUEST_PURCHASE = Remotes.Trailwear.AskPurchase,
-			REQUEST_SELECT = Remotes.Trailwear.AskChoose,
-			WORN_SNAPSHOT = Remotes.Trailwear.AskWornSnapshot,
-		},
-		GroupReward = {
-			CLAIM_REWARD = Remotes.GroupPerk.RedeemPerk,
-		},
-	}
-end)
-
-if not modulesLoaded then
-	Notify("This script only runs inside " .. GAME_NAME .. ". Join the game and execute again.", 8, "Wrong Game")
-	return
 end
 
-local F = {}
-local State = {}
-local Components = {}
+local NET = {
+	Backpack = {
+		EQUIP_BEST = Remotes.Haul.WearBest,
+	},
+	Plots = {
+		REQUEST_BASE_UPGRADE = Remotes.Homestead.AskBaseTierRaise,
+	},
+	Treadmills = {
+		REQUEST_UPGRADE = Remotes.Treadmill.AskTierRaise,
+		REQUEST_EQUIP_STATIC = Remotes.Treadmill.AskWearStill,
+		REQUEST_UNEQUIP = Remotes.Treadmill.AskDoff,
+	},
+	Index = {
+		REQUEST_CLAIM_ALL = Remotes.Codex.AskRedeemAll,
+	},
+	AssetInventory = {
+		SELL_ASSET = Remotes.PetSatchel.SellPet,
+	},
+	OfflineAssets = {
+		GET_SUMMARY = Remotes.AwayEarnings.FetchSummary,
+		REQUEST_REDEEM = Remotes.AwayEarnings.AskCollect,
+	},
+	FuseMachine = {
+		COMPLETE_REVEAL = Remotes.Fusery.FinishReveal,
+		ACKNOWLEDGE_INFO = Remotes.Fusery.ConfirmBriefing,
+		INSERT_MOB = Remotes.Fusery.LoadPet,
+		START_FUSE = Remotes.Fusery.BeginFuse,
+	},
+	Trails = {
+		REQUEST_PURCHASE = Remotes.Trailwear.AskPurchase,
+		REQUEST_SELECT = Remotes.Trailwear.AskChoose,
+		WORN_SNAPSHOT = Remotes.Trailwear.AskWornSnapshot,
+	},
+	GroupReward = {
+		CLAIM_REWARD = Remotes.GroupPerk.RedeemPerk,
+	},
+}
+
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/RedzZhub654/VoidHub-/main/main.lua"))()
 
 if getgenv then
 	local previous = getgenv().VoidHubStealAnEgg
-	if typeof(previous) == "table" and typeof(previous.Unload) == "function" then
-		pcall(previous.Unload)
+	if typeof(previous) == "table" and previous.Unload then
+		pcall(function()
+			previous.Unload()
+		end)
 	end
-	getgenv().VoidHubStealAnEgg = {
-		Unload = function()
-			if typeof(F.unload) == "function" then
-				F.unload()
-			end
-		end,
-	}
+end
+
+local Window = Library:AddWindow(HUB_NAME, HUB_ICON, GAME_NAME .. " | by von63rd | v1")
+
+local Unloaded = false
+local State = {}
+local Components = {}
+local F = {}
+
+-- The library has no notification API, so this is a small self-contained
+-- toast panel. It never touches the library's own GUI.
+local NotifyGui = Instance.new("ScreenGui")
+NotifyGui.Name = "VoidHubNotify"
+NotifyGui.ResetOnSpawn = false
+NotifyGui.IgnoreGuiInset = true
+NotifyGui.DisplayOrder = 999
+NotifyGui.Parent = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
+
+local NotifyList = Instance.new("Frame")
+NotifyList.Name = "List"
+NotifyList.AnchorPoint = Vector2.new(1, 1)
+NotifyList.Position = UDim2.new(1, -16, 1, -16)
+NotifyList.Size = UDim2.new(0, 300, 1, -32)
+NotifyList.BackgroundTransparency = 1
+NotifyList.Parent = NotifyGui
+
+local NotifyLayout = Instance.new("UIListLayout")
+NotifyLayout.Padding = UDim.new(0, 8)
+NotifyLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+NotifyLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+NotifyLayout.SortOrder = Enum.SortOrder.LayoutOrder
+NotifyLayout.Parent = NotifyList
+
+F.notify = function(text, duration)
+	if Unloaded then
+		return
+	end
+	task.spawn(function()
+		local card = Instance.new("Frame")
+		card.Size = UDim2.new(1, 0, 0, 0)
+		card.AutomaticSize = Enum.AutomaticSize.Y
+		card.BackgroundColor3 = Color3.fromRGB(22, 20, 28)
+		card.BorderSizePixel = 0
+		card.LayoutOrder = math.floor(tick() * 1000) % 2000000000
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 10)
+		corner.Parent = card
+
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(150, 110, 255)
+		stroke.Thickness = 1
+		stroke.Transparency = 0.35
+		stroke.Parent = card
+
+		local pad = Instance.new("UIPadding")
+		pad.PaddingTop = UDim.new(0, 10)
+		pad.PaddingBottom = UDim.new(0, 10)
+		pad.PaddingLeft = UDim.new(0, 12)
+		pad.PaddingRight = UDim.new(0, 12)
+		pad.Parent = card
+
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.new(1, 0, 0, 0)
+		label.AutomaticSize = Enum.AutomaticSize.Y
+		label.Font = Enum.Font.GothamMedium
+		label.TextSize = 14
+		label.TextColor3 = Color3.fromRGB(235, 235, 245)
+		label.TextWrapped = true
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.RichText = true
+		label.Text = string.format('<font color="#B48CFF">VoidHub</font>  %s', tostring(text))
+		label.Parent = card
+
+		card.Parent = NotifyList
+		task.wait(duration or 4)
+		if card.Parent then
+			card:Destroy()
+		end
+	end)
 end
 
 F.isOn = function(name)
@@ -346,112 +327,249 @@ F.selectionAllows = function(name, value)
 	return F.multiSelected(name)[value] == true
 end
 
-local function AddToggle(tab, id, config)
-	State[id] = config.Default == true
-	local callback = config.Callback
-	local component = tab:CreateToggle({
-		Title = config.Title,
-		Description = config.Description,
-		Icon = config.Icon,
-		Default = config.Default == true,
-		SaveId = id,
-		Callback = function(value)
-			State[id] = value == true
-			if callback then
-				callback(value == true)
-			end
-		end,
-	})
-	Components[id] = component
-	return component
+-- ============================================================
+-- VoidHub- control wrappers
+--
+-- The library only ships Toggle / Checkbox / Slider / Dropdown /
+-- Colorpicker (README "Controls" section) - there is no Button, Label,
+-- Paragraph, multi-select Dropdown, TextBox or KeyBind. The wrappers
+-- below build the missing pieces honestly out of what is real:
+--   AddButton       -> a Toggle that fires once and snaps back to off
+--   AddMultiSelect  -> an Accordion of Checkboxes, one per option
+-- ============================================================
+
+local function AddToggle(section, id, title, default, callback)
+	State[id] = default == true
+	local handle = section:AddToggle(title, default == true, function(value)
+		State[id] = value == true
+		if callback then
+			task.spawn(callback, value == true)
+		end
+	end)
+	Components[id] = handle
+	return handle
 end
 
-local function AddSlider(tab, id, config)
-	State[id] = config.Default
-	local callback = config.Callback
-	local component = tab:CreateSlider({
-		Title = config.Title,
-		Min = config.Min,
-		Max = config.Max,
-		Default = config.Default,
-		SaveId = id,
-		Callback = function(value)
-			State[id] = value
-			if callback then
-				callback(value)
-			end
-		end,
-	})
-	Components[id] = component
-	return component
+local function AddSlider(section, id, title, min, max, default, suffix, callback)
+	State[id] = default
+	local handle = section:AddSlider(title, min, max, default, function(value)
+		State[id] = value
+		if callback then
+			task.spawn(callback, value)
+		end
+	end, suffix)
+	Components[id] = handle
+	return handle
 end
 
-local function AddDropdown(tab, id, config)
-	State[id] = config.Default
-	local callback = config.Callback
-	local component = tab:CreateDropdown({
-		Title = config.Title,
-		Icon = config.Icon,
-		Options = config.Options,
-		Multiple = config.Multiple == true,
-		Default = config.Default,
-		SaveId = id,
-		Callback = function(value)
-			State[id] = value
-			if callback then
-				callback(value)
-			end
-		end,
-	})
-	Components[id] = component
-	return component
+local function AddDropdown(section, id, title, options, default, callback)
+	State[id] = default
+	local handle = section:AddDropdown(title, options, default, function(value)
+		State[id] = value
+		if callback then
+			task.spawn(callback, value)
+		end
+	end)
+	Components[id] = handle
+	return handle
 end
 
-local function AddTextBox(tab, id, config)
-	State[id] = config.Default or ""
-	local callback = config.Callback
-	local component = tab:CreateTextBox({
-		Title = config.Title,
-		Placeholder = config.Placeholder,
-		MaxLength = config.MaxLength or 200,
-		Default = config.Default or "",
-		SaveId = id,
-		Callback = function(text)
-			State[id] = text
+local function AddMultiSelect(section, id, title, options, defaults, callback)
+	local defaultSet = {}
+	for _, name in ipairs(defaults or {}) do
+		defaultSet[name] = true
+	end
+	State[id] = {}
+	local accordion = section:AddAccordion(title)
+	for _, option in ipairs(options) do
+		local isDefault = defaultSet[option] == true
+		if isDefault then
+			State[id][option] = true
+		end
+		accordion:AddCheckbox(option, isDefault, function(value)
+			State[id][option] = value or nil
 			if callback then
-				callback(text)
+				task.spawn(callback, State[id])
 			end
-		end,
-	})
-	Components[id] = component
-	return component
+		end)
+	end
+	return accordion
 end
 
-local RARITY_RANK = {
-	Common = 1,
-	Uncommon = 2,
-	Rare = 3,
-	Epic = 4,
-	Legendary = 5,
-	Mythic = 6,
-	Cosmic = 7,
-	Secret = 8,
-	Eternal = 9,
-	Divine = 10,
-}
+local function AddButton(section, title, callback)
+	local resetting = false
+	local handle
+	handle = section:AddToggle(title, false, function(value)
+		if not value or resetting then
+			return
+		end
+		resetting = true
+		task.spawn(function()
+			local ok, err = pcall(callback)
+			if not ok then
+				warn("[VoidHub] " .. tostring(err))
+			end
+			task.wait(0.15)
+			pcall(function()
+				handle:Set(false)
+			end)
+			resetting = false
+		end)
+	end)
+	return handle
+end
 
-local RARITY_VALUES = {
-	"Common",
-	"Uncommon",
-	"Rare",
-	"Epic",
-	"Legendary",
-	"Mythic",
-	"Cosmic",
-	"Secret",
-	"Eternal",
-	"Divine",
-}
+F.setControl = function(id, value)
+	State[id] = value
+	local component = Components[id]
+	if component then
+		pcall(function()
+			component:Set(value)
+		end)
+	end
+end
+
+F.copyText = function(text, message)
+	if setclipboard then
+		setclipboard(text)
+	elseif toclipboard then
+		toclipboard(text)
+	else
+		F.notify("Your executor does not support copying to the clipboard")
+		return
+	end
+	F.notify(message)
+end
+
+F.copyDiscord = function()
+	F.copyText(DISCORD_INVITE, "Copied Discord invite to clipboard")
+end
+
+local RARITY_RANK = {}
+local RARITY_VALUES = {}
+
+do
+	local BASE_LADDER = {
+		"Common", "Uncommon", "Rare", "Epic", "Legendary",
+		"Mythic", "Cosmic", "Secret", "Eternal", "Divine",
+	}
+
+	local ladderIndex = {}
+	for index, name in ipairs(BASE_LADDER) do
+		ladderIndex[name] = index
+	end
+
+	local found = {}
+
+	local function rarityOrder(entry)
+		if typeof(entry) ~= "table" then
+			return nil
+		end
+		return tonumber(entry.Order)
+			or tonumber(entry.Priority)
+			or tonumber(entry.Index)
+			or tonumber(entry.Tier)
+			or tonumber(entry.Rank)
+			or tonumber(entry.Level)
+	end
+
+	local function remember(name, order)
+		if typeof(name) ~= "string" or name == "" then
+			return
+		end
+		local entry = found[name]
+		if not entry then
+			entry = {}
+			found[name] = entry
+		end
+		if typeof(order) == "number" and (entry.order == nil or order < entry.order) then
+			entry.order = order
+		end
+	end
+
+	pcall(function()
+		for _, asset in pairs(Assets.Directory) do
+			if typeof(asset) == "table" and typeof(asset.Rarity) == "table" then
+				remember(asset.Rarity._id or asset.Rarity.DisplayName, rarityOrder(asset.Rarity))
+			end
+		end
+	end)
+
+	pcall(function()
+		local dataFolder = ReplicatedStorage:FindFirstChild("Data")
+		local module = dataFolder and dataFolder:FindFirstChild("Rarities")
+		if not module then
+			return
+		end
+		local loaded = require(module)
+		local directory = typeof(loaded) == "table" and (loaded.Directory or loaded) or nil
+		if typeof(directory) ~= "table" then
+			return
+		end
+		for key, entry in pairs(directory) do
+			if typeof(entry) == "table" then
+				local name = entry._id or entry.DisplayName or (typeof(key) == "string" and key or nil)
+				if name and found[name] then
+					remember(name, rarityOrder(entry) or (typeof(key) == "number" and key or nil))
+				end
+			end
+		end
+	end)
+
+	local scanned = 0
+	for _ in pairs(found) do
+		scanned += 1
+	end
+	if scanned < 2 then
+		for _, name in ipairs(BASE_LADDER) do
+			remember(name, nil)
+		end
+	end
+
+	local ordered = {}
+	for name, entry in pairs(found) do
+		table.insert(ordered, {
+			name = name,
+			order = entry.order,
+			ladder = ladderIndex[name],
+		})
+	end
+
+	local everyOneOrdered = #ordered > 0
+	for _, entry in ipairs(ordered) do
+		if entry.order == nil then
+			everyOneOrdered = false
+			break
+		end
+	end
+
+	table.sort(ordered, function(a, b)
+		if everyOneOrdered then
+			if a.order ~= b.order then
+				return a.order < b.order
+			end
+			return a.name < b.name
+		end
+		if (a.ladder ~= nil) ~= (b.ladder ~= nil) then
+			return a.ladder ~= nil
+		end
+		if a.ladder and b.ladder then
+			return a.ladder < b.ladder
+		end
+		if (a.order ~= nil) ~= (b.order ~= nil) then
+			return a.order ~= nil
+		end
+		if a.order and b.order then
+			return a.order < b.order
+		end
+		return a.name < b.name
+	end)
+
+	for rank, entry in ipairs(ordered) do
+		table.insert(RARITY_VALUES, entry.name)
+		RARITY_RANK[entry.name] = rank
+	end
+end
 
 local ZONE_VALUES = {}
 for areaId in pairs(Areas.Directory) do
@@ -492,7 +610,51 @@ do
 	end
 end
 
-local MUTATION_VALUES = { "Golden", "Rainbow", "Silver" }
+local MUTATION_VALUES = {}
+
+do
+	local BASE_MUTATIONS = { "Golden", "Rainbow", "Silver" }
+	local found = {}
+	local ordered = {}
+
+	local function remember(name)
+		if typeof(name) ~= "string" or name == "" or found[name] then
+			return
+		end
+		found[name] = true
+		table.insert(ordered, name)
+	end
+
+	pcall(function()
+		local dataFolder = ReplicatedStorage:FindFirstChild("Data")
+		local module = dataFolder and dataFolder:FindFirstChild("Mutations")
+		if not module then
+			return
+		end
+		local loaded = require(module)
+		local directory = typeof(loaded) == "table" and (loaded.Directory or loaded) or nil
+		if typeof(directory) ~= "table" then
+			return
+		end
+		for key, entry in pairs(directory) do
+			if typeof(entry) == "table" then
+				remember(entry._id or entry.DisplayName or (typeof(key) == "string" and key or nil))
+			elseif typeof(entry) == "string" then
+				remember(entry)
+			elseif typeof(key) == "string" then
+				remember(key)
+			end
+		end
+	end)
+
+	table.sort(ordered)
+
+	for _, name in ipairs(BASE_MUTATIONS) do
+		remember(name)
+	end
+
+	MUTATION_VALUES = ordered
+end
 
 local PRIORITY_VALUES = { "Rarest", "Nearest", "Furthest", "Biggest Size" }
 
@@ -508,22 +670,6 @@ local jobIdText = tostring(game.JobId)
 local shortJobIdText = #jobIdText > 18 and (string.sub(jobIdText, 1, 18) .. "...") or jobIdText
 
 local sessionStart = os.clock()
-
-F.copyText = function(text, message)
-	if setclipboard then
-		setclipboard(text)
-	elseif toclipboard then
-		toclipboard(text)
-	else
-		Notify("Your executor does not support copying to the clipboard")
-		return
-	end
-	Notify(message)
-end
-
-F.copyDiscord = function()
-	F.copyText(DISCORD_INVITE, "Copied the VoidHub Discord invite")
-end
 
 F.getRoot = function()
 	local character = LocalPlayer.Character
@@ -702,6 +848,16 @@ F.travelTo = function(goalPosition, allowLobby)
 	end
 	task.wait()
 	return true
+end
+
+F.getEggPosition = function(record)
+	local goal = record.BottomCFrame or record.BoundsCFrame
+	if not goal then
+		return nil
+	end
+	local eggPos = goal.Position
+	local _, _, minZ, maxZ = F.getCorridorBounds()
+	return Vector3.new(eggPos.X, eggPos.Y + 2, math.clamp(eggPos.Z, minZ, maxZ))
 end
 
 F.getBasePosition = function()
@@ -1157,6 +1313,16 @@ F.runAutoSteal = function()
 	return F.stealEgg(target)
 end
 
+F.buildLaneWaypoints = function(fromPos, targetIndex)
+	local waypoints = {}
+	local laneZ = F.getLaneZ()
+	local laneY = F.getLaneY()
+	if math.abs(fromPos.Z - laneZ) > 8 then
+		table.insert(waypoints, Vector3.new(fromPos.X, laneY, laneZ))
+	end
+	return waypoints
+end
+
 F.returnToBase = function(shouldContinue)
 	local base = F.getBasePosition()
 	local root = F.getRoot()
@@ -1336,10 +1502,10 @@ F.serverHop = function(reason)
 	if typeof(candidates) ~= "table" or #candidates == 0 then
 		hopCooldownUntil = os.clock() + 30
 		hopping = false
-		Notify("Server hop found no candidates, retrying in 30s")
+		F.notify("Server hop found no candidates, retrying in 30s")
 		return false
 	end
-	Notify(string.format("Server hopping: %s", tostring(reason or "requested")))
+	F.notify(string.format("Server hopping: %s", tostring(reason or "requested")))
 	if F.isOn("WebhookEnabled") then
 		F.sendSummary()
 		task.wait(0.6)
@@ -1367,7 +1533,7 @@ F.serverHop = function(reason)
 	end
 	hopCooldownUntil = os.clock() + 10
 	hopping = false
-	Notify("Server hop failed, retrying in 10s")
+	F.notify("Server hop failed, retrying in 10s")
 	return false
 end
 
@@ -1492,7 +1658,7 @@ F.markPlotFull = function()
 		return
 	end
 	plotFullUntil = os.clock() + 30
-	Notify("Your farm has no free egg spots left")
+	F.notify("Farm has no free egg spots left")
 end
 
 F.getPetAreaStandPosition = function()
@@ -1648,7 +1814,17 @@ F.getSellablePets = function()
 			local itemData = F.getPetItemData(record)
 			local isEquipped = table.find(equipped, uid) ~= nil
 			if itemData and itemData.IsFavorite ~= true and itemData.InFuse ~= true and not (keepEquipped and isEquipped) then
-				local mutations = F.recordMutations(record)
+				local mutations = {}
+				if typeof(record.Mutations) == "table" then
+					for _, mutation in pairs(record.Mutations) do
+						if typeof(mutation) == "string" then
+							table.insert(mutations, mutation)
+						end
+					end
+				end
+				if typeof(record.BaseMutation) == "string" then
+					table.insert(mutations, record.BaseMutation)
+				end
 				local blockedByMutation = keepMutated and #mutations > 0
 				local mutationAllowed = true
 				if not blockedByMutation and F.multiHasAny("SellMutations") then
@@ -2025,7 +2201,16 @@ F.resolveWaypoint = function(name)
 		local bottom = plot and plot.PlotFolder and plot.PlotFolder:FindFirstChild("TreadmillBottom")
 		return (bottom and bottom:IsA("BasePart")) and (bottom.Position + Vector3.new(0, 4, 0)) or nil
 	elseif name == "Fuse Machine" then
-		return F.getFuseMachinePosition()
+		local objects = Workspace:FindFirstChild("__OBJECTS")
+		local machines = objects and objects:FindFirstChild("Machines")
+		local model = machines and machines:FindFirstChild("FuseMachine")
+		if not model then
+			return nil
+		end
+		local ok, cf = pcall(function()
+			return model:GetPivot()
+		end)
+		return ok and cf and (cf.Position + Vector3.new(0, 4, 0)) or nil
 	elseif name == "Lobby Entry" then
 		return F.getEntryPosition()
 	end
@@ -2190,6 +2375,16 @@ F.formatNumber = function(value)
 	return string.format("%.2f%s", number, suffixes[index])
 end
 
+F.formatElapsed = function(seconds)
+	local total = math.max(0, math.floor(seconds))
+	local hours = math.floor(total / 3600)
+	local minutes = math.floor((total % 3600) / 60)
+	if hours > 0 then
+		return string.format("%dh %dm", hours, minutes)
+	end
+	return string.format("%dm", minutes)
+end
+
 F.formatClock = function(seconds)
 	local elapsed = math.floor(seconds)
 	if elapsed < 60 then
@@ -2226,14 +2421,19 @@ end
 
 F.espColorFor = function(rarity)
 	local rank = RARITY_RANK[rarity or ""] or 0
-	if rank >= 9 then
-		return Color3.fromRGB(210, 150, 255)
-	elseif rank >= 7 then
-		return Color3.fromRGB(255, 110, 160)
-	elseif rank >= 5 then
+	local total = #RARITY_VALUES
+	if total <= 0 then
+		total = 10
+	end
+	local position = rank / total
+	if position >= 0.9 then
+		return Color3.fromRGB(255, 120, 255)
+	elseif position >= 0.7 then
+		return Color3.fromRGB(255, 90, 90)
+	elseif position >= 0.5 then
 		return Color3.fromRGB(255, 190, 80)
-	elseif rank >= 3 then
-		return Color3.fromRGB(120, 200, 255)
+	elseif position >= 0.3 then
+		return Color3.fromRGB(110, 195, 255)
 	end
 	return Color3.fromRGB(190, 200, 215)
 end
@@ -2434,7 +2634,7 @@ F.collectPlayerEsp = function()
 					"player_" .. player.Name,
 					root.Position,
 					string.format("%s\n%d studs", player.DisplayName, math.floor((F.getRoot() and (F.getRoot().Position - root.Position).Magnitude) or 0)),
-					Color3.fromRGB(160, 140, 255),
+					Color3.fromRGB(120, 190, 255),
 					character
 				)
 			end
@@ -2527,8 +2727,7 @@ F.httpPost = function(payload)
 	if typeof(sender) ~= "function" then
 		return false
 	end
-	local url = tostring(F.optionValue("WebhookUrl", "") or "")
-	if url == "" then
+	if WEBHOOK_URL == "" then
 		return false
 	end
 	local encoded
@@ -2539,7 +2738,7 @@ F.httpPost = function(payload)
 		return false
 	end
 	local sent = pcall(sender, {
-		Url = url,
+		Url = WEBHOOK_URL,
 		Method = "POST",
 		Headers = { ["Content-Type"] = "application/json" },
 		Body = encoded,
@@ -2571,7 +2770,7 @@ local spawnLog = {}
 local stealLog = {}
 
 F.webhookPing = function()
-	local id = tostring(F.optionValue("WebhookPingId", "") or ""):gsub("%D", "")
+	local id = tostring(WEBHOOK_PING_ID):gsub("%D", "")
 	if id == "" then
 		return nil
 	end
@@ -2594,16 +2793,6 @@ end
 
 F.embedField = function(name, value, inline)
 	return { name = name, value = value, inline = inline ~= false }
-end
-
-F.formatElapsed = function(seconds)
-	local total = math.max(0, math.floor(seconds))
-	local hours = math.floor(total / 3600)
-	local minutes = math.floor((total % 3600) / 60)
-	if hours > 0 then
-		return string.format("%dh %dm", hours, minutes)
-	end
-	return string.format("%dm", minutes)
 end
 
 F.assetName = function(category)
@@ -2717,7 +2906,7 @@ F.buildSummaryEmbed = function()
 			shortJobIdText,
 			F.formatElapsed(os.clock() - sessionStart)
 		),
-		color = 11832063,
+		color = 11829247,
 		fields = fields,
 		footer = { text = HUB_NAME .. " | by von63rd" },
 		timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
@@ -2808,948 +2997,6 @@ F.runWebhookSummary = function()
 	F.sendSummary()
 end
 
---// Interface
-
-Window:CreateSeparator({ Text = "Farming" })
-
-local TabEggs = Window:CreateTab({
-	Title = "Eggs",
-	Subtitle = "Stealing & Handling",
-	Icon = ICONS.egg,
-})
-
-TabEggs:CreateSection({ Text = "Steal Eggs", Icon = ICONS.hand })
-
-AddDropdown(TabEggs, "StealZones", {
-	Title = "Areas",
-	Icon = ICONS.mappin,
-	Options = ZONE_VALUES,
-	Multiple = true,
-	Default = {},
-})
-
-AddDropdown(TabEggs, "StealRarities", {
-	Title = "Rarities",
-	Icon = ICONS.star,
-	Options = RARITY_VALUES,
-	Multiple = true,
-	Default = {},
-})
-
-AddDropdown(TabEggs, "StealMutations", {
-	Title = "Mutations",
-	Icon = ICONS.flame,
-	Options = MUTATION_VALUES,
-	Multiple = true,
-	Default = {},
-})
-
-AddDropdown(TabEggs, "StealPriority", {
-	Title = "Target Priority",
-	Icon = ICONS.target,
-	Options = PRIORITY_VALUES,
-	Default = "Rarest",
-})
-
-AddToggle(TabEggs, "AutoStealSelected", {
-	Title = "Auto Steal Selected",
-	Description = "Only steals eggs matching the filters above",
-	Default = false,
-})
-
-AddToggle(TabEggs, "AutoStealAll", {
-	Title = "Auto Steal All",
-	Description = "Ignores every filter and grabs anything",
-	Default = false,
-})
-
-AddSlider(TabEggs, "StealSpeed", {
-	Title = "Steal Speed",
-	Min = 50,
-	Max = 1000,
-	Default = 300,
-})
-
-AddToggle(TabEggs, "StealBigEggs", {
-	Title = "Steal Big Eggs",
-	Description = "Always grabs oversized eggs",
-	Default = false,
-})
-
-AddSlider(TabEggs, "StealBigEggScale", {
-	Title = "Big Egg Minimum Size",
-	Min = 1,
-	Max = 50,
-	Default = 2,
-})
-
-AddToggle(TabEggs, "AutoDropEgg", {
-	Title = "Auto Drop Held Egg",
-	Default = false,
-})
-
-AddToggle(TabEggs, "AutoReturn", {
-	Title = "Auto Return to Base",
-	Description = "Carries stolen eggs back to your plot",
-	Default = true,
-})
-
-TabEggs:CreateSection({ Text = "Egg Handling", Icon = ICONS.refreshcw })
-
-AddDropdown(TabEggs, "LifecycleRarities", {
-	Title = "Rarities",
-	Icon = ICONS.star,
-	Options = RARITY_VALUES,
-	Multiple = true,
-	Default = {},
-})
-
-AddDropdown(TabEggs, "LifecycleMutations", {
-	Title = "Mutations",
-	Icon = ICONS.flame,
-	Options = MUTATION_VALUES,
-	Multiple = true,
-	Default = {},
-})
-
-AddToggle(TabEggs, "AutoPlaceSelected", {
-	Title = "Auto Place Selected",
-	Default = false,
-})
-
-AddToggle(TabEggs, "AutoPlaceAll", {
-	Title = "Auto Place All",
-	Default = false,
-})
-
-AddToggle(TabEggs, "AutoOpenReadyEggs", {
-	Title = "Auto Hatch Ready",
-	Default = false,
-})
-
-TabEggs:CreateSection({ Text = "Server Hop", Icon = ICONS.server })
-
-AddToggle(TabEggs, "AutoServerHop", {
-	Title = "Auto Server Hop",
-	Default = false,
-})
-
-AddDropdown(TabEggs, "HopMode", {
-	Title = "Hop When",
-	Icon = ICONS.refreshcw,
-	Options = HOP_MODES,
-	Default = HOP_MODES[1],
-})
-
-AddSlider(TabEggs, "HopValue", {
-	Title = "Threshold (s / min / steals)",
-	Min = 1,
-	Max = 200,
-	Default = 15,
-})
-
-TabEggs:CreateButton({
-	Title = "Hop Now",
-	Description = "Jumps to a fresh server right away",
-	Icon = ICONS.server,
-	Callback = function()
-		task.spawn(function()
-			hopCooldownUntil = 0
-			F.serverHop("Manual hop")
-		end)
-	end,
-})
-
-local TabPets = Window:CreateTab({
-	Title = "Pets",
-	Subtitle = "Fusing & Selling",
-	Icon = ICONS.bone,
-})
-
-TabPets:CreateSection({ Text = "Pets", Icon = ICONS.bone })
-
-AddToggle(TabPets, "AutoEquipBest", {
-	Title = "Auto Equip Best Pets",
-	Default = false,
-})
-
-TabPets:CreateSection({ Text = "Auto Fuse", Icon = ICONS.flame })
-
-AddToggle(TabPets, "AutoFusePets", {
-	Title = "Auto Fuse Pets [Beta]",
-	Default = false,
-})
-
-AddDropdown(TabPets, "FuseRarities", {
-	Title = "Fuse Rarities",
-	Icon = ICONS.star,
-	Options = RARITY_VALUES,
-	Multiple = true,
-	Default = {},
-})
-
-AddDropdown(TabPets, "FuseMutations", {
-	Title = "Fuse Mutations",
-	Icon = ICONS.flame,
-	Options = MUTATION_VALUES,
-	Multiple = true,
-	Default = {},
-})
-
-AddDropdown(TabPets, "FuseTarget", {
-	Title = "Pick Group By",
-	Icon = ICONS.target,
-	Options = FUSE_TARGET_VALUES,
-	Default = "Highest Rarity",
-})
-
-AddToggle(TabPets, "FuseKeepMutated", {
-	Title = "Never Fuse Mutated",
-	Default = true,
-})
-
-AddToggle(TabPets, "FuseKeepEquipped", {
-	Title = "Never Fuse Equipped",
-	Default = true,
-})
-
-AddToggle(TabPets, "FuseAutoReveal", {
-	Title = "Auto Complete Reveal",
-	Default = true,
-})
-
-AddSlider(TabPets, "FuseMaxScale", {
-	Title = "Maximum Scale to Fuse",
-	Min = 0,
-	Max = 10,
-	Default = 10,
-})
-
-AddSlider(TabPets, "FuseKeepPerCategory", {
-	Title = "Keep Per Pet Type",
-	Min = 0,
-	Max = 20,
-	Default = 0,
-})
-
-AddSlider(TabPets, "FuseInterval", {
-	Title = "Fuse Interval (s)",
-	Min = 1,
-	Max = 120,
-	Default = 8,
-})
-
-TabPets:CreateButton({
-	Title = "Fuse Now",
-	Icon = ICONS.flame,
-	Callback = function()
-		task.spawn(function()
-			F.runAutoFusePets(true)
-		end)
-	end,
-})
-
-TabPets:CreateSection({ Text = "Auto Sell Pets", Icon = ICONS.tags })
-
-AddToggle(TabPets, "AutoSellPets", {
-	Title = "Auto Sell Pets",
-	Default = false,
-})
-
-AddDropdown(TabPets, "SellRarities", {
-	Title = "Sell Rarities",
-	Icon = ICONS.star,
-	Options = RARITY_VALUES,
-	Multiple = true,
-	Default = {},
-})
-
-AddDropdown(TabPets, "SellMutations", {
-	Title = "Sell Mutations",
-	Icon = ICONS.flame,
-	Options = MUTATION_VALUES,
-	Multiple = true,
-	Default = {},
-})
-
-AddToggle(TabPets, "SellKeepMutated", {
-	Title = "Never Sell Mutated",
-	Default = true,
-})
-
-AddToggle(TabPets, "SellKeepEquipped", {
-	Title = "Never Sell Equipped",
-	Default = true,
-})
-
-AddSlider(TabPets, "SellMaxScale", {
-	Title = "Maximum Scale to Sell",
-	Min = 0,
-	Max = 10,
-	Default = 10,
-})
-
-AddSlider(TabPets, "SellInterval", {
-	Title = "Sell Interval (s)",
-	Min = 1,
-	Max = 120,
-	Default = 6,
-})
-
-TabPets:CreateSection({ Text = "Auto Sell Eggs", Icon = ICONS.egg })
-
-AddToggle(TabPets, "AutoSellEggs", {
-	Title = "Auto Sell Eggs",
-	Default = false,
-})
-
-AddDropdown(TabPets, "SellEggRarities", {
-	Title = "Sell Rarities",
-	Icon = ICONS.star,
-	Options = RARITY_VALUES,
-	Multiple = true,
-	Default = {},
-})
-
-AddSlider(TabPets, "SellEggInterval", {
-	Title = "Sell Interval (s)",
-	Min = 1,
-	Max = 120,
-	Default = 8,
-})
-
-TabPets:CreateSection({ Text = "Earnings", Icon = ICONS.coins })
-
-AddToggle(TabPets, "AutoClaimOffline", {
-	Title = "Claim Offline Earnings",
-	Default = false,
-})
-
-local TabShop = Window:CreateTab({
-	Title = "Shop",
-	Subtitle = "Upgrades & Gear",
-	Icon = ICONS.shoppingcart,
-})
-
-TabShop:CreateSection({ Text = "Upgrades", Icon = ICONS.trendingup })
-
-AddToggle(TabShop, "AutoUpgrades", {
-	Title = "Auto Buy Upgrades",
-	Default = false,
-})
-
-AddDropdown(TabShop, "UpgradeTypes", {
-	Title = "Upgrades",
-	Icon = ICONS.trendingup,
-	Options = UPGRADE_VALUES,
-	Multiple = true,
-	Default = { "Base", "Treadmill" },
-})
-
-TabShop:CreateSection({ Text = "Index", Icon = ICONS.bookopen })
-
-AddToggle(TabShop, "AutoClaimIndex", {
-	Title = "Auto Claim Index",
-	Default = false,
-})
-
-AddToggle(TabShop, "AutoClaimGroupReward", {
-	Title = "Auto Claim Group Reward",
-	Default = false,
-})
-
-TabShop:CreateSection({ Text = "Trails", Icon = ICONS.star })
-
-AddToggle(TabShop, "AutoBuyTrail", {
-	Title = "Auto Buy Trail",
-	Default = false,
-})
-
-AddDropdown(TabShop, "TrailWanted", {
-	Title = "Trails",
-	Icon = ICONS.star,
-	Options = TRAIL_VALUES,
-	Multiple = true,
-	Default = {},
-})
-
-AddToggle(TabShop, "AutoEquipBestTrail", {
-	Title = "Auto Equip Best Trail",
-	Default = false,
-})
-
-TabShop:CreateSection({ Text = "Training", Icon = ICONS.activity })
-
-AddToggle(TabShop, "AutoTreadmill", {
-	Title = "Auto Treadmill Training",
-	Default = false,
-})
-
-TabShop:CreateSection({ Text = "Gear", Icon = ICONS.sword })
-
-AddToggle(TabShop, "AutoEquipBestGear", {
-	Title = "Auto Equip Best Gear",
-	Default = false,
-})
-
-local TabPriority = Window:CreateTab({
-	Title = "Priority",
-	Subtitle = "Task Order",
-	Icon = ICONS.listordered,
-})
-
-TabPriority:CreateSection({ Text = "Task Order", Icon = ICONS.listordered })
-
-TabPriority:CreateParagraph({
-	Title = "How it works",
-	Icon = ICONS.info,
-	Description = "The hub runs one automation task at a time. Slot 1 runs first, then slot 2 and so on. Duplicate picks are ignored.",
-})
-
-for index, slot in ipairs(PRIORITY_SLOTS) do
-	AddDropdown(TabPriority, slot, {
-		Title = string.format("Priority %d", index),
-		Icon = ICONS.listordered,
-		Options = PRIORITY_TASKS,
-		Default = PRIORITY_TASKS[index],
-	})
-end
-
-Window:CreateSidebarLine()
-Window:CreateSeparator({ Text = "Visuals" })
-
-local TabEsp = Window:CreateTab({
-	Title = "ESP",
-	Subtitle = "World Vision",
-	Icon = ICONS.eye,
-})
-
-TabEsp:CreateSection({ Text = "Targets", Icon = ICONS.eye })
-
-AddToggle(TabEsp, "EspWorldEggs", {
-	Title = "World Egg ESP",
-	Icon = ICONS.egg,
-	Default = false,
-})
-
-AddToggle(TabEsp, "EspCarriedEggs", {
-	Title = "Carried & Dropped Egg ESP",
-	Icon = ICONS.egg,
-	Default = false,
-})
-
-AddToggle(TabEsp, "EspGuards", {
-	Title = "Guard ESP",
-	Icon = ICONS.user,
-	Default = false,
-})
-
-AddToggle(TabEsp, "EspPets", {
-	Title = "Pet ESP",
-	Icon = ICONS.bone,
-	Default = false,
-})
-
-AddToggle(TabEsp, "EspPlayers", {
-	Title = "Player ESP",
-	Icon = ICONS.users,
-	Default = false,
-})
-
-AddToggle(TabEsp, "EspMachines", {
-	Title = "Machine ESP",
-	Icon = ICONS.gauge,
-	Default = false,
-})
-
-AddToggle(TabEsp, "EspPlots", {
-	Title = "Plot ESP",
-	Icon = ICONS.mappin,
-	Default = false,
-})
-
-TabEsp:CreateSection({ Text = "Render", Icon = ICONS.target })
-
-AddSlider(TabEsp, "EspDistance", {
-	Title = "Render Distance (studs)",
-	Min = 100,
-	Max = 6000,
-	Default = 2000,
-})
-
-local TabMovement = Window:CreateTab({
-	Title = "Movement",
-	Subtitle = "Character & Teleports",
-	Icon = ICONS.move,
-})
-
-TabMovement:CreateSection({ Text = "Character", Icon = ICONS.move })
-
-AddToggle(TabMovement, "WalkSpeedEnabled", {
-	Title = "Walk Speed Override",
-	Default = false,
-	Callback = function(value)
-		if not value then
-			local humanoid = F.getHumanoid()
-			if humanoid then
-				humanoid.WalkSpeed = 16
-			end
-		end
-	end,
-})
-
-AddSlider(TabMovement, "WalkSpeed", {
-	Title = "Walk Speed",
-	Min = 16,
-	Max = 500,
-	Default = 32,
-})
-
-AddToggle(TabMovement, "JumpPowerEnabled", {
-	Title = "Jump Power Override",
-	Default = false,
-	Callback = function(value)
-		if not value then
-			local humanoid = F.getHumanoid()
-			if humanoid then
-				humanoid.JumpPower = 50
-			end
-		end
-	end,
-})
-
-AddSlider(TabMovement, "JumpPower", {
-	Title = "Jump Power",
-	Min = 10,
-	Max = 500,
-	Default = 50,
-})
-
-AddToggle(TabMovement, "InfJump", {
-	Title = "Infinite Jump",
-	Default = false,
-})
-
-AddToggle(TabMovement, "NoClip", {
-	Title = "NoClip",
-	Default = false,
-})
-
-TabMovement:CreateSection({ Text = "Fly", Icon = ICONS.feather })
-
-AddToggle(TabMovement, "Fly", {
-	Title = "Fly",
-	Description = "WASD to move, Space up, Left Ctrl down",
-	Default = false,
-	Callback = function(value)
-		if not value then
-			local humanoid = F.getHumanoid()
-			if humanoid then
-				humanoid.PlatformStand = false
-			end
-		end
-	end,
-})
-
-AddSlider(TabMovement, "FlySpeed", {
-	Title = "Fly Speed",
-	Min = 10,
-	Max = 400,
-	Default = 60,
-})
-
-TabMovement:CreateSection({ Text = "Waypoints", Icon = ICONS.mappin })
-
-AddDropdown(TabMovement, "WaypointTarget", {
-	Title = "Waypoint",
-	Icon = ICONS.mappin,
-	Options = WAYPOINT_VALUES,
-	Default = "Base",
-})
-
-TabMovement:CreateButton({
-	Title = "Teleport to Waypoint",
-	Icon = ICONS.mappin,
-	Callback = function()
-		task.spawn(function()
-			local position = F.resolveWaypoint(F.optionValue("WaypointTarget", "Base"))
-			if not position then
-				Notify("That waypoint is not available right now")
-				return
-			end
-			if not F.travelTo(position, true) then
-				Notify("Teleport failed")
-			end
-		end)
-	end,
-})
-
-Window:CreateSidebarLine()
-Window:CreateSeparator({ Text = "Hub" })
-
-local TabWebhook = Window:CreateTab({
-	Title = "Webhook",
-	Subtitle = "Discord Logging",
-	Icon = ICONS.send,
-})
-
-TabWebhook:CreateSection({ Text = "Webhook", Icon = ICONS.send })
-
-AddToggle(TabWebhook, "WebhookEnabled", {
-	Title = "Enable Webhooks",
-	Default = false,
-})
-
-AddTextBox(TabWebhook, "WebhookUrl", {
-	Title = "Webhook URL",
-	Placeholder = "https://discord.com/api/webhooks/...",
-	MaxLength = 250,
-	Default = "",
-})
-
-AddTextBox(TabWebhook, "WebhookPingId", {
-	Title = "Ping User ID",
-	Placeholder = "123456789012345678",
-	MaxLength = 30,
-	Default = "",
-})
-
-AddSlider(TabWebhook, "WebhookInterval", {
-	Title = "Summary Interval (min)",
-	Min = 1,
-	Max = 180,
-	Default = 15,
-})
-
-AddToggle(TabWebhook, "WebhookEggSpawns", {
-	Title = "List Spawned Eggs",
-	Default = true,
-})
-
-AddDropdown(TabWebhook, "WebhookRarities", {
-	Title = "Rarities",
-	Icon = ICONS.star,
-	Options = RARITY_VALUES,
-	Multiple = true,
-	Default = {},
-})
-
-AddToggle(TabWebhook, "WebhookDisconnectAlerts", {
-	Title = "Disconnect Alerts",
-	Default = false,
-})
-
-TabWebhook:CreateButton({
-	Title = "Send Summary Now",
-	Icon = ICONS.send,
-	Callback = function()
-		task.spawn(function()
-			Notify(F.sendSummary() and "Summary sent" or "Webhook send failed")
-		end)
-	end,
-})
-
-local TabSettings = Window:CreateTab({
-	Title = "Settings",
-	Subtitle = "Hub & Performance",
-	Icon = ICONS.settings,
-})
-
-TabSettings:CreateSection({ Text = "Menu", Icon = ICONS.menu })
-
-AddToggle(TabSettings, "AntiAfk", {
-	Title = "Anti-AFK",
-	Default = true,
-})
-
-AddToggle(TabSettings, "AntiGameplayPause", {
-	Title = "No Gameplay Paused",
-	Default = true,
-	Callback = function(value)
-		F.applyAntiGameplayPause(value)
-	end,
-})
-
-AddToggle(TabSettings, "AutoHideUi", {
-	Title = "Auto Hide UI",
-	Description = "Hides the window right after you enable it",
-	Default = false,
-	Callback = function(value)
-		if not value then
-			return
-		end
-		task.defer(function()
-			local frame = Window:GetMainFrame()
-			if frame then
-				frame.Visible = false
-			end
-		end)
-	end,
-})
-
-AddToggle(TabSettings, "AutoReconnect", {
-	Title = "Auto Reconnect",
-	Default = false,
-})
-
-AddTextBox(TabSettings, "AutoExecuteUrl", {
-	Title = "Auto Execute Script URL",
-	Placeholder = "https://raw.githubusercontent.com/.../script.lua",
-	MaxLength = 250,
-	Default = "",
-})
-
-local autoExecuteConnection = nil
-
-AddToggle(TabSettings, "AutoExecute", {
-	Title = "Auto Execute",
-	Description = "Re-runs the URL above after a server hop",
-	Default = false,
-	Callback = function(value)
-		if not value then
-			return
-		end
-		local queueTeleport = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport)
-		if not queueTeleport then
-			Notify("queue_on_teleport is not supported by your executor")
-			return
-		end
-		if tostring(F.optionValue("AutoExecuteUrl", "")) == "" then
-			Notify("Paste the raw script URL into the box above first")
-			return
-		end
-		if autoExecuteConnection then
-			return
-		end
-		autoExecuteConnection = LocalPlayer.OnTeleport:Connect(function()
-			local url = tostring(F.optionValue("AutoExecuteUrl", ""))
-			if F.isOn("AutoExecute") and url ~= "" then
-				queueTeleport('loadstring(game:HttpGet("' .. url .. '"))()')
-			end
-		end)
-	end,
-})
-
-local MenuKeys = { Enum.KeyCode.LeftAlt }
-
-TabSettings:CreateKeyBind({
-	Title = "Menu Keybind",
-	Default = Enum.KeyCode.LeftAlt,
-	Callback = function(keys)
-		if typeof(keys) == "table" then
-			MenuKeys = keys
-		end
-	end,
-})
-
-TabSettings:CreateSection({ Text = "Performance", Icon = ICONS.gauge })
-
-AddToggle(TabSettings, "FpsBoost", {
-	Title = "FPS Boost",
-	Default = false,
-	Callback = function(value)
-		F.applyFpsBoost(value)
-	end,
-})
-
-AddToggle(TabSettings, "AutoDeleteOwnPets", {
-	Title = "Auto Delete Own Pets",
-	Default = false,
-})
-
-AddSlider(TabSettings, "FpsCap", {
-	Title = "FPS Cap",
-	Min = 15,
-	Max = 360,
-	Default = 60,
-	Callback = function(value)
-		F.applyFpsCap(value)
-	end,
-})
-
-AddToggle(TabSettings, "DisableRendering", {
-	Title = "Disable 3D Rendering",
-	Default = false,
-	Callback = function(value)
-		F.applyRendering(value)
-	end,
-})
-
-TabSettings:CreateSection({ Text = "Config", Icon = ICONS.save })
-
-TabSettings:CreateButton({
-	Title = "Export Config to Clipboard",
-	Icon = ICONS.save,
-	Callback = function()
-		local ok, encoded = pcall(function()
-			return HttpService:JSONEncode(State)
-		end)
-		if not ok then
-			Notify("Failed to encode the config")
-			return
-		end
-		F.copyText(encoded, "Config copied to clipboard")
-	end,
-})
-
-local importBox = AddTextBox(TabSettings, "ConfigImportSource", {
-	Title = "Paste exported config here",
-	Placeholder = "{ ... }",
-	MaxLength = 6000,
-	Default = "",
-})
-
-TabSettings:CreateButton({
-	Title = "Import Config",
-	Icon = ICONS.save,
-	Callback = function()
-		local source = tostring(F.optionValue("ConfigImportSource", "")):match("^%s*(.-)%s*$")
-		if source == "" then
-			Notify("Paste an exported config into the box first")
-			return
-		end
-		local ok, decoded = pcall(function()
-			return HttpService:JSONDecode(source)
-		end)
-		if not ok or typeof(decoded) ~= "table" then
-			Notify("That is not a valid exported config")
-			return
-		end
-		local applied = 0
-		for key, value in pairs(decoded) do
-			if key ~= "ConfigImportSource" then
-				local component = Components[key]
-				if component and typeof(component.Set) == "function" then
-					if pcall(function()
-						component:Set(value)
-					end) then
-						applied += 1
-					else
-						State[key] = value
-						applied += 1
-					end
-				elseif State[key] ~= nil then
-					State[key] = value
-					applied += 1
-				end
-			end
-		end
-		if applied == 0 then
-			Notify("No settings in that config matched this script")
-			return
-		end
-		if importBox and typeof(importBox.Set) == "function" then
-			pcall(function()
-				importBox:Set("")
-			end)
-		end
-		State.ConfigImportSource = ""
-		Notify(string.format("Imported %d setting%s", applied, applied == 1 and "" or "s"), 6)
-	end,
-})
-
-TabSettings:CreateButton({
-	Title = "Unload Hub",
-	Description = "Closes VoidHub and restores your character",
-	Icon = ICONS.settings,
-	Confirmation = true,
-	Callback = function()
-		F.unload()
-	end,
-})
-
-local TabInfo = Window:CreateTab({
-	Title = "Info",
-	Subtitle = "About & Credits",
-	Icon = ICONS.info,
-})
-
-local executorName = "Unknown"
-pcall(function()
-	if identifyexecutor then
-		local name, version = identifyexecutor()
-		if type(name) == "string" and name ~= "" then
-			executorName = type(version) == "string" and version ~= "" and (name .. " " .. version) or name
-		end
-	end
-end)
-
-TabInfo:CreateSection({ Text = "Session", Icon = ICONS.user })
-
-TabInfo:CreateParagraph({
-	Title = "Player",
-	Icon = ICONS.user,
-	DescriptionWords = {
-		"Logged in as ",
-		{ Text = LocalPlayer.Name, Colors = { Color3.fromRGB(180, 140, 255) } },
-		"\nExecutor: ",
-		{ Text = executorName, Colors = { Color3.fromRGB(140, 220, 170) } },
-		"\nStatus: ",
-		{ Text = "Keyless", Colors = { Color3.fromRGB(140, 220, 170) } },
-	},
-})
-
-local SessionParagraph = TabInfo:CreateParagraph({
-	Title = "Server",
-	Icon = ICONS.clock,
-	Description = string.format("Place ID: %s\nJob ID: %s\nSession time: 0s", tostring(game.PlaceId), shortJobIdText),
-})
-
-TabInfo:CreateButton({
-	Title = "Copy Join Script",
-	Description = "Copies a teleport script for this exact server",
-	Icon = ICONS.server,
-	Callback = function()
-		local joinScript = string.format(
-			'game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s", game:GetService("Players").LocalPlayer)',
-			game.PlaceId,
-			jobIdText
-		)
-		F.copyText(joinScript, "Copied join script to clipboard")
-	end,
-})
-
-TabInfo:CreateSection({ Text = "Credits", Icon = ICONS.crown })
-
-TabInfo:CreateParagraph({
-	Title = "VoidHub",
-	Icon = ICONS.star,
-	DescriptionWords = {
-		GAME_NAME .. " Script Hub",
-		"\nVersion: ",
-		{ Text = HUB_VERSION, Colors = { Color3.fromRGB(180, 140, 255) } },
-		"\nMade with care for the community.",
-	},
-})
-
-TabInfo:CreateParagraph({
-	Title = "Credits",
-	Icon = ICONS.heart,
-	DescriptionWords = {
-		{ Text = "Credits: von63rd", Colors = { Color3.fromRGB(255, 50, 50) } },
-		"\nScript Developer & Designer",
-	},
-})
-
-TabInfo:CreateSection({ Text = "Community", Icon = ICONS.globe })
-
-TabInfo:CreateDiscordInvite({
-	Title = "VoidHub Community",
-	Description = "Join for updates, support & more!",
-	Icon = HUB_ICON,
-	Banner = HUB_ICON,
-	Link = DISCORD_INVITE,
-	Button = "Join Discord",
-})
-
-TabInfo:CreateParagraph({
-	Title = "Quick Tips",
-	Icon = ICONS.charge,
-	Description = "- Auto Steal Selected uses the filters, Auto Steal All ignores them\n- Auto Return carries stolen eggs home for you\n- The Priority tab decides which task runs first\n- Server Hop can farm fresh eggs while you are away\n- Configs save on their own, or export them from Settings",
-})
-
---// Runtime
-
 F.applyAntiGameplayPause = function(enabled)
 	pcall(function()
 		game:GetService("GuiService"):SetGameplayPausedNotificationEnabled(not enabled)
@@ -3775,17 +3022,9 @@ F.applyAntiGameplayPause = function(enabled)
 	end)
 end
 
+local renderingDisabled = false
 local renderOverlay = nil
 local renderRows = {}
-
-local RENDER_ROWS = {
-	"money",
-	"speed",
-	"pets",
-	"eggs",
-	"stolen",
-	"session",
-}
 
 F.destroyRenderOverlay = function()
 	if renderOverlay then
@@ -3796,6 +3035,15 @@ F.destroyRenderOverlay = function()
 	renderOverlay = nil
 	table.clear(renderRows)
 end
+
+local RENDER_ROWS = {
+	"money",
+	"speed",
+	"pets",
+	"eggs",
+	"stolen",
+	"session",
+}
 
 F.buildRenderOverlay = function()
 	if renderOverlay and renderOverlay.Parent then
@@ -3810,7 +3058,7 @@ F.buildRenderOverlay = function()
 
 	local backdrop = Instance.new("Frame")
 	backdrop.Size = UDim2.fromScale(1, 1)
-	backdrop.BackgroundColor3 = Color3.fromRGB(12, 10, 18)
+	backdrop.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
 	backdrop.BorderSizePixel = 0
 	backdrop.Parent = gui
 
@@ -3822,7 +3070,7 @@ F.buildRenderOverlay = function()
 	title.Font = Enum.Font.GothamMedium
 	title.TextSize = 24
 	title.TextColor3 = Color3.fromRGB(226, 230, 238)
-	title.Text = HUB_NAME .. " | " .. GAME_NAME
+	title.Text = HUB_NAME
 	title.Parent = backdrop
 
 	local invite = Instance.new("TextLabel")
@@ -3855,7 +3103,7 @@ F.buildRenderOverlay = function()
 		row.Font = Enum.Font.Code
 		row.TextSize = 13
 		row.TextXAlignment = Enum.TextXAlignment.Left
-		row.TextColor3 = Color3.fromRGB(130, 124, 150)
+		row.TextColor3 = Color3.fromRGB(120, 124, 134)
 		row.Text = name
 		row.LayoutOrder = index
 		row.Parent = panel
@@ -3889,9 +3137,12 @@ F.updateRenderOverlay = function()
 end
 
 F.applyRendering = function(disabled)
-	pcall(function()
+	local ok = pcall(function()
 		RunService:Set3dRenderingEnabled(not disabled)
 	end)
+	if ok then
+		renderingDisabled = disabled
+	end
 	if disabled then
 		F.buildRenderOverlay()
 		F.updateRenderOverlay()
@@ -3998,7 +3249,7 @@ F.applyFpsCap = function(value)
 	if typeof(setter) ~= "function" then
 		if not fpsCapWarned then
 			fpsCapWarned = true
-			Notify("FPS cap is not supported by your executor")
+			F.notify("FPS cap is not supported by your executor")
 		end
 		return
 	end
@@ -4071,22 +3322,320 @@ local antiAfkChangedConnection = UserInputService.InputChanged:Connect(function(
 	end
 end)
 
-local menuKeyConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if Unloaded or gameProcessed then
-		return
-	end
-	for _, key in ipairs(MenuKeys) do
-		if input.KeyCode == key then
-			local frame = Window:GetMainFrame()
-			if frame then
-				frame.Visible = not frame.Visible
-			end
-			break
+-- ============================================================
+-- Window / tabs
+--
+-- VoidHub-'s AddTab/AddSubTab icon only accepts one of a fixed set of
+-- 34 internal icon names (README "Icons" section) - Icons.lua.txt's
+-- asset-id map is a different, unrelated icon system and has zero
+-- name overlap with that list, so it cannot feed tab icons here.
+-- ============================================================
+
+Window:AddTabLabel("Farming")
+
+local TabSteal = Window:AddTab("Steal", "farm")
+local TabEggs = Window:AddTab("Eggs", "egg")
+local TabPets = Window:AddTab("Pets", "box")
+local TabShop = Window:AddTab("Shop", "shop")
+
+Window:AddTabLabel("Visuals")
+
+local TabEsp = Window:AddTab("ESP", "crosshair")
+local TabMovement = Window:AddTab("Movement", "run")
+
+Window:AddTabLabel("System")
+
+local TabPriority = Window:AddTab("Priority", "list")
+local TabServer = Window:AddTab("Server", "earth")
+local TabWebhooks = Window:AddTab("Webhooks", "code")
+local TabSettings = Window:AddTab("Settings", "gear")
+
+Window:AddTabLabel("Community")
+
+local TabInfo = Window:AddTab("Info", "bio")
+
+-- ===== Steal =====
+
+local StealFilters = TabSteal:AddSection("Filters", "left")
+
+AddMultiSelect(StealFilters, "StealZones", "Areas", ZONE_VALUES, {})
+AddMultiSelect(StealFilters, "StealRarities", "Rarities", RARITY_VALUES, {})
+AddMultiSelect(StealFilters, "StealMutations", "Mutations", MUTATION_VALUES, {})
+AddDropdown(StealFilters, "StealPriority", "Target Priority", PRIORITY_VALUES, "Rarest")
+
+local StealAutomation = TabSteal:AddSection("Automation", "right")
+
+AddToggle(StealAutomation, "AutoStealSelected", "Auto Steal Selected", false)
+AddToggle(StealAutomation, "AutoStealAll", "Auto Steal All", false)
+AddToggle(StealAutomation, "StealBigEggs", "Steal Big Eggs", false)
+AddSlider(StealAutomation, "StealBigEggScale", "Big Egg Minimum Size", 1, 50, 2, "x")
+AddSlider(StealAutomation, "StealSpeed", "Steal Speed", 50, 1000, 300)
+
+local StealCarrying = TabSteal:AddSection("Carrying", "left")
+
+AddToggle(StealCarrying, "AutoReturn", "Auto Return to Base", true)
+AddToggle(StealCarrying, "AutoDropEgg", "Auto Drop Held Egg", false)
+
+-- ===== Eggs =====
+
+local EggFilters = TabEggs:AddSection("Filters", "left")
+
+AddMultiSelect(EggFilters, "LifecycleRarities", "Rarities", RARITY_VALUES, {})
+AddMultiSelect(EggFilters, "LifecycleMutations", "Mutations", MUTATION_VALUES, {})
+
+local EggLifecycle = TabEggs:AddSection("Place & Hatch", "right")
+
+AddToggle(EggLifecycle, "AutoPlaceSelected", "Auto Place Selected", false)
+AddToggle(EggLifecycle, "AutoPlaceAll", "Auto Place All", false)
+AddToggle(EggLifecycle, "AutoOpenReadyEggs", "Auto Hatch Ready", false)
+
+local EggSell = TabEggs:AddSection("Auto Sell Eggs", "left")
+
+AddToggle(EggSell, "AutoSellEggs", "Auto Sell Eggs", false)
+AddMultiSelect(EggSell, "SellEggRarities", "Sell Rarities", RARITY_VALUES, {})
+AddSlider(EggSell, "SellEggInterval", "Sell Interval", 1, 120, 8, "s")
+
+-- ===== Pets =====
+
+local PetEquip = TabPets:AddSection("Equip", "left")
+
+AddToggle(PetEquip, "AutoEquipBest", "Auto Equip Best Pets", false)
+
+local PetFuse = TabPets:AddSection("Auto Fuse", "right")
+
+AddToggle(PetFuse, "AutoFusePets", "Auto Fuse Pets [Beta]", false)
+AddMultiSelect(PetFuse, "FuseRarities", "Fuse Rarities", RARITY_VALUES, {})
+AddMultiSelect(PetFuse, "FuseMutations", "Fuse Mutations", MUTATION_VALUES, {})
+AddDropdown(PetFuse, "FuseTarget", "Pick Group By", FUSE_TARGET_VALUES, "Highest Rarity")
+AddSlider(PetFuse, "FuseMaxScale", "Maximum Scale to Fuse", 0, 10, 10, "x")
+AddSlider(PetFuse, "FuseKeepPerCategory", "Keep Per Pet Type", 0, 20, 0)
+AddSlider(PetFuse, "FuseInterval", "Fuse Interval", 1, 120, 8, "s")
+AddToggle(PetFuse, "FuseAutoReveal", "Auto Complete Reveal", true)
+AddToggle(PetFuse, "FuseKeepMutated", "Never Fuse Mutated", true)
+AddToggle(PetFuse, "FuseKeepEquipped", "Never Fuse Equipped", true)
+AddButton(PetFuse, "Fuse Now", function()
+	task.spawn(function()
+		F.runAutoFusePets(true)
+	end)
+end)
+
+local PetSell = TabPets:AddSection("Auto Sell Pets", "left")
+
+AddToggle(PetSell, "AutoSellPets", "Auto Sell Pets", false)
+AddMultiSelect(PetSell, "SellRarities", "Sell Rarities", RARITY_VALUES, {})
+AddMultiSelect(PetSell, "SellMutations", "Sell Mutations", MUTATION_VALUES, {})
+AddSlider(PetSell, "SellMaxScale", "Maximum Scale to Sell", 0, 10, 10, "x")
+AddSlider(PetSell, "SellInterval", "Sell Interval", 1, 120, 6, "s")
+AddToggle(PetSell, "SellKeepMutated", "Never Sell Mutated", true)
+AddToggle(PetSell, "SellKeepEquipped", "Never Sell Equipped", true)
+
+local PetEarnings = TabPets:AddSection("Earnings", "right")
+
+AddToggle(PetEarnings, "AutoClaimOffline", "Claim Offline Earnings", false)
+
+-- ===== Shop =====
+
+local ShopUpgrades = TabShop:AddSection("Upgrades", "left")
+
+AddToggle(ShopUpgrades, "AutoUpgrades", "Auto Buy Upgrades", false)
+AddMultiSelect(ShopUpgrades, "UpgradeTypes", "Upgrades", UPGRADE_VALUES, { "Base", "Treadmill" })
+
+local ShopRewards = TabShop:AddSection("Rewards", "right")
+
+AddToggle(ShopRewards, "AutoClaimIndex", "Auto Claim Index", false)
+AddToggle(ShopRewards, "AutoClaimGroupReward", "Auto Claim Group Reward", false)
+
+local ShopTrails = TabShop:AddSection("Trails", "left")
+
+AddToggle(ShopTrails, "AutoBuyTrail", "Auto Buy Trail", false)
+AddMultiSelect(ShopTrails, "TrailWanted", "Trails", TRAIL_VALUES, {})
+AddToggle(ShopTrails, "AutoEquipBestTrail", "Auto Equip Best Trail", false)
+
+local ShopTraining = TabShop:AddSection("Training & Gear", "right")
+
+AddToggle(ShopTraining, "AutoTreadmill", "Auto Treadmill Training", false)
+AddToggle(ShopTraining, "AutoEquipBestGear", "Auto Equip Best Gear", false)
+
+-- ===== ESP =====
+
+local EspEggs = TabEsp:AddSection("Eggs", "left")
+
+AddToggle(EspEggs, "EspWorldEggs", "World Egg ESP", false)
+AddToggle(EspEggs, "EspCarriedEggs", "Carried & Dropped Eggs", false)
+
+local EspWorld = TabEsp:AddSection("World", "right")
+
+AddToggle(EspWorld, "EspGuards", "Guard ESP", false)
+AddToggle(EspWorld, "EspPets", "Pet ESP", false)
+AddToggle(EspWorld, "EspPlayers", "Player ESP", false)
+AddToggle(EspWorld, "EspMachines", "Machine ESP", false)
+AddToggle(EspWorld, "EspPlots", "Plot ESP", false)
+AddSlider(EspWorld, "EspDistance", "Render Distance", 100, 6000, 2000, " studs")
+
+-- ===== Movement =====
+
+local MoveCharacter = TabMovement:AddSection("Character", "left")
+
+AddToggle(MoveCharacter, "WalkSpeedEnabled", "Walk Speed Override", false, function(value)
+	if not value then
+		local humanoid = F.getHumanoid()
+		if humanoid then
+			humanoid.WalkSpeed = 16
 		end
 	end
 end)
+AddSlider(MoveCharacter, "WalkSpeed", "Walk Speed", 16, 500, 32)
+AddToggle(MoveCharacter, "JumpPowerEnabled", "Jump Power Override", false)
+AddSlider(MoveCharacter, "JumpPower", "Jump Power", 10, 500, 50)
+AddToggle(MoveCharacter, "InfJump", "Infinite Jump", false)
+AddToggle(MoveCharacter, "NoClip", "NoClip", false)
 
-local steppedConnection = RunService.Stepped:Connect(function()
+local MoveFly = TabMovement:AddSection("Fly", "right")
+
+AddToggle(MoveFly, "Fly", "Fly (WASD, Space up, Ctrl down)", false, function(value)
+	if not value then
+		local humanoid = F.getHumanoid()
+		if humanoid then
+			humanoid.PlatformStand = false
+		end
+	end
+end)
+AddSlider(MoveFly, "FlySpeed", "Fly Speed", 10, 400, 60)
+
+local MoveTeleport = TabMovement:AddSection("Teleport", "right")
+
+AddDropdown(MoveTeleport, "WaypointTarget", "Waypoint", WAYPOINT_VALUES, "Base")
+AddButton(MoveTeleport, "Teleport to Waypoint", function()
+	task.spawn(function()
+		local position = F.resolveWaypoint(F.optionValue("WaypointTarget", nil))
+		if not position then
+			F.notify("That waypoint is not available right now")
+			return
+		end
+		if not F.travelTo(position, true) then
+			F.notify("Teleport failed")
+		end
+	end)
+end)
+
+-- ===== Priority =====
+
+local PriorityOrder = TabPriority:AddSection("Task Order", "left")
+
+for index, slot in ipairs(PRIORITY_SLOTS) do
+	AddDropdown(PriorityOrder, slot, string.format("Priority %d", index), PRIORITY_TASKS, PRIORITY_TASKS[index])
+end
+
+-- ===== Server =====
+
+local ServerHop = TabServer:AddSection("Server Hop", "left")
+
+AddToggle(ServerHop, "AutoServerHop", "Auto Server Hop", false)
+AddDropdown(ServerHop, "HopMode", "Hop When", HOP_MODES, "No Matching Eggs")
+AddSlider(ServerHop, "HopValue", "Threshold", 1, 200, 15)
+AddButton(ServerHop, "Hop Now", function()
+	task.spawn(function()
+		hopCooldownUntil = 0
+		F.serverHop("Manual hop")
+	end)
+end)
+
+local ServerConnection = TabServer:AddSection("Connection", "right")
+
+AddToggle(ServerConnection, "AutoReconnect", "Auto Reconnect", false)
+AddButton(ServerConnection, "Copy Join Script", function()
+	local joinScript = string.format(
+		'game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s", game:GetService("Players").LocalPlayer)',
+		game.PlaceId,
+		jobIdText
+	)
+	F.copyText(joinScript, "Copied join script to clipboard")
+end)
+
+-- ===== Webhooks =====
+
+local WebhookMain = TabWebhooks:AddSection("Webhook", "left")
+
+AddToggle(WebhookMain, "WebhookEnabled", "Enable Webhooks", false)
+AddSlider(WebhookMain, "WebhookInterval", "Summary Interval", 1, 180, 15, " min")
+AddButton(WebhookMain, "Send Summary Now", function()
+	task.spawn(function()
+		F.notify(F.sendSummary() and "Summary sent" or "Webhook send failed")
+	end)
+end)
+
+local WebhookContents = TabWebhooks:AddSection("Contents", "right")
+
+AddToggle(WebhookContents, "WebhookEggSpawns", "List Spawned Eggs", true)
+AddMultiSelect(WebhookContents, "WebhookRarities", "Only Report Rarities", RARITY_VALUES, {})
+AddToggle(WebhookContents, "WebhookDisconnectAlerts", "Disconnect Alerts", false)
+
+-- ===== Settings =====
+
+local SettingsMenu = TabSettings:AddSection("Menu", "left")
+
+AddToggle(SettingsMenu, "AntiAfk", "Anti-AFK", true)
+AddToggle(SettingsMenu, "AntiGameplayPause", "No Gameplay Paused", true, function(value)
+	F.applyAntiGameplayPause(value)
+end)
+AddToggle(SettingsMenu, "DisableRendering", "Disable 3D Rendering", false, function(value)
+	F.applyRendering(value)
+end)
+
+local SettingsPerformance = TabSettings:AddSection("Performance", "right")
+
+AddToggle(SettingsPerformance, "FpsBoost", "FPS Boost", false, function(value)
+	F.applyFpsBoost(value)
+end)
+AddToggle(SettingsPerformance, "AutoDeleteOwnPets", "Auto Delete Own Pets", false)
+AddSlider(SettingsPerformance, "FpsCap", "FPS Cap", 15, 360, 60, nil, function(value)
+	F.applyFpsCap(value)
+end)
+
+local SettingsDanger = TabSettings:AddSection("Danger Zone", "left")
+
+local PANIC_TOGGLES = {
+	"AutoStealSelected", "AutoStealAll", "StealBigEggs", "AutoDropEgg",
+	"AutoPlaceSelected", "AutoPlaceAll", "AutoOpenReadyEggs", "AutoSellEggs",
+	"AutoFusePets", "AutoSellPets", "AutoEquipBest", "AutoClaimOffline",
+	"AutoUpgrades", "AutoClaimIndex", "AutoClaimGroupReward", "AutoBuyTrail",
+	"AutoEquipBestTrail", "AutoTreadmill", "AutoEquipBestGear",
+	"AutoServerHop", "Fly", "NoClip", "InfJump",
+}
+
+F.panic = function()
+	for _, id in ipairs(PANIC_TOGGLES) do
+		F.setControl(id, false)
+	end
+	F.notify("Panic - every automation toggle is off", 3)
+end
+
+AddButton(SettingsDanger, "Panic Stop", F.panic)
+AddButton(SettingsDanger, "Unload VoidHub", function()
+	F.unload()
+end)
+
+-- ===== Info =====
+
+local InfoCommunity = TabInfo:AddSection("Community", "left")
+
+AddButton(InfoCommunity, "Copy Discord Link", F.copyDiscord)
+AddButton(InfoCommunity, "Copy Credits", function()
+	F.copyText(HUB_NAME .. " - Steal An Egg Script Hub | Credits: von63rd | Script Developer & Designer", "Copied credits")
+end)
+
+-- ============================================================
+-- Movement / anti-detect event handlers
+--
+-- The window's own menu toggle (its built-in control, or the H key
+-- per the README) replaces the old custom MenuKey keybind, since the
+-- library exposes no scriptable Toggle()/SetVisible() to bind a
+-- second key to.
+-- ============================================================
+
+local Camera = Workspace.CurrentCamera
+
+RunService.Stepped:Connect(function()
 	if Unloaded then
 		return
 	end
@@ -4102,7 +3651,7 @@ local steppedConnection = RunService.Stepped:Connect(function()
 	end
 end)
 
-local jumpConnection = UserInputService.JumpRequest:Connect(function()
+UserInputService.JumpRequest:Connect(function()
 	if Unloaded then
 		return
 	end
@@ -4114,7 +3663,7 @@ local jumpConnection = UserInputService.JumpRequest:Connect(function()
 	end
 end)
 
-local renderConnection = RunService.RenderStepped:Connect(function(dt)
+RunService.RenderStepped:Connect(function(dt)
 	if Unloaded then
 		return
 	end
@@ -4166,7 +3715,7 @@ local renderConnection = RunService.RenderStepped:Connect(function(dt)
 	end
 end)
 
-local characterConnection = LocalPlayer.CharacterAdded:Connect(function()
+LocalPlayer.CharacterAdded:Connect(function()
 	if Unloaded then
 		return
 	end
@@ -4469,13 +4018,19 @@ end)
 task.spawn(function()
 	while not Unloaded do
 		task.wait(1)
-		if F.isOn("AntiGameplayPause") then
-			F.applyAntiGameplayPause(true)
-		end
 		if F.isOn("DisableRendering") then
 			pcall(F.updateRenderOverlay)
 		elseif renderOverlay then
 			pcall(F.destroyRenderOverlay)
+		end
+	end
+end)
+
+task.spawn(function()
+	while not Unloaded do
+		task.wait(1)
+		if F.isOn("AntiGameplayPause") then
+			F.applyAntiGameplayPause(true)
 		end
 	end
 end)
@@ -4514,98 +4069,55 @@ task.spawn(function()
 	end
 end)
 
-task.spawn(function()
-	while not Unloaded do
-		task.wait(1)
-		pcall(function()
-			SessionParagraph:SetDescription(string.format(
-				"Place ID: %s\nJob ID: %s\nSession time: %s",
-				tostring(game.PlaceId),
-				shortJobIdText,
-				F.formatClock(os.clock() - sessionStart)
-			))
-		end)
-	end
-end)
-
 F.unload = function()
 	if Unloaded then
 		return
 	end
 	Unloaded = true
+
 	pcall(F.applyAntiGameplayPause, false)
 	pcall(F.applyRendering, false)
 	pcall(F.applyFpsBoost, false)
 	pcall(F.destroyRenderOverlay)
 	pcall(F.stopTreadmillTraining)
 	pcall(F.clearAllEsp)
+
+	if espFolder then
+		pcall(function()
+			espFolder:Destroy()
+		end)
+	end
+
 	pcall(function()
-		espFolder:Destroy()
+		antiAfkBeganConnection:Disconnect()
 	end)
-	for _, connection in ipairs({
-		antiAfkBeganConnection,
-		antiAfkChangedConnection,
-		menuKeyConnection,
-		steppedConnection,
-		jumpConnection,
-		renderConnection,
-		characterConnection,
-		carryConnection,
-		hopFailConnection,
-		autoExecuteConnection,
-	}) do
-		pcall(function()
-			connection:Disconnect()
-		end)
-	end
-	autoExecuteConnection = nil
-	local humanoid = F.getHumanoid()
-	if humanoid then
-		pcall(function()
-			humanoid.PlatformStand = false
-			humanoid.WalkSpeed = 16
-			humanoid.JumpPower = 50
-		end)
-	end
+	pcall(function()
+		antiAfkChangedConnection:Disconnect()
+	end)
+	pcall(function()
+		if carryConnection then
+			carryConnection:Disconnect()
+		end
+	end)
+	pcall(function()
+		if hopFailConnection then
+			hopFailConnection:Disconnect()
+		end
+	end)
+
+	pcall(function()
+		NotifyGui:Destroy()
+	end)
+
 	if getgenv then
 		getgenv().VoidHubStealAnEgg = nil
 	end
-	pcall(function()
-		Window:Destroy()
-	end)
 end
 
--- Pull saved values back into the runtime state once AutoLoad has settled.
-task.delay(1.5, function()
-	if Unloaded then
-		return
-	end
-	for name, component in pairs(Components) do
-		if typeof(component) == "table" and typeof(component.Get) == "function" then
-			local ok, value = pcall(component.Get, component)
-			if ok and value ~= nil then
-				State[name] = value
-			end
-		end
-	end
-	State.ConfigImportSource = ""
-	if F.isOn("AntiGameplayPause") then
-		F.applyAntiGameplayPause(true)
-	end
-	if F.isOn("FpsBoost") then
-		F.applyFpsBoost(true)
-	end
-	if F.isOn("DisableRendering") then
-		F.applyRendering(true)
-	end
-	F.applyFpsCap(F.optionValue("FpsCap", 60))
-end)
+if getgenv then
+	getgenv().VoidHubStealAnEgg = { Unload = F.unload }
+end
 
-Window:Notify({
-	Title = "VoidHub Ready",
-	Text = "All systems initialized. Good luck!",
-	Duration = 4,
-	ColoredWords = {
-		{ Text = "VoidHub", Colors = { Color3.fromRGB(180, 140, 255) } },
-	},
-})
+F.applyAntiGameplayPause(true)
+
+F.notify("Loaded - " .. GAME_NAME .. " | by von63rd | v1", 4)
