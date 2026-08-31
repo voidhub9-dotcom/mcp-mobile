@@ -3247,37 +3247,41 @@ end)
 -- ============================================================
 -- Window / tabs
 --
--- VoidHub-'s AddTab/AddSubTab icon only accepts one of a fixed set of
--- 34 internal icon names (README "Icons" section) - Icons.lua.txt's
--- asset-id map is a different, unrelated icon system and has zero
--- name overlap with that list, so it cannot feed tab icons here.
+-- Fewer sidebar tabs, more pages/sections per tab - matching the
+-- example script's Tab -> Page -> Section shape. Page:CreateSection
+-- has no left/right side arg; it auto-alternates columns on each call
+-- within a page.
 -- ============================================================
 
--- This library has no tab-icon or sidebar-label API (CreateTab only takes
--- name/isDefault/isLocked), and CreateSection has no left/right side arg -
--- it auto-alternates columns on each call within a page.
-local TabSteal = Window:CreateTab("Steal", true, false):CreatePage("Steal")
-local TabEggs = Window:CreateTab("Eggs", false, false):CreatePage("Eggs")
-local TabPets = Window:CreateTab("Pets", false, false):CreatePage("Pets")
-local TabShop = Window:CreateTab("Shop", false, false):CreatePage("Shop")
-local TabEsp = Window:CreateTab("ESP", false, false):CreatePage("ESP")
-local TabMovement = Window:CreateTab("Movement", false, false):CreatePage("Movement")
-local TabPriority = Window:CreateTab("Priority", false, false):CreatePage("Priority")
-local TabServer = Window:CreateTab("Server", false, false):CreatePage("Server")
-local TabWebhooks = Window:CreateTab("Webhooks", false, false):CreatePage("Webhooks")
-local TabSettings = Window:CreateTab("Settings", false, false):CreatePage("Settings")
-local TabInfo = Window:CreateTab("Info", false, false):CreatePage("Info")
+local FarmingTab = Window:CreateTab("Farming", true, false)
+local TabSteal = FarmingTab:CreatePage("Steal")
+local TabEggs = FarmingTab:CreatePage("Eggs")
+local TabPets = FarmingTab:CreatePage("Pets")
+local TabShop = FarmingTab:CreatePage("Shop")
+
+local VisualsTab = Window:CreateTab("Visuals", false, false)
+local TabEsp = VisualsTab:CreatePage("ESP")
+local TabMovement = VisualsTab:CreatePage("Movement")
+
+local SystemTab = Window:CreateTab("System", false, false)
+local TabPriority = SystemTab:CreatePage("Priority")
+local TabServer = SystemTab:CreatePage("Server")
+local TabWebhooks = SystemTab:CreatePage("Webhooks")
+local TabSettings = SystemTab:CreatePage("Settings")
+
+local InfoTab = Window:CreateTab("Info", false, false)
+local TabInfo = InfoTab:CreatePage("Info")
 
 -- ===== Steal =====
 
-local StealFilters = TabSteal:AddSection("Filters")
+local StealFilters = TabSteal:CreateSection("Filters")
 
 AddMultiSelect(StealFilters, "StealZones", "Steal Areas", ZONE_VALUES, {})
 AddMultiSelect(StealFilters, "StealRarities", "Steal Rarities", RARITY_VALUES, {})
 AddMultiSelect(StealFilters, "StealMutations", "Steal Mutations", MUTATION_VALUES, {})
 AddDropdown(StealFilters, "StealPriority", "Target Priority", PRIORITY_VALUES, "Rarest")
 
-local StealAutomation = TabSteal:AddSection("Automation")
+local StealAutomation = TabSteal:CreateSection("Automation")
 
 AddToggle(StealAutomation, "AutoStealSelected", "Auto Steal Selected", false)
 AddToggle(StealAutomation, "AutoStealAll", "Auto Steal All", false)
@@ -3285,25 +3289,25 @@ AddToggle(StealAutomation, "StealBigEggs", "Steal Big Eggs", false)
 AddSlider(StealAutomation, "StealBigEggScale", "Big Egg Minimum Size", 1, 50, 2, "x")
 AddSlider(StealAutomation, "StealSpeed", "Steal Speed", 50, 1000, 300)
 
-local StealCarrying = TabSteal:AddSection("Carrying")
+local StealCarrying = TabSteal:CreateSection("Carrying")
 
 AddToggle(StealCarrying, "AutoReturn", "Auto Return to Base", true)
 AddToggle(StealCarrying, "AutoDropEgg", "Auto Drop Held Egg", false)
 
 -- ===== Eggs =====
 
-local EggFilters = TabEggs:AddSection("Filters")
+local EggFilters = TabEggs:CreateSection("Filters")
 
 AddMultiSelect(EggFilters, "LifecycleRarities", "Egg Rarities", RARITY_VALUES, {})
 AddMultiSelect(EggFilters, "LifecycleMutations", "Egg Mutations", MUTATION_VALUES, {})
 
-local EggLifecycle = TabEggs:AddSection("Place & Hatch")
+local EggLifecycle = TabEggs:CreateSection("Place & Hatch")
 
 AddToggle(EggLifecycle, "AutoPlaceSelected", "Auto Place Selected", false)
 AddToggle(EggLifecycle, "AutoPlaceAll", "Auto Place All", false)
 AddToggle(EggLifecycle, "AutoOpenReadyEggs", "Auto Hatch Ready", false)
 
-local EggSell = TabEggs:AddSection("Auto Sell Eggs")
+local EggSell = TabEggs:CreateSection("Auto Sell Eggs")
 
 AddToggle(EggSell, "AutoSellEggs", "Auto Sell Eggs", false)
 AddMultiSelect(EggSell, "SellEggRarities", "Sell Egg Rarities", RARITY_VALUES, {})
@@ -3311,11 +3315,11 @@ AddSlider(EggSell, "SellEggInterval", "Sell Egg Interval", 1, 120, 8, "s")
 
 -- ===== Pets =====
 
-local PetEquip = TabPets:AddSection("Equip")
+local PetEquip = TabPets:CreateSection("Equip")
 
 AddToggle(PetEquip, "AutoEquipBest", "Auto Equip Best Pets", false)
 
-local PetFuse = TabPets:AddSection("Auto Fuse")
+local PetFuse = TabPets:CreateSection("Auto Fuse")
 
 AddToggle(PetFuse, "AutoFusePets", "Auto Fuse Pets [Beta]", false)
 AddMultiSelect(PetFuse, "FuseRarities", "Fuse Rarities", RARITY_VALUES, {})
@@ -3333,7 +3337,7 @@ AddButton(PetFuse, "Fuse Now", function()
 	end)
 end)
 
-local PetSell = TabPets:AddSection("Auto Sell Pets")
+local PetSell = TabPets:CreateSection("Auto Sell Pets")
 
 AddToggle(PetSell, "AutoSellPets", "Auto Sell Pets", false)
 AddMultiSelect(PetSell, "SellRarities", "Sell Pet Rarities", RARITY_VALUES, {})
@@ -3343,41 +3347,41 @@ AddSlider(PetSell, "SellInterval", "Sell Pet Interval", 1, 120, 6, "s")
 AddToggle(PetSell, "SellKeepMutated", "Never Sell Mutated", true)
 AddToggle(PetSell, "SellKeepEquipped", "Never Sell Equipped", true)
 
-local PetEarnings = TabPets:AddSection("Earnings")
+local PetEarnings = TabPets:CreateSection("Earnings")
 
 AddToggle(PetEarnings, "AutoClaimOffline", "Claim Offline Earnings", false)
 
 -- ===== Shop =====
 
-local ShopUpgrades = TabShop:AddSection("Upgrades")
+local ShopUpgrades = TabShop:CreateSection("Upgrades")
 
 AddToggle(ShopUpgrades, "AutoUpgrades", "Auto Buy Upgrades", false)
 AddMultiSelect(ShopUpgrades, "UpgradeTypes", "Upgrades", UPGRADE_VALUES, { "Base", "Treadmill" })
 
-local ShopRewards = TabShop:AddSection("Rewards")
+local ShopRewards = TabShop:CreateSection("Rewards")
 
 AddToggle(ShopRewards, "AutoClaimIndex", "Auto Claim Index", false)
 AddToggle(ShopRewards, "AutoClaimGroupReward", "Auto Claim Group Reward", false)
 
-local ShopTrails = TabShop:AddSection("Trails")
+local ShopTrails = TabShop:CreateSection("Trails")
 
 AddToggle(ShopTrails, "AutoBuyTrail", "Auto Buy Trail", false)
 AddMultiSelect(ShopTrails, "TrailWanted", "Trails", TRAIL_VALUES, {})
 AddToggle(ShopTrails, "AutoEquipBestTrail", "Auto Equip Best Trail", false)
 
-local ShopTraining = TabShop:AddSection("Training & Gear")
+local ShopTraining = TabShop:CreateSection("Training & Gear")
 
 AddToggle(ShopTraining, "AutoTreadmill", "Auto Treadmill Training", false)
 AddToggle(ShopTraining, "AutoEquipBestGear", "Auto Equip Best Gear", false)
 
 -- ===== ESP =====
 
-local EspEggs = TabEsp:AddSection("Eggs")
+local EspEggs = TabEsp:CreateSection("Eggs")
 
 AddToggle(EspEggs, "EspWorldEggs", "World Egg ESP", false)
 AddToggle(EspEggs, "EspCarriedEggs", "Carried & Dropped Eggs", false)
 
-local EspWorld = TabEsp:AddSection("World")
+local EspWorld = TabEsp:CreateSection("World")
 
 AddToggle(EspWorld, "EspGuards", "Guard ESP", false)
 AddToggle(EspWorld, "EspPets", "Pet ESP", false)
@@ -3388,7 +3392,7 @@ AddSlider(EspWorld, "EspDistance", "Render Distance", 100, 6000, 2000, " studs")
 
 -- ===== Movement =====
 
-local MoveCharacter = TabMovement:AddSection("Character")
+local MoveCharacter = TabMovement:CreateSection("Character")
 
 AddToggle(MoveCharacter, "WalkSpeedEnabled", "Walk Speed Override", false, function(value)
 	if not value then
@@ -3404,7 +3408,7 @@ AddSlider(MoveCharacter, "JumpPower", "Jump Power", 10, 500, 50)
 AddToggle(MoveCharacter, "InfJump", "Infinite Jump", false)
 AddToggle(MoveCharacter, "NoClip", "NoClip", false)
 
-local MoveFly = TabMovement:AddSection("Fly")
+local MoveFly = TabMovement:CreateSection("Fly")
 
 AddToggle(MoveFly, "Fly", "Fly (WASD, Space up, Ctrl down)", false, function(value)
 	if not value then
@@ -3416,7 +3420,7 @@ AddToggle(MoveFly, "Fly", "Fly (WASD, Space up, Ctrl down)", false, function(val
 end)
 AddSlider(MoveFly, "FlySpeed", "Fly Speed", 10, 400, 60)
 
-local MoveTeleport = TabMovement:AddSection("Teleport")
+local MoveTeleport = TabMovement:CreateSection("Teleport")
 
 AddDropdown(MoveTeleport, "WaypointTarget", "Waypoint", WAYPOINT_VALUES, "Base")
 AddButton(MoveTeleport, "Teleport to Waypoint", function()
@@ -3434,7 +3438,7 @@ end)
 
 -- ===== Priority =====
 
-local PriorityOrder = TabPriority:AddSection("Task Order")
+local PriorityOrder = TabPriority:CreateSection("Task Order")
 
 for index, slot in ipairs(PRIORITY_SLOTS) do
 	AddDropdown(PriorityOrder, slot, string.format("Priority %d", index), PRIORITY_TASKS, PRIORITY_TASKS[index])
@@ -3442,7 +3446,7 @@ end
 
 -- ===== Server =====
 
-local ServerHop = TabServer:AddSection("Server Hop")
+local ServerHop = TabServer:CreateSection("Server Hop")
 
 AddToggle(ServerHop, "AutoServerHop", "Auto Server Hop", false)
 AddDropdown(ServerHop, "HopMode", "Hop When", HOP_MODES, "No Matching Eggs")
@@ -3454,7 +3458,7 @@ AddButton(ServerHop, "Hop Now", function()
 	end)
 end)
 
-local ServerConnection = TabServer:AddSection("Connection")
+local ServerConnection = TabServer:CreateSection("Connection")
 
 AddToggle(ServerConnection, "AutoReconnect", "Auto Reconnect", false)
 ServerConnection:AddCopyButton("Copy Join Script", string.format(
@@ -3465,7 +3469,7 @@ ServerConnection:AddCopyButton("Copy Join Script", string.format(
 
 -- ===== Webhooks =====
 
-local WebhookMain = TabWebhooks:AddSection("Webhook")
+local WebhookMain = TabWebhooks:CreateSection("Webhook")
 
 AddToggle(WebhookMain, "WebhookEnabled", "Enable Webhooks", false)
 AddTextBox(WebhookMain, "WebhookUrl", "Webhook URL", "https://discord.com/api/webhooks/...")
@@ -3477,7 +3481,7 @@ AddButton(WebhookMain, "Send Summary Now", function()
 	end)
 end)
 
-local WebhookContents = TabWebhooks:AddSection("Contents")
+local WebhookContents = TabWebhooks:CreateSection("Contents")
 
 AddToggle(WebhookContents, "WebhookEggSpawns", "List Spawned Eggs", true)
 AddMultiSelect(WebhookContents, "WebhookRarities", "Only Report Rarities", RARITY_VALUES, {})
@@ -3485,7 +3489,7 @@ AddToggle(WebhookContents, "WebhookDisconnectAlerts", "Disconnect Alerts", false
 
 -- ===== Settings =====
 
-local SettingsMenu = TabSettings:AddSection("Menu")
+local SettingsMenu = TabSettings:CreateSection("Menu")
 
 AddToggle(SettingsMenu, "AntiAfk", "Anti-AFK", true)
 AddToggle(SettingsMenu, "AntiGameplayPause", "No Gameplay Paused", true, function(value)
@@ -3495,7 +3499,7 @@ AddToggle(SettingsMenu, "DisableRendering", "Disable 3D Rendering", false, funct
 	F.applyRendering(value)
 end)
 
-local SettingsPerformance = TabSettings:AddSection("Performance")
+local SettingsPerformance = TabSettings:CreateSection("Performance")
 
 AddToggle(SettingsPerformance, "FpsBoost", "FPS Boost", false, function(value)
 	F.applyFpsBoost(value)
@@ -3505,7 +3509,7 @@ AddSlider(SettingsPerformance, "FpsCap", "FPS Cap", 15, 360, 60, nil, function(v
 	F.applyFpsCap(value)
 end)
 
-local SettingsDanger = TabSettings:AddSection("Danger Zone")
+local SettingsDanger = TabSettings:CreateSection("Danger Zone")
 
 local PANIC_TOGGLES = {
 	"AutoStealSelected", "AutoStealAll", "StealBigEggs", "AutoDropEgg",
@@ -3528,13 +3532,13 @@ AddButton(SettingsDanger, "Unload VoidHub", function()
 	F.unload()
 end)
 
-local SettingsConfig = TabSettings:AddSection("Config")
+local SettingsConfig = TabSettings:CreateSection("Config")
 
 SettingsConfig:AddConfigManager("VoidHubStealAnEgg")
 
 -- ===== Info =====
 
-local InfoCommunity = TabInfo:AddSection("Community")
+local InfoCommunity = TabInfo:CreateSection("Community")
 
 InfoCommunity:AddCopyButton("Copy Discord Link", DISCORD_INVITE)
 InfoCommunity:AddCopyButton("Copy Credits", HUB_NAME .. " - Steal An Egg Script Hub | Credits: von63rd | Script Developer & Designer")
