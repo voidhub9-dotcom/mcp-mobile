@@ -187,7 +187,7 @@ local NET = {
 	},
 }
 
-local Library = loadstring(game:HttpGet("https://getolympushub.xyz/olympus/library/Oxidelib.lua"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Naellx/Oxidelib/main/Oxidelib.lua"))()
 
 if getgenv then
 	local previous = getgenv().VoidHubStealAnEgg
@@ -3272,13 +3272,10 @@ end)
 -- Window / tabs
 --
 -- Oxidelib's AddTab Icon expects one of its own named icon keys (see
--- Library:GetIcons()), not a raw rbxassetid - the README only confirms
--- home/settings/combat/eye/shield/sword/fire/star/player exist, so only
--- the two tabs with a confident match get an icon; the rest go without
--- rather than guess a key that might not exist.
+-- Library:GetIcons()), not a raw rbxassetid.
 -- ============================================================
 
-local FarmingTab = Window:AddTab({ Name = "Farming" })
+local FarmingTab = Window:AddTab({ Name = "Farming", Icon = "coin" })
 local TabSteal = FarmingTab:AddSubTab("Steal")
 local TabEggs = FarmingTab:AddSubTab("Eggs")
 local TabPets = FarmingTab:AddSubTab("Pets")
@@ -3294,7 +3291,7 @@ local TabServer = SystemTab:AddSubTab("Server")
 local TabWebhooks = SystemTab:AddSubTab("Webhooks")
 local TabSettings = SystemTab:AddSubTab("Settings")
 
-local InfoTab = Window:AddTab({ Name = "Info" })
+local InfoTab = Window:AddTab({ Name = "Info", Icon = "info" })
 local TabInfo = InfoTab:AddSubTab("Info")
 
 -- ===== Steal =====
