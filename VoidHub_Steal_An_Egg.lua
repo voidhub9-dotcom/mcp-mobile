@@ -74,43 +74,6 @@ local HUB_NAME = "VoidHub"
 local HUB_ICON = "rbxassetid://101833678008843"
 local DISCORD_INVITE = "https://discord.gg/Wsarxj9Gzz"
 
--- Only the icon names actually used below, pulled from the Lucide-style
--- icon pack (name -> rbxassetid).
-local ICON = {
-	Sprout = "rbxassetid://10734965572",
-	Eye = "rbxassetid://10723346959",
-	Settings = "rbxassetid://10734950309",
-	Info = "rbxassetid://10723415903",
-	Filter = "rbxassetid://10723375128",
-	Bot = "rbxassetid://10709782230",
-	Hand = "rbxassetid://10723405649",
-	Egg = "rbxassetid://10723345518",
-	Coins = "rbxassetid://10709811110",
-	Star = "rbxassetid://10734966248",
-	Flask = "rbxassetid://10734883986",
-	Tags = "rbxassetid://10734976739",
-	Wallet = "rbxassetid://10747376205",
-	ArrowUp = "rbxassetid://10709768432",
-	Gift = "rbxassetid://10723396402",
-	Gem = "rbxassetid://10723396000",
-	Activity = "rbxassetid://10709752035",
-	Globe = "rbxassetid://10723404337",
-	Person = "rbxassetid://10734920149",
-	Feather = "rbxassetid://10723354671",
-	MapPin = "rbxassetid://10734886004",
-	ListOrdered = "rbxassetid://10723427199",
-	Server = "rbxassetid://10734949856",
-	Wifi = "rbxassetid://10747382504",
-	Send = "rbxassetid://10734943902",
-	ClipboardList = "rbxassetid://10709798792",
-	Menu = "rbxassetid://10734887784",
-	Gauge = "rbxassetid://10723395708",
-	AlertTriangle = "rbxassetid://10709753149",
-	Save = "rbxassetid://10734941499",
-	Users = "rbxassetid://10747373426",
-}
-
-
 local Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes"))
 local Constants = require(ReplicatedStorage.Shared.Globals.Constants)
 local Save = require(ReplicatedStorage.Shared.Save)
@@ -224,7 +187,7 @@ local NET = {
 	},
 }
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/vonsalt/voidhub/refs/heads/main/Main.luau"))()
+local Library = loadstring(game:HttpGet("https://getolympushub.xyz/olympus/library/Oxidelib.lua"))()
 
 if getgenv then
 	local previous = getgenv().VoidHubStealAnEgg
@@ -236,26 +199,24 @@ if getgenv then
 end
 
 local Window = Library:CreateWindow({
-	Title = HUB_NAME,
-	Subtitle = GAME_NAME,
-	SubtitleColor = Color3.fromRGB(190, 140, 255),
+	Name = HUB_NAME,
+	BrandSubtitle = GAME_NAME,
 	Logo = HUB_ICON,
-	LogoSize = 32,
-	SphereText = false,
-	SphereImage = HUB_ICON,
-	SphereIconSize = 38,
+	LogoZoom = 2.4,
+	Size = UDim2.fromOffset(600, 420),
+	GuiName = "VoidHub",
+	LoadingAnimation = false,
 })
 
 local Unloaded = false
 local State = {}
-local Components = {}
 local F = {}
 
 F.notify = function(text, duration)
 	if Unloaded then
 		return
 	end
-	Library:Notify({ Title = HUB_NAME, Description = tostring(text), Duration = duration or 4 })
+	Library:Notify({ Title = HUB_NAME, Content = tostring(text), Type = "info", Duration = duration or 4 })
 end
 
 F.isOn = function(name)
@@ -303,54 +264,61 @@ end
 -- ============================================================
 -- Control wrappers
 --
--- This library keys its config system by control title, and the only
--- way to get a handle back is Window.ConfigElements[title] right after
--- creating the control - so titles must stay unique across the window.
--- Dropdown/AddDropdown's 3rd arg is native multi-select, which replaces
--- the accordion-of-checkboxes hack the old library needed.
+-- Oxidelib takes one options table per control and has native
+-- MultiDropdown/Button/Input/Keybind support, so none of the previous
+-- libraries' hacks (accordion-of-checkboxes, toggle-that-resets, etc.)
+-- are needed here. Every control gets a Flag = id, which also makes it
+-- eligible for Oxidelib's own Save/LoadConfig for free.
 -- ============================================================
 
 local function AddToggle(section, id, title, default, callback)
 	State[id] = default == true
-	section:AddToggle(title, default == true, function(value)
-		State[id] = value == true
-		if callback then
-			task.spawn(callback, value == true)
-		end
-	end)
-	Components[id] = Window.ConfigElements[title]
-	return Components[id]
+	section:AddToggle({
+		Name = title,
+		Default = default == true,
+		Flag = id,
+		Callback = function(value)
+			State[id] = value == true
+			if callback then
+				task.spawn(callback, value == true)
+			end
+		end,
+	})
 end
 
 local function AddSlider(section, id, title, min, max, default, suffix, callback)
-	if suffix then
-		title = title .. " (" .. suffix .. ")"
-	end
 	State[id] = default
-	section:AddSlider(title, min, max, default, function(value)
-		State[id] = value
-		if callback then
-			task.spawn(callback, value)
-		end
-	end)
-	Components[id] = Window.ConfigElements[title]
-	return Components[id]
+	section:AddSlider({
+		Name = title,
+		Min = min,
+		Max = max,
+		Default = default,
+		Suffix = suffix,
+		Flag = id,
+		Callback = function(value)
+			State[id] = value
+			if callback then
+				task.spawn(callback, value)
+			end
+		end,
+	})
 end
 
 local function AddDropdown(section, id, title, options, default, callback)
 	State[id] = default
-	section:AddDropdown(title, options, false, function(value)
-		State[id] = value
-		if callback then
-			task.spawn(callback, value)
-		end
-	end)
-	local handle = Window.ConfigElements[title]
-	if handle and default ~= nil and default ~= options[1] then
-		handle.Set(default)
-	end
-	Components[id] = handle
-	return handle
+	section:AddDropdown({
+		Name = title,
+		Options = options,
+		Default = default,
+		Flag = id,
+		Searchable = true,
+		Callback = function(value)
+			State[id] = value
+			if callback then
+				task.spawn(callback, value)
+			end
+		end,
+	})
 end
 
 local function AddMultiSelect(section, id, title, options, defaults, callback)
@@ -359,47 +327,67 @@ local function AddMultiSelect(section, id, title, options, defaults, callback)
 		table.insert(initial, name)
 	end
 	State[id] = initial
-	section:AddDropdown(title, options, true, function(value)
-		State[id] = value
-		if callback then
-			task.spawn(callback, value)
-		end
-	end)
-	local handle = Window.ConfigElements[title]
-	if handle and #initial > 0 then
-		handle.Set(initial)
-	end
-	Components[id] = handle
-	return handle
+	section:AddMultiDropdown({
+		Name = title,
+		Options = options,
+		Default = initial,
+		Flag = id,
+		Callback = function(list)
+			State[id] = list
+			if callback then
+				task.spawn(callback, list)
+			end
+		end,
+	})
 end
 
 local function AddButton(section, title, callback)
-	section:AddButton(title, function()
-		task.spawn(function()
-			local ok, err = pcall(callback)
-			if not ok then
-				warn("[VoidHub] " .. tostring(err))
-			end
-		end)
-	end)
+	section:AddButton({
+		Name = title,
+		Callback = function()
+			task.spawn(function()
+				local ok, err = pcall(callback)
+				if not ok then
+					warn("[VoidHub] " .. tostring(err))
+				end
+			end)
+		end,
+	})
 end
 
 local function AddTextBox(section, id, title, placeholder, callback)
-	section:AddTextbox(title, placeholder, function(value)
-		State[id] = value
-		if callback then
-			task.spawn(callback, value)
-		end
-	end)
-	Components[id] = Window.ConfigElements[title]
+	State[id] = ""
+	section:AddInput({
+		Name = title,
+		Placeholder = placeholder,
+		Default = "",
+		Flag = id,
+		Callback = function(value)
+			State[id] = value
+			if callback then
+				task.spawn(callback, value)
+			end
+		end,
+	})
 end
 
 F.setControl = function(id, value)
 	State[id] = value
-	local component = Components[id]
-	if component then
-		pcall(component.Set, value)
+	pcall(function()
+		Library:SetFlag(id, value)
+	end)
+end
+
+F.copyText = function(text, message)
+	if setclipboard then
+		setclipboard(text)
+	elseif toclipboard then
+		toclipboard(text)
+	else
+		F.notify("Your executor does not support copying to the clipboard")
+		return
 	end
+	F.notify(message)
 end
 
 local RARITY_RANK = {}
@@ -3283,41 +3271,42 @@ end)
 -- ============================================================
 -- Window / tabs
 --
--- Fewer sidebar tabs, more pages/sections per tab - matching the
--- example script's Tab -> Page -> Section shape. Page:CreateSection
--- has no left/right side arg; it auto-alternates columns on each call
--- within a page.
+-- Oxidelib's AddTab Icon expects one of its own named icon keys (see
+-- Library:GetIcons()), not a raw rbxassetid - the README only confirms
+-- home/settings/combat/eye/shield/sword/fire/star/player exist, so only
+-- the two tabs with a confident match get an icon; the rest go without
+-- rather than guess a key that might not exist.
 -- ============================================================
 
-local FarmingTab = Window:CreateTab("Farming", true, false, ICON.Sprout)
-local TabSteal = FarmingTab:CreatePage("Steal")
-local TabEggs = FarmingTab:CreatePage("Eggs")
-local TabPets = FarmingTab:CreatePage("Pets")
-local TabShop = FarmingTab:CreatePage("Shop")
+local FarmingTab = Window:AddTab({ Name = "Farming" })
+local TabSteal = FarmingTab:AddSubTab("Steal")
+local TabEggs = FarmingTab:AddSubTab("Eggs")
+local TabPets = FarmingTab:AddSubTab("Pets")
+local TabShop = FarmingTab:AddSubTab("Shop")
 
-local VisualsTab = Window:CreateTab("Visuals", false, false, ICON.Eye)
-local TabEsp = VisualsTab:CreatePage("ESP")
-local TabMovement = VisualsTab:CreatePage("Movement")
+local VisualsTab = Window:AddTab({ Name = "Visuals", Icon = "eye" })
+local TabEsp = VisualsTab:AddSubTab("ESP")
+local TabMovement = VisualsTab:AddSubTab("Movement")
 
-local SystemTab = Window:CreateTab("System", false, false, ICON.Settings)
-local TabPriority = SystemTab:CreatePage("Priority")
-local TabServer = SystemTab:CreatePage("Server")
-local TabWebhooks = SystemTab:CreatePage("Webhooks")
-local TabSettings = SystemTab:CreatePage("Settings")
+local SystemTab = Window:AddTab({ Name = "System", Icon = "settings" })
+local TabPriority = SystemTab:AddSubTab("Priority")
+local TabServer = SystemTab:AddSubTab("Server")
+local TabWebhooks = SystemTab:AddSubTab("Webhooks")
+local TabSettings = SystemTab:AddSubTab("Settings")
 
-local InfoTab = Window:CreateTab("Info", false, false, ICON.Info)
-local TabInfo = InfoTab:CreatePage("Info")
+local InfoTab = Window:AddTab({ Name = "Info" })
+local TabInfo = InfoTab:AddSubTab("Info")
 
 -- ===== Steal =====
 
-local StealFilters = TabSteal:CreateSection("Filters", ICON.Filter)
+local StealFilters = TabSteal:AddSection({ Name = "Filters" })
 
 AddMultiSelect(StealFilters, "StealZones", "Steal Areas", ZONE_VALUES, {})
 AddMultiSelect(StealFilters, "StealRarities", "Steal Rarities", RARITY_VALUES, {})
 AddMultiSelect(StealFilters, "StealMutations", "Steal Mutations", MUTATION_VALUES, {})
 AddDropdown(StealFilters, "StealPriority", "Target Priority", PRIORITY_VALUES, "Rarest")
 
-local StealAutomation = TabSteal:CreateSection("Automation", ICON.Bot)
+local StealAutomation = TabSteal:AddSection({ Name = "Automation" })
 
 AddToggle(StealAutomation, "AutoStealSelected", "Auto Steal Selected", false)
 AddToggle(StealAutomation, "AutoStealAll", "Auto Steal All", false)
@@ -3325,25 +3314,25 @@ AddToggle(StealAutomation, "StealBigEggs", "Steal Big Eggs", false)
 AddSlider(StealAutomation, "StealBigEggScale", "Big Egg Minimum Size", 1, 50, 2, "x")
 AddSlider(StealAutomation, "StealSpeed", "Steal Speed", 50, 1000, 300)
 
-local StealCarrying = TabSteal:CreateSection("Carrying", ICON.Hand)
+local StealCarrying = TabSteal:AddSection({ Name = "Carrying" })
 
 AddToggle(StealCarrying, "AutoReturn", "Auto Return to Base", true)
 AddToggle(StealCarrying, "AutoDropEgg", "Auto Drop Held Egg", false)
 
 -- ===== Eggs =====
 
-local EggFilters = TabEggs:CreateSection("Filters", ICON.Filter)
+local EggFilters = TabEggs:AddSection({ Name = "Filters" })
 
 AddMultiSelect(EggFilters, "LifecycleRarities", "Egg Rarities", RARITY_VALUES, {})
 AddMultiSelect(EggFilters, "LifecycleMutations", "Egg Mutations", MUTATION_VALUES, {})
 
-local EggLifecycle = TabEggs:CreateSection("Place & Hatch", ICON.Egg)
+local EggLifecycle = TabEggs:AddSection({ Name = "Place & Hatch" })
 
 AddToggle(EggLifecycle, "AutoPlaceSelected", "Auto Place Selected", false)
 AddToggle(EggLifecycle, "AutoPlaceAll", "Auto Place All", false)
 AddToggle(EggLifecycle, "AutoOpenReadyEggs", "Auto Hatch Ready", false)
 
-local EggSell = TabEggs:CreateSection("Auto Sell Eggs", ICON.Coins)
+local EggSell = TabEggs:AddSection({ Name = "Auto Sell Eggs" })
 
 AddToggle(EggSell, "AutoSellEggs", "Auto Sell Eggs", false)
 AddMultiSelect(EggSell, "SellEggRarities", "Sell Egg Rarities", RARITY_VALUES, {})
@@ -3351,11 +3340,11 @@ AddSlider(EggSell, "SellEggInterval", "Sell Egg Interval", 1, 120, 8, "s")
 
 -- ===== Pets =====
 
-local PetEquip = TabPets:CreateSection("Equip", ICON.Star)
+local PetEquip = TabPets:AddSection({ Name = "Equip" })
 
 AddToggle(PetEquip, "AutoEquipBest", "Auto Equip Best Pets", false)
 
-local PetFuse = TabPets:CreateSection("Auto Fuse", ICON.Flask)
+local PetFuse = TabPets:AddSection({ Name = "Auto Fuse" })
 
 AddToggle(PetFuse, "AutoFusePets", "Auto Fuse Pets [Beta]", false)
 AddMultiSelect(PetFuse, "FuseRarities", "Fuse Rarities", RARITY_VALUES, {})
@@ -3373,7 +3362,7 @@ AddButton(PetFuse, "Fuse Now", function()
 	end)
 end)
 
-local PetSell = TabPets:CreateSection("Auto Sell Pets", ICON.Tags)
+local PetSell = TabPets:AddSection({ Name = "Auto Sell Pets" })
 
 AddToggle(PetSell, "AutoSellPets", "Auto Sell Pets", false)
 AddMultiSelect(PetSell, "SellRarities", "Sell Pet Rarities", RARITY_VALUES, {})
@@ -3383,41 +3372,41 @@ AddSlider(PetSell, "SellInterval", "Sell Pet Interval", 1, 120, 6, "s")
 AddToggle(PetSell, "SellKeepMutated", "Never Sell Mutated", true)
 AddToggle(PetSell, "SellKeepEquipped", "Never Sell Equipped", true)
 
-local PetEarnings = TabPets:CreateSection("Earnings", ICON.Wallet)
+local PetEarnings = TabPets:AddSection({ Name = "Earnings" })
 
 AddToggle(PetEarnings, "AutoClaimOffline", "Claim Offline Earnings", false)
 
 -- ===== Shop =====
 
-local ShopUpgrades = TabShop:CreateSection("Upgrades", ICON.ArrowUp)
+local ShopUpgrades = TabShop:AddSection({ Name = "Upgrades" })
 
 AddToggle(ShopUpgrades, "AutoUpgrades", "Auto Buy Upgrades", false)
 AddMultiSelect(ShopUpgrades, "UpgradeTypes", "Upgrades", UPGRADE_VALUES, { "Base", "Treadmill" })
 
-local ShopRewards = TabShop:CreateSection("Rewards", ICON.Gift)
+local ShopRewards = TabShop:AddSection({ Name = "Rewards" })
 
 AddToggle(ShopRewards, "AutoClaimIndex", "Auto Claim Index", false)
 AddToggle(ShopRewards, "AutoClaimGroupReward", "Auto Claim Group Reward", false)
 
-local ShopTrails = TabShop:CreateSection("Trails", ICON.Gem)
+local ShopTrails = TabShop:AddSection({ Name = "Trails" })
 
 AddToggle(ShopTrails, "AutoBuyTrail", "Auto Buy Trail", false)
 AddMultiSelect(ShopTrails, "TrailWanted", "Trails", TRAIL_VALUES, {})
 AddToggle(ShopTrails, "AutoEquipBestTrail", "Auto Equip Best Trail", false)
 
-local ShopTraining = TabShop:CreateSection("Training & Gear", ICON.Activity)
+local ShopTraining = TabShop:AddSection({ Name = "Training & Gear" })
 
 AddToggle(ShopTraining, "AutoTreadmill", "Auto Treadmill Training", false)
 AddToggle(ShopTraining, "AutoEquipBestGear", "Auto Equip Best Gear", false)
 
 -- ===== ESP =====
 
-local EspEggs = TabEsp:CreateSection("Eggs", ICON.Egg)
+local EspEggs = TabEsp:AddSection({ Name = "Eggs" })
 
 AddToggle(EspEggs, "EspWorldEggs", "World Egg ESP", false)
 AddToggle(EspEggs, "EspCarriedEggs", "Carried & Dropped Eggs", false)
 
-local EspWorld = TabEsp:CreateSection("World", ICON.Globe)
+local EspWorld = TabEsp:AddSection({ Name = "World" })
 
 AddToggle(EspWorld, "EspGuards", "Guard ESP", false)
 AddToggle(EspWorld, "EspPets", "Pet ESP", false)
@@ -3428,7 +3417,7 @@ AddSlider(EspWorld, "EspDistance", "Render Distance", 100, 6000, 2000, " studs")
 
 -- ===== Movement =====
 
-local MoveCharacter = TabMovement:CreateSection("Character", ICON.Person)
+local MoveCharacter = TabMovement:AddSection({ Name = "Character" })
 
 AddToggle(MoveCharacter, "WalkSpeedEnabled", "Walk Speed Override", false, function(value)
 	if not value then
@@ -3444,7 +3433,7 @@ AddSlider(MoveCharacter, "JumpPower", "Jump Power", 10, 500, 50)
 AddToggle(MoveCharacter, "InfJump", "Infinite Jump", false)
 AddToggle(MoveCharacter, "NoClip", "NoClip", false)
 
-local MoveFly = TabMovement:CreateSection("Fly", ICON.Feather)
+local MoveFly = TabMovement:AddSection({ Name = "Fly" })
 
 AddToggle(MoveFly, "Fly", "Fly (WASD, Space up, Ctrl down)", false, function(value)
 	if not value then
@@ -3456,7 +3445,7 @@ AddToggle(MoveFly, "Fly", "Fly (WASD, Space up, Ctrl down)", false, function(val
 end)
 AddSlider(MoveFly, "FlySpeed", "Fly Speed", 10, 400, 60)
 
-local MoveTeleport = TabMovement:CreateSection("Teleport", ICON.MapPin)
+local MoveTeleport = TabMovement:AddSection({ Name = "Teleport" })
 
 AddDropdown(MoveTeleport, "WaypointTarget", "Waypoint", WAYPOINT_VALUES, "Base")
 AddButton(MoveTeleport, "Teleport to Waypoint", function()
@@ -3474,7 +3463,7 @@ end)
 
 -- ===== Priority =====
 
-local PriorityOrder = TabPriority:CreateSection("Task Order", ICON.ListOrdered)
+local PriorityOrder = TabPriority:AddSection({ Name = "Task Order" })
 
 for index, slot in ipairs(PRIORITY_SLOTS) do
 	AddDropdown(PriorityOrder, slot, string.format("Priority %d", index), PRIORITY_TASKS, PRIORITY_TASKS[index])
@@ -3482,7 +3471,7 @@ end
 
 -- ===== Server =====
 
-local ServerHop = TabServer:CreateSection("Server Hop", ICON.Server)
+local ServerHop = TabServer:AddSection({ Name = "Server Hop" })
 
 AddToggle(ServerHop, "AutoServerHop", "Auto Server Hop", false)
 AddDropdown(ServerHop, "HopMode", "Hop When", HOP_MODES, "No Matching Eggs")
@@ -3494,18 +3483,21 @@ AddButton(ServerHop, "Hop Now", function()
 	end)
 end)
 
-local ServerConnection = TabServer:CreateSection("Connection", ICON.Wifi)
+local ServerConnection = TabServer:AddSection({ Name = "Connection" })
 
 AddToggle(ServerConnection, "AutoReconnect", "Auto Reconnect", false)
-ServerConnection:AddCopyButton("Copy Join Script", string.format(
-	'game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s", game:GetService("Players").LocalPlayer)',
-	game.PlaceId,
-	jobIdText
-))
+AddButton(ServerConnection, "Copy Join Script", function()
+	local joinScript = string.format(
+		'game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s", game:GetService("Players").LocalPlayer)',
+		game.PlaceId,
+		jobIdText
+	)
+	F.copyText(joinScript, "Copied join script to clipboard")
+end)
 
 -- ===== Webhooks =====
 
-local WebhookMain = TabWebhooks:CreateSection("Webhook", ICON.Send)
+local WebhookMain = TabWebhooks:AddSection({ Name = "Webhook" })
 
 AddToggle(WebhookMain, "WebhookEnabled", "Enable Webhooks", false)
 AddTextBox(WebhookMain, "WebhookUrl", "Webhook URL", "https://discord.com/api/webhooks/...")
@@ -3517,7 +3509,7 @@ AddButton(WebhookMain, "Send Summary Now", function()
 	end)
 end)
 
-local WebhookContents = TabWebhooks:CreateSection("Contents", ICON.ClipboardList)
+local WebhookContents = TabWebhooks:AddSection({ Name = "Contents" })
 
 AddToggle(WebhookContents, "WebhookEggSpawns", "List Spawned Eggs", true)
 AddMultiSelect(WebhookContents, "WebhookRarities", "Only Report Rarities", RARITY_VALUES, {})
@@ -3525,7 +3517,7 @@ AddToggle(WebhookContents, "WebhookDisconnectAlerts", "Disconnect Alerts", false
 
 -- ===== Settings =====
 
-local SettingsMenu = TabSettings:CreateSection("Menu", ICON.Menu)
+local SettingsMenu = TabSettings:AddSection({ Name = "Menu" })
 
 AddToggle(SettingsMenu, "AntiAfk", "Anti-AFK", true)
 AddToggle(SettingsMenu, "AntiGameplayPause", "No Gameplay Paused", true, function(value)
@@ -3535,7 +3527,7 @@ AddToggle(SettingsMenu, "DisableRendering", "Disable 3D Rendering", false, funct
 	F.applyRendering(value)
 end)
 
-local SettingsPerformance = TabSettings:CreateSection("Performance", ICON.Gauge)
+local SettingsPerformance = TabSettings:AddSection({ Name = "Performance" })
 
 AddToggle(SettingsPerformance, "FpsBoost", "FPS Boost", false, function(value)
 	F.applyFpsBoost(value)
@@ -3545,7 +3537,18 @@ AddSlider(SettingsPerformance, "FpsCap", "FPS Cap", 15, 360, 60, nil, function(v
 	F.applyFpsCap(value)
 end)
 
-local SettingsDanger = TabSettings:CreateSection("Danger Zone", ICON.AlertTriangle)
+local SettingsKeybind = TabSettings:AddSection({ Name = "Keybind" })
+
+SettingsKeybind:AddKeybind({
+	Name = "Toggle Menu",
+	Default = Enum.KeyCode.LeftAlt,
+	Flag = "ToggleMenuKey",
+	OnPress = function()
+		Window:ToggleUI()
+	end,
+})
+
+local SettingsDanger = TabSettings:AddSection({ Name = "Danger Zone" })
 
 local PANIC_TOGGLES = {
 	"AutoStealSelected", "AutoStealAll", "StealBigEggs", "AutoDropEgg",
@@ -3568,24 +3571,41 @@ AddButton(SettingsDanger, "Unload VoidHub", function()
 	F.unload()
 end)
 
-local SettingsConfig = TabSettings:CreateSection("Config", ICON.Save)
+local SettingsConfig = TabSettings:AddSection({ Name = "Config" })
 
-SettingsConfig:AddConfigManager("VoidHubStealAnEgg")
+AddTextBox(SettingsConfig, "ConfigName", "Config Name", "default")
+AddButton(SettingsConfig, "Save Config", function()
+	local ok = pcall(function()
+		Library:SaveConfig(F.optionValue("ConfigName", "") ~= "" and F.optionValue("ConfigName", "default") or "default")
+	end)
+	F.notify(ok and "Config saved" or "Failed to save config")
+end)
+AddButton(SettingsConfig, "Load Config", function()
+	local ok = pcall(function()
+		Library:LoadConfig(F.optionValue("ConfigName", "") ~= "" and F.optionValue("ConfigName", "default") or "default")
+	end)
+	F.notify(ok and "Config loaded" or "Failed to load config")
+end)
+AddButton(SettingsConfig, "Delete Config", function()
+	local ok = pcall(function()
+		Library:DeleteConfig(F.optionValue("ConfigName", "") ~= "" and F.optionValue("ConfigName", "default") or "default")
+	end)
+	F.notify(ok and "Config deleted" or "Failed to delete config")
+end)
 
 -- ===== Info =====
 
-local InfoCommunity = TabInfo:CreateSection("Community", ICON.Users)
+local InfoCommunity = TabInfo:AddSection({ Name = "Community" })
 
-InfoCommunity:AddCopyButton("Copy Discord Link", DISCORD_INVITE)
-InfoCommunity:AddCopyButton("Copy Credits", HUB_NAME .. " - Steal An Egg Script Hub | Credits: von63rd | Script Developer & Designer")
+AddButton(InfoCommunity, "Copy Discord Link", function()
+	F.copyText(DISCORD_INVITE, "Copied Discord invite to clipboard")
+end)
+AddButton(InfoCommunity, "Copy Credits", function()
+	F.copyText(HUB_NAME .. " - Steal An Egg Script Hub | Credits: von63rd | Script Developer & Designer", "Copied credits")
+end)
 
 -- ============================================================
 -- Movement / anti-detect event handlers
---
--- The window's own menu toggle (its built-in control, or the H key
--- per the README) replaces the old custom MenuKey keybind, since the
--- library exposes no scriptable Toggle()/SetVisible() to bind a
--- second key to.
 -- ============================================================
 
 local Camera = Workspace.CurrentCamera
@@ -4058,6 +4078,10 @@ F.unload = function()
 		if hopFailConnection then
 			hopFailConnection:Disconnect()
 		end
+	end)
+
+	pcall(function()
+		Window:Destroy()
 	end)
 
 	if getgenv then
