@@ -187,13 +187,6 @@ local NET = {
 	},
 }
 
--- Best-effort remote lookups: unlike the paths above (confirmed working
--- throughout this script), the Hungry Monster/Parasite event's remote group
--- name and the egg growth-skip remote were not directly confirmed against
--- this game's Remotes module, only inferred from a reference script and live
--- Workspace evidence (Workspace.MonsterParasiteMonsters, FeedPrompt, and
--- per-plot MonsterParasiteMarkers all exist in the live server). Resolved
--- defensively so a wrong guess just no-ops instead of breaking the script.
 local function tryRemote(group, verb)
 	local ok, remote = pcall(function()
 		return Remotes[group][verb]
@@ -215,12 +208,8 @@ NET.Eggs = {
 	REQUEST_SKIP_GROWTH = tryRemote("Eggs", "RequestSkipGrowth"),
 }
 
--- Path matches https://docs.mspaint.cc/obsidian/installation/executor exactly.
 local OBSIDIAN_REPO = "https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/"
 
--- Mobile executors (Delta, etc.) can flake on a single large HttpGet
--- (Library.lua alone is ~450 KB), so retry a couple of times before
--- giving up instead of dying on one bad request.
 local function loadObsidianModule(path)
 	local url = OBSIDIAN_REPO .. path
 	local lastError = "unknown error"
@@ -250,11 +239,6 @@ if getgenv then
 	end
 end
 
--- Black & white, white accent - set before CreateWindow so every element
--- (including the ones CreateWindow itself builds) renders with these
--- colors from the first frame instead of flashing the default purple.
--- MainColor/OutlineColor stay a shade off pure black so panels and borders
--- read as distinct layers instead of flattening into the background.
 Library.Scheme.BackgroundColor = Color3.fromRGB(6, 6, 7)
 Library.Scheme.MainColor = Color3.fromRGB(22, 22, 24)
 Library.Scheme.AccentColor = Color3.fromRGB(255, 255, 255)
@@ -342,12 +326,6 @@ end
 
 -- ============================================================
 -- Control wrappers
---
--- Obsidian registers every control into the global Library.Toggles /
--- Library.Options tables by the Idx you give it, each with :SetValue()
--- - and SaveManager persists anything in those tables for free once
--- SaveManager:BuildConfigSection is wired up in Settings, so there is
--- no need for a hand-rolled config system here.
 -- ============================================================
 
 local function AddToggle(section, id, title, default, callback, tooltip)
@@ -942,10 +920,6 @@ F.resolveRarity = function(assetCategory)
 	return asset.Rarity._id or asset.Rarity.DisplayName
 end
 
--- Short TTL cache: ESP, steal targeting, spawn prediction, and the hop
--- dry-check all pull this every cycle, and rebuilding the whole records
--- array from a fresh snapshot on every single caller was a real source of
--- the reported FPS drops during continuous collection.
 local areaEggsCache = nil
 local areaEggsCacheAt = 0
 local AREA_EGGS_CACHE_TTL = 0.15
@@ -1181,12 +1155,6 @@ local STEAL_SETTINGS = {
 	CorridorMidpoint = Vector3.new(527, 71, -352),
 }
 
--- Previously this destroyed and cloned the Humanoid to reset Sit/PlatformStand.
--- That breaks Roblox's default character controller, which caches a reference
--- to the original Humanoid at spawn - once it's destroyed, jump (and
--- eventually all movement input) silently stops reaching the replacement for
--- the rest of the session. Just clear the properties on the live Humanoid
--- instead; that's all the reset ever needed.
 F.swapStealHumanoid = function()
 	local char = LocalPlayer.Character
 	if not char then
@@ -1356,9 +1324,6 @@ F.stealEgg = function(record)
 	return F.isCarrying()
 end
 
--- V2: skips the corridor-midpoint waypoint and goes straight to the egg in
--- one leg, at a higher speed cap (up to 2000 studs/s vs V1's 1000). Faster,
--- less smooth to watch - V1 stays the default for a reason.
 local STEAL_V2_MAX_SPEED = 2000
 
 F.stealEggV2 = function(record)
@@ -1583,9 +1548,6 @@ F.pickHopTargets = function()
 	return candidates
 end
 
--- The client can't reserve a real private server (TeleportService:ReserveServer
--- is server-only), so this is the honest equivalent: hop specifically to a
--- public server that already has 1 or 0 other players in it.
 F.joinNearEmptyServer = function()
 	local candidates = F.pickHopTargets()
 	if #candidates == 0 then
@@ -1778,11 +1740,6 @@ F.runAutoOpenReadyEggs = function()
 	return hatchedAny
 end
 
--- Best-effort: skips a placed egg's growth timer via the inferred
--- Remotes.Eggs.RequestSkipGrowth remote (see NET.Eggs above). If that path
--- turns out wrong for this build, NET.Eggs.REQUEST_SKIP_GROWTH is nil and
--- F.netCall just no-ops - AutoOpenReadyEggs still hatches once it's actually
--- ready either way.
 F.runAutoGrowthSwap = function()
 	if not NET.Eggs.REQUEST_SKIP_GROWTH then
 		return false
@@ -2454,9 +2411,6 @@ F.stopTreadmillTraining = function()
 	end
 end
 
--- Reacts the instant the game's own "walked onto the treadmill" GUI shows up,
--- instead of waiting on the 0.25s poll below - Anti-Treadmill's whole point
--- is that stepping near one should never visibly mount you in the first place.
 F.bindAntiTreadmillWatcher = function()
 	local ok, doubleSpeed = pcall(function()
 		local pGui = LocalPlayer:FindFirstChild("PlayerGui")
@@ -2492,12 +2446,6 @@ end)
 
 -- ============================================================
 -- Hungry Monster / Parasite event automation
---
--- Grounded in a reference script's remote names and confirmed live against
--- this session's server: Workspace.MonsterParasiteMonsters, a FeedPrompt
--- ProximityPrompt, and per-plot MonsterParasiteMarkers all exist right now.
--- NET.MonsterParasite's exact remote group name is still a best-effort
--- guess (see the comment above it) - if it's wrong, these just no-op.
 -- ============================================================
 
 local monsterSnapshotCache = nil
@@ -2678,10 +2626,6 @@ end
 
 -- ============================================================
 -- Spawn Prediction (heuristic)
---
--- Not a seed/RNG cracker - just a rolling per-zone rarity frequency count
--- built from eggs actually observed spawning this session. Labeled as a
--- heuristic in the UI for the same reason.
 -- ============================================================
 
 local spawnHistory = {}
@@ -2984,9 +2928,6 @@ F.withinEspRange = function(position)
 	return (root.Position - position).Magnitude <= F.espDistanceLimit()
 end
 
--- Best-effort: the exact income field name isn't confirmed for egg-stage
--- assets, so this tries the common variants and falls back to N/A rather
--- than showing a made-up number.
 F.predictedPetIncomeText = function(category)
 	local asset = Assets.Directory[category or ""]
 	if typeof(asset) ~= "table" then
@@ -3819,10 +3760,6 @@ end)
 
 -- ============================================================
 -- Window / tabs
---
--- Obsidian's Window:AddTab(Name, IconName) icon is a Lucide icon name
--- (see https://lucide.dev/) resolved through Library:GetIcon, not a
--- raw rbxassetid, and every AddGroupbox call needs an explicit Side.
 -- ============================================================
 
 local TabHome = Window:AddTab("Home", "house")
@@ -3905,9 +3842,6 @@ AddToggle(StealCarrying, "AutoReturn", "Auto Return to Base", true)
 AddToggle(StealCarrying, "AutoDropEgg", "Auto Drop Held Egg", false)
 AddToggle(StealCarrying, "PreferParasiteEggs", "Prefer Parasite Eggs", false)
 
--- "Groupbox tabs": a Tabbox groups the Steal tab's newer, more specialized
--- controls (treadmill blocking, the Hungry Monster event, spawn prediction)
--- into their own pages instead of piling more groupboxes onto the right side.
 local StealTabbox = TabSteal:AddRightTabbox()
 
 local StealTreadmillPage = StealTabbox:AddTab("Anti-Treadmill")
@@ -4299,10 +4233,6 @@ AddButton(SettingsDanger, "Panic Stop", F.panic)
 AddButton(SettingsDanger, "Unload VoidHub", function()
 	F.unload()
 end)
-
--- Config (save/load/autoload) and Theme sections for the Settings tab are
--- built by SaveManager:BuildConfigSection / ThemeManager:ApplyToTab near
--- the bottom of the script, once every control on this tab exists.
 
 -- ===== Info =====
 
@@ -4825,9 +4755,6 @@ local function stopAutomation()
 	end
 end
 
--- Handles the "Unload VoidHub" button: stop automation, then hand off to
--- the library's own Unload() (which fires Library:OnUnload below and tears
--- down the UI). Guarded by Unloaded so this can't run twice.
 F.unload = function()
 	if Unloaded then
 		return
@@ -4842,8 +4769,6 @@ F.unload = function()
 	end)
 end
 
--- Also covers the library's own close/unload UI, which calls
--- Library:Unload() directly without going through F.unload().
 Library:OnUnload(function()
 	if Unloaded then
 		return
