@@ -187,29 +187,12 @@ local NET = {
 	},
 }
 
-local function tryRemote(group, verb)
-	local ok, remote = pcall(function()
-		return Remotes[group][verb]
-	end)
-	if ok and typeof(remote) == "Instance" then
-		return remote
-	end
-	return nil
-end
-
-NET.MonsterParasite = {
-	ASK_SNAPSHOT = tryRemote("MonsterParasite", "AskSnapshot"),
-	ASK_FEED = tryRemote("MonsterParasite", "AskFeed"),
-	ASK_CHEST_TAKE = tryRemote("MonsterParasite", "AskChestTake"),
-	ASK_CHEST_CLAIM = tryRemote("MonsterParasite", "AskChestClaim"),
-	ASK_CHEST_REVEAL = tryRemote("MonsterParasite", "AskChestRevealComplete"),
-}
-NET.Eggs = {
-	REQUEST_SKIP_GROWTH = tryRemote("Eggs", "RequestSkipGrowth"),
-}
-
+-- Path matches https://docs.mspaint.cc/obsidian/installation/executor exactly.
 local OBSIDIAN_REPO = "https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/"
 
+-- Mobile executors (Delta, etc.) can flake on a single large HttpGet
+-- (Library.lua alone is ~450 KB), so retry a couple of times before
+-- giving up instead of dying on one bad request.
 local function loadObsidianModule(path)
 	local url = OBSIDIAN_REPO .. path
 	local lastError = "unknown error"
@@ -239,20 +222,20 @@ if getgenv then
 	end
 end
 
-Library.Scheme.BackgroundColor = Color3.fromRGB(6, 6, 7)
-Library.Scheme.MainColor = Color3.fromRGB(22, 22, 24)
+-- Black & white, white accent - set before CreateWindow so every element
+-- (including the ones CreateWindow itself builds) renders with these
+-- colors from the first frame instead of flashing the default purple.
+Library.Scheme.BackgroundColor = Color3.fromRGB(8, 8, 8)
+Library.Scheme.MainColor = Color3.fromRGB(20, 20, 20)
 Library.Scheme.AccentColor = Color3.fromRGB(255, 255, 255)
-Library.Scheme.OutlineColor = Color3.fromRGB(54, 54, 58)
+Library.Scheme.OutlineColor = Color3.fromRGB(45, 45, 45)
 Library.Scheme.FontColor = Color3.new(1, 1, 1)
-pcall(function()
-	Library.Scheme.Font = Font.fromEnum(Enum.Font.GothamMedium)
-end)
 
 local Window = Library:CreateWindow({
 	Title = HUB_NAME,
 	Footer = GAME_NAME .. " | by von63rd | v1",
 	Icon = HUB_ICON,
-	Size = UDim2.fromOffset(720, 520),
+	Size = UDim2.fromOffset(660, 480),
 	NotifySide = "Right",
 	ShowCustomCursor = true,
 	Animations = {
@@ -263,10 +246,6 @@ local Window = Library:CreateWindow({
 		KeyPicker = true,
 	},
 })
-
-pcall(function()
-	Window:SetCornerRadius(6)
-end)
 
 local Toggles = Library.Toggles
 local Options = Library.Options
@@ -326,6 +305,12 @@ end
 
 -- ============================================================
 -- Control wrappers
+--
+-- Obsidian registers every control into the global Library.Toggles /
+-- Library.Options tables by the Idx you give it, each with :SetValue()
+-- - and SaveManager persists anything in those tables for free once
+-- SaveManager:BuildConfigSection is wired up in Settings, so there is
+-- no need for a hand-rolled config system here.
 -- ============================================================
 
 local function AddToggle(section, id, title, default, callback, tooltip)
@@ -678,15 +663,9 @@ local PRIORITY_VALUES = { "Rarest", "Nearest", "Furthest", "Biggest Size" }
 
 local FUSE_TARGET_VALUES = { "Highest Rarity", "Lowest Rarity", "Most Duplicates" }
 
-local PRIORITY_TASKS = {
-	"Auto Steal Egg", "Auto Place Egg", "Auto Hatch", "Auto Treadmill",
-	"Auto Feed Parasite", "Auto Claim Monster Chest",
-}
+local PRIORITY_TASKS = { "Auto Steal Egg", "Auto Place Egg", "Auto Hatch", "Auto Treadmill" }
 
-local PRIORITY_SLOTS = {
-	"PrioritySlot1", "PrioritySlot2", "PrioritySlot3",
-	"PrioritySlot4", "PrioritySlot5", "PrioritySlot6",
-}
+local PRIORITY_SLOTS = { "PrioritySlot1", "PrioritySlot2", "PrioritySlot3", "PrioritySlot4" }
 
 local HOP_MODES = { "No Matching Eggs", "Timed Interval", "After Steal Count" }
 
@@ -920,15 +899,7 @@ F.resolveRarity = function(assetCategory)
 	return asset.Rarity._id or asset.Rarity.DisplayName
 end
 
-local areaEggsCache = nil
-local areaEggsCacheAt = 0
-local AREA_EGGS_CACHE_TTL = 0.15
-
 F.getAreaEggs = function()
-	local now = os.clock()
-	if areaEggsCache and (now - areaEggsCacheAt) < AREA_EGGS_CACHE_TTL then
-		return areaEggsCache
-	end
 	local snap = EggCmds.GetAreaEggSnapshot()
 	if typeof(snap) ~= "table" or typeof(snap.Records) ~= "table" then
 		pcall(function()
@@ -936,16 +907,15 @@ F.getAreaEggs = function()
 		end)
 		snap = EggCmds.GetAreaEggSnapshot()
 	end
+	if typeof(snap) ~= "table" or typeof(snap.Records) ~= "table" then
+		return {}
+	end
 	local eggs = {}
-	if typeof(snap) == "table" and typeof(snap.Records) == "table" then
-		for _, record in pairs(snap.Records) do
-			if typeof(record) == "table" and typeof(record.Uid) == "string" then
-				table.insert(eggs, record)
-			end
+	for _, record in pairs(snap.Records) do
+		if typeof(record) == "table" and typeof(record.Uid) == "string" then
+			table.insert(eggs, record)
 		end
 	end
-	areaEggsCache = eggs
-	areaEggsCacheAt = now
 	return eggs
 end
 
@@ -1076,13 +1046,6 @@ F.isStealCandidate = function(record, ignoreFilters)
 	return F.matchesEggFilters(record, "StealZones", "StealRarities", "StealMutations")
 end
 
-F.isParasiteEgg = function(record)
-	if typeof(record) ~= "table" then
-		return false
-	end
-	return record.HasParasite == true or record.IsParasite == true
-end
-
 F.pickStealTarget = function()
 	local slots = AreaEggSlots and AreaEggSlots:GetChildren() or {}
 	if #slots == 0 then
@@ -1114,9 +1077,6 @@ F.pickStealTarget = function()
 				score = record and tonumber(record.AssetScale) or 0
 			else
 				score = (record and F.eggScore(record) or 0) * 100000 - math.min(dist, 99999)
-			end
-			if F.isOn("PreferParasiteEggs") and F.isParasiteEgg(record) then
-				score = score + 1e9
 			end
 			if score > bestScore then
 				best = slot
@@ -1164,22 +1124,37 @@ F.swapStealHumanoid = function()
 	if not hum then
 		return false
 	end
+	if hum:GetAttribute("VoidHubStealHum") == true then
+		return true
+	end
 	for _, scr in ipairs(char:GetDescendants()) do
-		if scr:IsA("LocalScript") and string.find(scr.Name, "PushBack") and not scr.Disabled then
+		if scr:IsA("LocalScript") and string.find(scr.Name, "PushBack") then
 			pcall(function()
 				scr.Disabled = true
+				scr:Destroy()
 			end)
 		end
 	end
-	hum.Sit = false
-	hum.PlatformStand = false
-	hum.AutoRotate = true
+	hum.Archivable = true
+	local clone = hum:Clone()
+	if not clone then
+		return false
+	end
+	clone:SetAttribute("VoidHubStealHum", true)
+	clone.Sit = false
+	clone.PlatformStand = false
+	clone.AutoRotate = true
+	hum:Destroy()
+	clone.Parent = char
 	local root = char:FindFirstChild("HumanoidRootPart")
 	if root then
 		root.AssemblyLinearVelocity = Vector3.zero
 		root.AssemblyAngularVelocity = Vector3.zero
 	end
-	return true
+	pcall(function()
+		clone:ChangeState(Enum.HumanoidStateType.Running)
+	end)
+	return char:FindFirstChildOfClass("Humanoid") ~= nil
 end
 
 F.groundedY = function(x, z, fallbackY)
@@ -1226,7 +1201,7 @@ F.groundedY = function(x, z, fallbackY)
 	return laneY + 3
 end
 
-F.tweenTo = function(targetX, _laneY, laneZ, maxSpeedOverride)
+F.tweenTo = function(targetX, _laneY, laneZ)
 	local root = F.getRoot()
 	if not root then
 		return false
@@ -1251,7 +1226,7 @@ F.tweenTo = function(targetX, _laneY, laneZ, maxSpeedOverride)
 		end
 		return true
 	end
-	local speed = math.clamp(tonumber(F.optionValue("StealSpeed", MOVE_SPEED)) or MOVE_SPEED, 50, maxSpeedOverride or 1000)
+	local speed = math.clamp(tonumber(F.optionValue("StealSpeed", MOVE_SPEED)) or MOVE_SPEED, 50, 1000)
 	local duration = math.max(0.04, dist / speed)
 	root.AssemblyLinearVelocity = Vector3.zero
 	root.AssemblyAngularVelocity = Vector3.zero
@@ -1324,51 +1299,6 @@ F.stealEgg = function(record)
 	return F.isCarrying()
 end
 
-local STEAL_V2_MAX_SPEED = 2000
-
-F.stealEggV2 = function(record)
-	F.swapStealHumanoid()
-	local eggPos = F.getSlotEggPosition(record)
-	local root = F.getRoot()
-	if not root then
-		return false
-	end
-	local homeX = root.Position.X
-	local homeZ = root.Position.Z
-	local homeY = F.groundedY(homeX, homeZ, root.Position.Y)
-
-	F.tweenTo(eggPos.X, nil, eggPos.Z, STEAL_V2_MAX_SPEED)
-	root = F.getRoot()
-	if root then
-		local eggY = F.groundedY(eggPos.X, eggPos.Z, eggPos.Y)
-		root.CFrame = CFrame.new(eggPos.X, eggY, eggPos.Z)
-		root.AssemblyLinearVelocity = Vector3.zero
-	end
-	if not F.stealingEnabled() then
-		return false
-	end
-
-	local startTime = tick()
-	while (tick() - startTime) < STEAL_SETTINGS.GrabDelay and F.stealingEnabled() do
-		F.tryCarryEgg(record)
-		if F.isCarrying() then
-			task.wait(0.05)
-			break
-		end
-		task.wait(0.03)
-	end
-
-	F.tweenTo(homeX, nil, homeZ, STEAL_V2_MAX_SPEED)
-	root = F.getRoot()
-	if root then
-		root.CFrame = CFrame.new(homeX, homeY, homeZ)
-		root.AssemblyLinearVelocity = Vector3.zero
-	end
-	task.wait(STEAL_SETTINGS.ReturnPace)
-
-	return F.isCarrying()
-end
-
 local stealBusy = false
 
 F.stealBlockedByInventory = function()
@@ -1382,9 +1312,6 @@ F.runAutoSteal = function()
 	local target = F.pickStealTarget()
 	if not target then
 		return
-	end
-	if F.optionValue("StealMethod", "V1 - Smooth") == "V2 - Fast" then
-		return F.stealEggV2(target)
 	end
 	return F.stealEgg(target)
 end
@@ -1546,24 +1473,6 @@ F.pickHopTargets = function()
 		return a.playing < b.playing
 	end)
 	return candidates
-end
-
-F.joinNearEmptyServer = function()
-	local candidates = F.pickHopTargets()
-	if #candidates == 0 then
-		F.notify("No servers found right now")
-		return false
-	end
-	for _, candidate in ipairs(candidates) do
-		if candidate.playing <= 1 then
-			F.rememberVisited(candidate.id)
-			if F.tryTeleportTo(candidate.id) then
-				return true
-			end
-		end
-	end
-	F.notify("No server with 1 or fewer players found right now")
-	return false
 end
 
 F.tryTeleportTo = function(jobId)
@@ -1738,37 +1647,6 @@ F.runAutoOpenReadyEggs = function()
 		end
 	end
 	return hatchedAny
-end
-
-F.runAutoGrowthSwap = function()
-	if not NET.Eggs.REQUEST_SKIP_GROWTH then
-		return false
-	end
-	local data = F.getSave()
-	local inventory = data and data.EggInventory
-	if typeof(inventory) ~= "table" then
-		return false
-	end
-	local swappedAny = false
-	for uid, record in pairs(inventory) do
-		if Unloaded or not F.isOn("AutoGrowthSwap") then
-			return swappedAny
-		end
-		if typeof(uid) == "string" and typeof(record) == "table" and record.Placement ~= nil then
-			local ready = false
-			pcall(function()
-				ready = EggCmds.IsLocalEggReady(uid) == true
-			end)
-			if not ready and F.matchesEggFilters(record, nil, "LifecycleRarities", "LifecycleMutations") then
-				local ok = F.netCall(NET.Eggs.REQUEST_SKIP_GROWTH, uid)
-				if ok then
-					swappedAny = true
-					task.wait(0.25)
-				end
-			end
-		end
-	end
-	return swappedAny
 end
 
 local placeSlotIndex = 1
@@ -2411,291 +2289,6 @@ F.stopTreadmillTraining = function()
 	end
 end
 
-F.bindAntiTreadmillWatcher = function()
-	local ok, doubleSpeed = pcall(function()
-		local pGui = LocalPlayer:FindFirstChild("PlayerGui")
-		local elem = pGui and pGui:FindFirstChild("Elements")
-		local left = elem and elem:FindFirstChild("Left")
-		local tools = left and left:FindFirstChild("Tools")
-		return tools and tools:FindFirstChild("DoubleYourSpeed")
-	end)
-	if not ok or not doubleSpeed then
-		return false
-	end
-	doubleSpeed:GetPropertyChangedSignal("Visible"):Connect(function()
-		if Unloaded then
-			return
-		end
-		if doubleSpeed.Visible and F.isOn("AntiTreadmill") and not F.isOn("AutoTreadmill") then
-			task.spawn(F.stopTreadmillTraining)
-		end
-	end)
-	return true
-end
-
-task.spawn(function()
-	local deadline = os.clock() + 15
-	while os.clock() < deadline and not Unloaded do
-		local ok, bound = pcall(F.bindAntiTreadmillWatcher)
-		if ok and bound then
-			break
-		end
-		task.wait(0.5)
-	end
-end)
-
--- ============================================================
--- Hungry Monster / Parasite event automation
--- ============================================================
-
-local monsterSnapshotCache = nil
-local monsterSnapshotAt = -math.huge
-
-F.monsterSnapshot = function(force)
-	if not force and monsterSnapshotCache and (os.clock() - monsterSnapshotAt) < 1 then
-		return monsterSnapshotCache
-	end
-	if not NET.MonsterParasite.ASK_SNAPSHOT then
-		return nil
-	end
-	local snapshot = F.netInvoke(NET.MonsterParasite.ASK_SNAPSHOT)
-	if typeof(snapshot) == "table" then
-		monsterSnapshotCache = snapshot
-		monsterSnapshotAt = os.clock()
-	end
-	return monsterSnapshotCache
-end
-
-F.monsterEventActive = function(force)
-	local snapshot = F.monsterSnapshot(force)
-	return typeof(snapshot) == "table" and typeof(snapshot.Event) == "table" and snapshot.Event.Active == true
-end
-
-F.monsterEventRoot = function()
-	return Workspace:FindFirstChild("MonsterParasiteMonsters") or Workspace:FindFirstChild("MonsterEventMap")
-end
-
-F.findFeedPrompt = function()
-	local plot = PlotCmds.GetPlotData()
-	local objects = Workspace:FindFirstChild("__OBJECTS")
-	local roots = {
-		plot and plot.PlotFolder and plot.PlotFolder:FindFirstChild("MonsterParasiteMarkers"),
-		F.monsterEventRoot(),
-		objects and objects:FindFirstChild("MonsterParasiteMarkers"),
-	}
-	for _, root in ipairs(roots) do
-		if root then
-			local ok, prompt = pcall(function()
-				return root:FindFirstChild("FeedPrompt", true)
-			end)
-			if ok and prompt and prompt:IsA("ProximityPrompt") then
-				return prompt
-			end
-		end
-	end
-	return nil
-end
-
-F.pickParasiteEgg = function()
-	for _, record in ipairs(F.getAreaEggs()) do
-		if F.isStealCandidate(record, true) and F.isParasiteEgg(record) then
-			return record
-		end
-	end
-	return nil
-end
-
-F.countVisibleParasites = function()
-	local count = 0
-	for _, record in ipairs(F.getAreaEggs()) do
-		if F.isParasiteEgg(record) then
-			count += 1
-		end
-	end
-	return count
-end
-
-F.runAutoFeedParasite = function()
-	if not NET.MonsterParasite.ASK_FEED or F.isCarrying() then
-		return false
-	end
-	if not F.monsterEventActive(true) then
-		return false
-	end
-	local prompt = F.findFeedPrompt()
-	if not prompt then
-		return false
-	end
-	local candidate = F.pickParasiteEgg()
-	if not candidate then
-		return false
-	end
-	local slots = AreaEggSlots and AreaEggSlots:GetChildren() or {}
-	local slot = nil
-	for _, s in ipairs(slots) do
-		if s.Name == candidate.Uid then
-			slot = s
-			break
-		end
-	end
-	if not slot then
-		return false
-	end
-
-	F.swapStealHumanoid()
-	local eggPos = F.getSlotEggPosition(slot)
-	local eggY = F.groundedY(eggPos.X, eggPos.Z, eggPos.Y)
-	if not F.travelTo(Vector3.new(eggPos.X, eggY, eggPos.Z)) then
-		return false
-	end
-
-	local startTime = tick()
-	while (tick() - startTime) < STEAL_SETTINGS.GrabDelay and F.isOn("AutoFeedParasite") do
-		F.tryCarryEgg(slot)
-		if F.isCarrying() then
-			task.wait(0.08)
-			break
-		end
-		task.wait(0.04)
-	end
-	if not F.isCarrying() then
-		return false
-	end
-
-	local promptHolder = prompt.Parent
-	local promptPos = promptHolder and promptHolder:IsA("BasePart") and promptHolder.Position or nil
-	if not promptPos then
-		F.runAutoDropEgg()
-		return false
-	end
-	local feedY = F.groundedY(promptPos.X, promptPos.Z, promptPos.Y)
-	if not F.travelTo(Vector3.new(promptPos.X, feedY, promptPos.Z), true) then
-		F.runAutoDropEgg()
-		return false
-	end
-	task.wait(0.2)
-
-	local response = F.netInvoke(NET.MonsterParasite.ASK_FEED)
-	if typeof(response) == "table" and response.Success == true then
-		monsterSnapshotAt = -math.huge
-		return true
-	end
-	F.runAutoDropEgg()
-	return false
-end
-
-F.claimMonsterChest = function()
-	if not NET.MonsterParasite.ASK_CHEST_TAKE or not NET.MonsterParasite.ASK_CHEST_CLAIM then
-		return false
-	end
-	local snapshot = F.monsterSnapshot(true)
-	local state = typeof(snapshot) == "table" and snapshot.State or nil
-	if typeof(state) ~= "table" then
-		return false
-	end
-	local pendingReward = state.PendingReward
-	if typeof(pendingReward) == "table" and pendingReward.OpeningId ~= nil and NET.MonsterParasite.ASK_CHEST_REVEAL then
-		local response = F.netInvoke(NET.MonsterParasite.ASK_CHEST_REVEAL, pendingReward.OpeningId)
-		return typeof(response) == "table" and response.Success == true
-	end
-	if (tonumber(state.PendingChests) or 0) <= 0 then
-		return false
-	end
-	F.netCall(NET.MonsterParasite.ASK_CHEST_TAKE)
-	task.wait(0.15)
-	local claimId = HttpService:GenerateGUID(false)
-	local response = F.netInvoke(NET.MonsterParasite.ASK_CHEST_CLAIM, claimId)
-	if typeof(response) ~= "table" or response.Success ~= true then
-		return false
-	end
-	monsterSnapshotAt = -math.huge
-	if NET.MonsterParasite.ASK_CHEST_REVEAL then
-		local openingId = response.OpeningId or claimId
-		local reveal = F.netInvoke(NET.MonsterParasite.ASK_CHEST_REVEAL, openingId)
-		return typeof(reveal) == "table" and reveal.Success == true
-	end
-	return true
-end
-
-F.runAutoClaimMonsterChest = function()
-	if not F.monsterEventActive(true) then
-		return false
-	end
-	return F.claimMonsterChest()
-end
-
--- ============================================================
--- Spawn Prediction (heuristic)
--- ============================================================
-
-local spawnHistory = {}
-local spawnHistorySeenUids = {}
-
-F.recordSpawnObservation = function()
-	if not F.isOn("SpawnPredictionEnabled") then
-		return
-	end
-	for _, record in ipairs(F.getAreaEggs()) do
-		if record.State == "Slot" and typeof(record.Uid) == "string" and not spawnHistorySeenUids[record.Uid] then
-			spawnHistorySeenUids[record.Uid] = true
-			local areaId = record.AreaId or "?"
-			local rarity = F.resolveRarity(record.AssetCategory) or "?"
-			spawnHistory[areaId] = spawnHistory[areaId] or {}
-			spawnHistory[areaId][rarity] = (spawnHistory[areaId][rarity] or 0) + 1
-		end
-	end
-end
-
-F.predictedRarity = function(areaId)
-	local counts = spawnHistory[areaId]
-	if typeof(counts) ~= "table" then
-		return nil, 0, 0
-	end
-	local bestRarity, bestCount, total = nil, 0, 0
-	for rarity, count in pairs(counts) do
-		total += count
-		if count > bestCount then
-			bestRarity, bestCount = rarity, count
-		end
-	end
-	if not bestRarity or total == 0 then
-		return nil, 0, 0
-	end
-	return bestRarity, math.floor(bestCount / total * 100 + 0.5), total
-end
-
-F.spawnPredictionSummary = function()
-	local areaId = F.optionValue("PredictionZone", "All Areas")
-	local lines = {}
-	if areaId ~= "All Areas" then
-		local rarity, confidence, total = F.predictedRarity(areaId)
-		if rarity then
-			table.insert(lines, string.format("%s: %s (%d%%, n=%d)", areaId, rarity, confidence, total))
-		else
-			table.insert(lines, string.format("%s: not enough data yet", areaId))
-		end
-		return table.concat(lines, "\n")
-	end
-	local zones = {}
-	for zone in pairs(spawnHistory) do
-		table.insert(zones, zone)
-	end
-	table.sort(zones)
-	if #zones == 0 then
-		return "Collecting spawn data..."
-	end
-	for _, zone in ipairs(zones) do
-		local rarity, confidence = F.predictedRarity(zone)
-		if rarity then
-			table.insert(lines, string.format("%s: %s (%d%%)", zone, rarity, confidence))
-		end
-	end
-	if #lines == 0 then
-		return "Collecting spawn data..."
-	end
-	return table.concat(lines, "\n")
-end
-
 F.runAutoEquipBestTrail = function()
 	local data = F.getSave()
 	local inventory = data and data.TrailInventory
@@ -2928,27 +2521,10 @@ F.withinEspRange = function(position)
 	return (root.Position - position).Magnitude <= F.espDistanceLimit()
 end
 
-F.predictedPetIncomeText = function(category)
-	local asset = Assets.Directory[category or ""]
-	if typeof(asset) ~= "table" then
-		return "Income: N/A"
-	end
-	local rate = tonumber(asset.MoneyPerSecond)
-		or tonumber(asset.Income)
-		or tonumber(asset.BaseIncome)
-		or (typeof(asset.Stats) == "table" and tonumber(asset.Stats.MoneyPerSecond))
-	if not rate then
-		return "Income: N/A"
-	end
-	return string.format("~%s/s", F.formatNumber(rate))
-end
-
 F.collectEggEsp = function()
 	local worldOn = F.isOn("EspWorldEggs")
 	local carriedOn = F.isOn("EspCarriedEggs")
-	local parasiteOn = F.isOn("ParasiteEsp")
-	local showIncome = F.isOn("EspShowPetIncome")
-	if not worldOn and not carriedOn and not parasiteOn then
+	if not worldOn and not carriedOn then
 		return
 	end
 	for _, record in ipairs(F.getAreaEggs()) do
@@ -2957,8 +2533,7 @@ F.collectEggEsp = function()
 			local state = record.State
 			local isWorld = state == "Slot"
 			local isLoose = state == "Carried" or state == "Dropped"
-			local isParasite = F.isParasiteEgg(record)
-			if (isWorld and worldOn) or (isLoose and carriedOn) or (isParasite and parasiteOn) then
+			if (isWorld and worldOn) or (isLoose and carriedOn) then
 				local position = goal.Position
 				if F.withinEspRange(position) then
 					local rarity = F.resolveRarity(record.AssetCategory)
@@ -2968,14 +2543,7 @@ F.collectEggEsp = function()
 					if isLoose then
 						text = string.format("%s\n%s", text, tostring(state))
 					end
-					if isParasite then
-						text = text .. "\nParasite"
-					end
-					if showIncome and isWorld then
-						text = text .. "\n" .. F.predictedPetIncomeText(record.AssetCategory)
-					end
-					local color = isParasite and Color3.fromRGB(150, 255, 120) or F.espColorFor(rarity)
-					F.drawEspAt("egg_" .. record.Uid, position, text, color, nil)
+					F.drawEspAt("egg_" .. record.Uid, position, text, F.espColorFor(rarity), nil)
 				end
 			end
 		end
@@ -3144,7 +2712,6 @@ F.runEsp = function()
 	F.collectPlayerEsp()
 	F.collectMachineEsp()
 	F.collectPlotEsp()
-	F.collectTrapEsp()
 	for key in pairs(espObjects) do
 		if not espSeen[key] then
 			F.releaseEsp(key)
@@ -3693,87 +3260,6 @@ F.applyFpsCap = function(value)
 	pcall(setter, math.clamp(tonumber(value) or 60, 15, 360))
 end
 
-local godModeConnection = nil
-
-F.applyGodMode = function(enabled)
-	if godModeConnection then
-		godModeConnection:Disconnect()
-		godModeConnection = nil
-	end
-	local humanoid = F.getHumanoid()
-	if not humanoid then
-		return
-	end
-	if not enabled then
-		if humanoid.MaxHealth ~= 100 then
-			humanoid.MaxHealth = 100
-			humanoid.Health = 100
-		end
-		return
-	end
-	humanoid.MaxHealth = math.huge
-	humanoid.Health = math.huge
-	godModeConnection = humanoid.HealthChanged:Connect(function(health)
-		if F.isOn("GodMode") and health < humanoid.MaxHealth then
-			humanoid.Health = humanoid.MaxHealth
-		end
-	end)
-end
-
-local ANTI_TRAP_RADIUS = 10
-
-F.findNearestTrap = function()
-	local debris = Workspace:FindFirstChild("__DEBRIS")
-	local root = F.getRoot()
-	if not debris or not root then
-		return nil, nil
-	end
-	local nearest, nearestDist = nil, math.huge
-	for _, part in ipairs(debris:GetChildren()) do
-		if part.Name == "PlayerTrap" and part:IsA("BasePart") then
-			local dist = (root.Position - part.Position).Magnitude
-			if dist < nearestDist then
-				nearest, nearestDist = part, dist
-			end
-		end
-	end
-	return nearest, nearestDist
-end
-
-F.runAntiTrap = function()
-	local trap, dist = F.findNearestTrap()
-	if not trap or not dist or dist > ANTI_TRAP_RADIUS then
-		return
-	end
-	local root = F.getRoot()
-	if not root then
-		return
-	end
-	local away = root.Position - trap.Position
-	away = Vector3.new(away.X, 0, away.Z)
-	away = away.Magnitude > 1e-3 and away.Unit or Vector3.new(1, 0, 0)
-	local safeX = trap.Position.X + away.X * (ANTI_TRAP_RADIUS + 4)
-	local safeZ = trap.Position.Z + away.Z * (ANTI_TRAP_RADIUS + 4)
-	local safeY = F.groundedY(safeX, safeZ, root.Position.Y)
-	F.rawTeleport(Vector3.new(safeX, safeY, safeZ))
-end
-
-F.collectTrapEsp = function()
-	if not F.isOn("TrapEsp") then
-		return
-	end
-	local debris = Workspace:FindFirstChild("__DEBRIS")
-	if not debris then
-		return
-	end
-	for _, part in ipairs(debris:GetChildren()) do
-		if part.Name == "PlayerTrap" and part:IsA("BasePart") and F.withinEspRange(part.Position) then
-			local key = string.format("trap_%d_%d", math.floor(part.Position.X), math.floor(part.Position.Z))
-			F.drawEspAt(key, part.Position, "Trap", Color3.fromRGB(255, 60, 60), part)
-		end
-	end
-end
-
 F.rejoinServer = function()
 	local ok = pcall(function()
 		TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
@@ -3842,9 +3328,12 @@ end)
 
 -- ============================================================
 -- Window / tabs
+--
+-- Obsidian's Window:AddTab(Name, IconName) icon is a Lucide icon name
+-- (see https://lucide.dev/) resolved through Library:GetIcon, not a
+-- raw rbxassetid, and every AddGroupbox call needs an explicit Side.
 -- ============================================================
 
-local TabHome = Window:AddTab("Home", "house")
 local TabSteal = Window:AddTab("Steal", "hand")
 local TabEggs = Window:AddTab("Eggs", "egg")
 local TabPets = Window:AddTab("Pets", "bone")
@@ -3856,41 +3345,6 @@ local TabServer = Window:AddTab("Server", "server")
 local TabWebhooks = Window:AddTab("Webhooks", "send")
 local TabSettings = Window:AddTab("Settings", "settings")
 local TabInfo = Window:AddTab("Info", "info")
-
--- ===== Home =====
-
-local HomeProfile = TabHome:AddGroupbox({ Side = "Left", Name = "Profile" })
-
-HomeProfile:AddImage("HomeAvatar", {
-	Image = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150", LocalPlayer.UserId),
-	Height = 150,
-	ScaleType = Enum.ScaleType.Fit,
-})
-HomeProfile:AddLabel({ Text = LocalPlayer.DisplayName, Size = 18 })
-HomeProfile:AddLabel(string.format("@%s  •  ID %d", LocalPlayer.Name, LocalPlayer.UserId))
-
-local HomeSession = TabHome:AddGroupbox({ Side = "Right", Name = "Session" })
-
-HomeSession:AddLabel({ Text = HUB_NAME, Size = 18 })
-HomeSession:AddLabel(string.format("Game: %s", GAME_NAME))
-local homeTimeLabel = HomeSession:AddLabel("Play time: 0m 0s")
-HomeSession:AddLabel(string.format("Server: %s", shortJobIdText))
-HomeSession:AddButton({
-	Text = "Copy Discord Invite",
-	Func = function()
-		F.copyText(DISCORD_INVITE, "Copied Discord invite to clipboard")
-	end,
-})
-
-local homeSessionStart = os.clock()
-task.spawn(function()
-	while not Unloaded do
-		task.wait(1)
-		pcall(function()
-			homeTimeLabel:SetText("Play time: " .. F.formatClock(os.clock() - homeSessionStart))
-		end)
-	end
-end)
 
 -- ===== Steal =====
 
@@ -3907,87 +3361,12 @@ AddToggle(StealAutomation, "AutoStealSelected", "Auto Steal Selected", false)
 AddToggle(StealAutomation, "AutoStealAll", "Auto Steal All", false)
 AddToggle(StealAutomation, "StealBigEggs", "Steal Big Eggs", false)
 AddSlider(StealAutomation, "StealBigEggScale", "Big Egg Minimum Size", 1, 50, 2, "x")
-AddDropdown(
-	StealAutomation,
-	"StealMethod",
-	"Steal Method",
-	{ "V1 - Smooth", "V2 - Fast" },
-	"V1 - Smooth",
-	nil,
-	"V1 tweens through the corridor midpoint (smooth, capped at 1000 studs/s). V2 goes straight to the egg (faster, up to 2000 studs/s, less smooth to watch)."
-)
-AddSlider(StealAutomation, "StealSpeed", "Steal Speed", 50, 2000, 300, "studs/s")
+AddSlider(StealAutomation, "StealSpeed", "Steal Speed", 50, 1000, 300)
 
 local StealCarrying = TabSteal:AddGroupbox({ Side = "Right", Name = "Carrying" })
 
 AddToggle(StealCarrying, "AutoReturn", "Auto Return to Base", true)
 AddToggle(StealCarrying, "AutoDropEgg", "Auto Drop Held Egg", false)
-AddToggle(StealCarrying, "PreferParasiteEggs", "Prefer Parasite Eggs", false)
-
-local StealTabbox = TabSteal:AddRightTabbox()
-
-local StealTreadmillPage = StealTabbox:AddTab("Anti-Treadmill")
-AddToggle(
-	StealTreadmillPage,
-	"AntiTreadmill",
-	"Block Auto-Mount",
-	true,
-	nil,
-	"Steps onto a treadmill and it auto-mounts you sometimes; this instantly dismounts and un-equips it unless Auto Treadmill Training is on."
-)
-
-local StealMonsterPage = StealTabbox:AddTab("Monster")
-AddToggle(StealMonsterPage, "AutoFeedParasite", "Auto Feed Parasite", false)
-AddToggle(StealMonsterPage, "AutoClaimMonsterChest", "Auto Claim Monster Chest", false)
-local monsterStatusLabel = StealMonsterPage:AddLabel("Hungry Monster: inactive")
-task.spawn(function()
-	while not Unloaded do
-		task.wait(2)
-		pcall(function()
-			local snapshot = F.monsterSnapshot(false)
-			local active = F.monsterEventActive(false)
-			local state = typeof(snapshot) == "table" and snapshot.State or nil
-			local charge = typeof(state) == "table" and tonumber(state.Charge)
-			local pending = typeof(state) == "table" and tonumber(state.PendingChests) or 0
-			local text
-			if not active then
-				text = "Hungry Monster: inactive"
-			else
-				text = string.format(
-					"Hungry Monster: active\nCharge: %s%%\nPending chests: %d\nParasites visible: %d",
-					charge and tostring(math.floor(charge)) or "?",
-					pending,
-					F.countVisibleParasites()
-				)
-			end
-			monsterStatusLabel:SetText(text)
-		end)
-	end
-end)
-
-local StealPredictionPage = StealTabbox:AddTab("Prediction")
-AddToggle(
-	StealPredictionPage,
-	"SpawnPredictionEnabled",
-	"Track Spawn History",
-	true,
-	nil,
-	"Heuristic only - tracks which rarity has spawned most often per zone this session, not a seed/RNG predictor."
-)
-local PREDICTION_ZONE_VALUES = { "All Areas" }
-for _, zone in ipairs(ZONE_VALUES) do
-	table.insert(PREDICTION_ZONE_VALUES, zone)
-end
-AddDropdown(StealPredictionPage, "PredictionZone", "Zone", PREDICTION_ZONE_VALUES, "All Areas")
-local predictionLabel = StealPredictionPage:AddLabel("Collecting spawn data...", true)
-task.spawn(function()
-	while not Unloaded do
-		task.wait(3)
-		pcall(function()
-			predictionLabel:SetText(F.spawnPredictionSummary())
-		end)
-	end
-end)
 
 -- ===== Eggs =====
 
@@ -4001,14 +3380,6 @@ local EggLifecycle = TabEggs:AddGroupbox({ Side = "Left", Name = "Place & Hatch"
 AddToggle(EggLifecycle, "AutoPlaceSelected", "Auto Place Selected", false)
 AddToggle(EggLifecycle, "AutoPlaceAll", "Auto Place All", false)
 AddToggle(EggLifecycle, "AutoOpenReadyEggs", "Auto Hatch Ready", false)
-AddToggle(
-	EggLifecycle,
-	"AutoGrowthSwap",
-	"Auto Growth Swap",
-	false,
-	nil,
-	"Best-effort: skips a placed egg's growth timer. No-ops if this game build doesn't expose the remote."
-)
 
 local EggSell = TabEggs:AddGroupbox({ Side = "Right", Name = "Auto Sell Eggs" })
 
@@ -4083,15 +3454,6 @@ local EspEggs = TabEsp:AddGroupbox({ Side = "Left", Name = "Eggs" })
 
 AddToggle(EspEggs, "EspWorldEggs", "World Egg ESP", false)
 AddToggle(EspEggs, "EspCarriedEggs", "Carried & Dropped Eggs", false)
-AddToggle(EspEggs, "ParasiteEsp", "Parasite Egg ESP", false)
-AddToggle(
-	EspEggs,
-	"EspShowPetIncome",
-	"Show Pet Income Before Hatch",
-	false,
-	nil,
-	"Best-effort estimate from asset data; shows N/A when this game build doesn't expose an income field for that egg."
-)
 
 local EspWorld = TabEsp:AddGroupbox({ Side = "Right", Name = "World" })
 
@@ -4100,7 +3462,6 @@ AddToggle(EspWorld, "EspPets", "Pet ESP", false)
 AddToggle(EspWorld, "EspPlayers", "Player ESP", false)
 AddToggle(EspWorld, "EspMachines", "Machine ESP", false)
 AddToggle(EspWorld, "EspPlots", "Plot ESP", false)
-AddToggle(EspWorld, "TrapEsp", "Trap ESP", false)
 AddSlider(EspWorld, "EspDistance", "Render Distance", 100, 6000, 2000, " studs")
 
 -- ===== Movement =====
@@ -4120,17 +3481,6 @@ AddToggle(MoveCharacter, "JumpPowerEnabled", "Jump Power Override", false)
 AddSlider(MoveCharacter, "JumpPower", "Jump Power", 10, 500, 50)
 AddToggle(MoveCharacter, "InfJump", "Infinite Jump", false)
 AddToggle(MoveCharacter, "NoClip", "NoClip", false)
-AddToggle(MoveCharacter, "GodMode", "God Mode", false, function(value)
-	F.applyGodMode(value)
-end)
-AddToggle(
-	MoveCharacter,
-	"AntiTrap",
-	"Anti Trap",
-	false,
-	nil,
-	"Steps you away automatically when you get within 10 studs of a live trap part."
-)
 
 local MoveFly = TabMovement:AddGroupbox({ Side = "Left", Name = "Fly" })
 
@@ -4185,17 +3535,6 @@ end)
 local ServerConnection = TabServer:AddGroupbox({ Side = "Right", Name = "Connection" })
 
 AddToggle(ServerConnection, "AutoReconnect", "Auto Reconnect", false)
-AddButton(
-	ServerConnection,
-	"Join Near-Empty Server",
-	function()
-		task.spawn(function()
-			hopCooldownUntil = 0
-			F.joinNearEmptyServer()
-		end)
-	end,
-	"Not a real private server (the client can't reserve one) - hops to a public server with 1 or 0 other players, for solo farming."
-)
 AddButton(ServerConnection, "Copy Join Script", function()
 	local joinScript = string.format(
 		'game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s", game:GetService("Players").LocalPlayer)',
@@ -4237,54 +3576,6 @@ AddToggle(SettingsMenu, "DisableRendering", "Disable 3D Rendering", false, funct
 	F.applyRendering(value)
 end)
 
-F.computeAutoDPI = function()
-	local camera = Workspace.CurrentCamera
-	local viewport = camera and camera.ViewportSize
-	if not viewport then
-		return 100
-	end
-	local shortSide = math.min(viewport.X, viewport.Y)
-	if shortSide <= 400 then
-		return 60
-	elseif shortSide <= 600 then
-		return 75
-	elseif shortSide <= 900 then
-		return 90
-	end
-	return 100
-end
-
-F.applyDPI = function(percent)
-	pcall(function()
-		Library:SetDPIScale(percent)
-	end)
-end
-
-AddToggle(SettingsMenu, "AutoDPI", "Auto DPI Scale", true, function(value)
-	if value then
-		F.applyDPI(F.computeAutoDPI())
-	end
-end, "Picks a DPI scale from your screen size (useful on mobile). Turn off to pick one manually below.")
-AddDropdown(
-	SettingsMenu,
-	"ManualDPI",
-	"Manual DPI",
-	{ "50%", "75%", "90%", "100%", "125%", "150%", "175%", "200%" },
-	"100%",
-	function(value)
-		if not F.isOn("AutoDPI") then
-			local percent = tonumber((value:gsub("%%", "")))
-			if percent then
-				F.applyDPI(percent)
-			end
-		end
-	end
-)
-
-if F.isOn("AutoDPI") then
-	F.applyDPI(F.computeAutoDPI())
-end
-
 local SettingsPerformance = TabSettings:AddGroupbox({ Side = "Left", Name = "Performance" })
 
 AddToggle(SettingsPerformance, "FpsBoost", "FPS Boost", false, function(value)
@@ -4313,8 +3604,6 @@ local PANIC_TOGGLES = {
 	"AutoUpgrades", "AutoClaimIndex", "AutoClaimGroupReward", "AutoBuyTrail",
 	"AutoEquipBestTrail", "AutoTreadmill", "AutoEquipBestGear",
 	"AutoServerHop", "Fly", "NoClip", "InfJump",
-	"AutoFeedParasite", "AutoClaimMonsterChest", "AutoGrowthSwap",
-	"GodMode", "AntiTrap",
 }
 
 F.panic = function()
@@ -4328,6 +3617,10 @@ AddButton(SettingsDanger, "Panic Stop", F.panic)
 AddButton(SettingsDanger, "Unload VoidHub", function()
 	F.unload()
 end)
+
+-- Config (save/load/autoload) and Theme sections for the Settings tab are
+-- built by SaveManager:BuildConfigSection / ThemeManager:ApplyToTab near
+-- the bottom of the script, once every control on this tab exists.
 
 -- ===== Info =====
 
@@ -4434,18 +3727,6 @@ LocalPlayer.CharacterAdded:Connect(function()
 	if F.stealingEnabled() then
 		F.swapStealHumanoid()
 	end
-	if F.isOn("GodMode") then
-		F.applyGodMode(true)
-	end
-end)
-
-task.spawn(function()
-	while not Unloaded do
-		task.wait(0.3)
-		if F.isOn("AntiTrap") then
-			pcall(F.runAntiTrap)
-		end
-	end
 end)
 
 task.spawn(function()
@@ -4456,7 +3737,7 @@ task.spawn(function()
 		end
 		local root = F.getRoot()
 		local humanoid = F.getHumanoid()
-		if not root or not humanoid then
+		if not root or not humanoid or humanoid:GetAttribute("VoidHubStealHum") ~= true then
 			continue
 		end
 		local laneY = F.getLaneY()
@@ -4537,24 +3818,6 @@ local PRIORITY_HANDLERS = {
 		end,
 		Run = function()
 			return F.runAutoTreadmillTraining()
-		end,
-	},
-	["Auto Feed Parasite"] = {
-		Interval = 3,
-		Ready = function()
-			return F.isOn("AutoFeedParasite") and not F.isCarrying() and F.monsterEventActive(false)
-		end,
-		Run = function()
-			return F.runAutoFeedParasite()
-		end,
-	},
-	["Auto Claim Monster Chest"] = {
-		Interval = 3,
-		Ready = function()
-			return F.isOn("AutoClaimMonsterChest") and F.monsterEventActive(false)
-		end,
-		Run = function()
-			return F.runAutoClaimMonsterChest()
 		end,
 	},
 }
@@ -4644,26 +3907,10 @@ end)
 
 task.spawn(function()
 	while not Unloaded do
-		task.wait(0.25)
-		if (treadmillActive or F.isDoubleSpeedVisible()) and F.isOn("AntiTreadmill") and not F.isOn("AutoTreadmill") then
+		task.wait(1)
+		if (treadmillActive or F.isDoubleSpeedVisible()) and not F.isOn("AutoTreadmill") then
 			pcall(F.stopTreadmillTraining)
 		end
-	end
-end)
-
-task.spawn(function()
-	while not Unloaded do
-		task.wait(3)
-		if F.isOn("AutoGrowthSwap") and not stealBusy and not F.isCarrying() then
-			pcall(F.runAutoGrowthSwap)
-		end
-	end
-end)
-
-task.spawn(function()
-	while not Unloaded do
-		task.wait(1)
-		pcall(F.recordSpawnObservation)
 	end
 end)
 
@@ -4830,7 +4077,6 @@ local function stopAutomation()
 	pcall(F.applyAntiGameplayPause, false)
 	pcall(F.applyRendering, false)
 	pcall(F.applyFpsBoost, false)
-	pcall(F.applyGodMode, false)
 	pcall(F.destroyRenderOverlay)
 	pcall(F.stopTreadmillTraining)
 	pcall(F.clearAllEsp)
@@ -4863,6 +4109,9 @@ local function stopAutomation()
 	end
 end
 
+-- Handles the "Unload VoidHub" button: stop automation, then hand off to
+-- the library's own Unload() (which fires Library:OnUnload below and tears
+-- down the UI). Guarded by Unloaded so this can't run twice.
 F.unload = function()
 	if Unloaded then
 		return
@@ -4877,6 +4126,8 @@ F.unload = function()
 	end)
 end
 
+-- Also covers the library's own close/unload UI, which calls
+-- Library:Unload() directly without going through F.unload().
 Library:OnUnload(function()
 	if Unloaded then
 		return
