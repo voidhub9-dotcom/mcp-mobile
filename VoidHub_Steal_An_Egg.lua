@@ -74,11 +74,6 @@ local HUB_NAME = "VoidHub"
 local HUB_ICON = "rbxassetid://101833678008843"
 local DISCORD_INVITE = "https://discord.gg/Wsarxj9Gzz"
 
--- The new library has no TextBox control, so the webhook URL and ping ID
--- are edited here instead of typed in-game. Leave WEBHOOK_URL empty to
--- keep the Webhooks tab inert.
-local WEBHOOK_URL = ""
-local WEBHOOK_PING_ID = ""
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes"))
 local Constants = require(ReplicatedStorage.Shared.Globals.Constants)
@@ -193,7 +188,7 @@ local NET = {
 	},
 }
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/RedzZhub654/VoidHub-/main/main.lua"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/vonsalt/voidhub/refs/heads/main/Main.luau"))()
 
 if getgenv then
 	local previous = getgenv().VoidHubStealAnEgg
@@ -204,85 +199,27 @@ if getgenv then
 	end
 end
 
-local Window = Library:AddWindow(HUB_NAME, HUB_ICON, GAME_NAME .. " | by von63rd | v1")
+local Window = Library:CreateWindow({
+	Title = HUB_NAME,
+	Subtitle = GAME_NAME,
+	SubtitleColor = Color3.fromRGB(190, 140, 255),
+	Logo = HUB_ICON,
+	LogoSize = 32,
+	SphereText = false,
+	SphereImage = HUB_ICON,
+	SphereIconSize = 38,
+})
 
 local Unloaded = false
 local State = {}
 local Components = {}
 local F = {}
 
--- The library has no notification API, so this is a small self-contained
--- toast panel. It never touches the library's own GUI.
-local NotifyGui = Instance.new("ScreenGui")
-NotifyGui.Name = "VoidHubNotify"
-NotifyGui.ResetOnSpawn = false
-NotifyGui.IgnoreGuiInset = true
-NotifyGui.DisplayOrder = 999
-NotifyGui.Parent = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
-
-local NotifyList = Instance.new("Frame")
-NotifyList.Name = "List"
-NotifyList.AnchorPoint = Vector2.new(1, 1)
-NotifyList.Position = UDim2.new(1, -16, 1, -16)
-NotifyList.Size = UDim2.new(0, 300, 1, -32)
-NotifyList.BackgroundTransparency = 1
-NotifyList.Parent = NotifyGui
-
-local NotifyLayout = Instance.new("UIListLayout")
-NotifyLayout.Padding = UDim.new(0, 8)
-NotifyLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-NotifyLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-NotifyLayout.SortOrder = Enum.SortOrder.LayoutOrder
-NotifyLayout.Parent = NotifyList
-
 F.notify = function(text, duration)
 	if Unloaded then
 		return
 	end
-	task.spawn(function()
-		local card = Instance.new("Frame")
-		card.Size = UDim2.new(1, 0, 0, 0)
-		card.AutomaticSize = Enum.AutomaticSize.Y
-		card.BackgroundColor3 = Color3.fromRGB(22, 20, 28)
-		card.BorderSizePixel = 0
-		card.LayoutOrder = math.floor(tick() * 1000) % 2000000000
-
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 10)
-		corner.Parent = card
-
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = Color3.fromRGB(150, 110, 255)
-		stroke.Thickness = 1
-		stroke.Transparency = 0.35
-		stroke.Parent = card
-
-		local pad = Instance.new("UIPadding")
-		pad.PaddingTop = UDim.new(0, 10)
-		pad.PaddingBottom = UDim.new(0, 10)
-		pad.PaddingLeft = UDim.new(0, 12)
-		pad.PaddingRight = UDim.new(0, 12)
-		pad.Parent = card
-
-		local label = Instance.new("TextLabel")
-		label.BackgroundTransparency = 1
-		label.Size = UDim2.new(1, 0, 0, 0)
-		label.AutomaticSize = Enum.AutomaticSize.Y
-		label.Font = Enum.Font.GothamMedium
-		label.TextSize = 14
-		label.TextColor3 = Color3.fromRGB(235, 235, 245)
-		label.TextWrapped = true
-		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.RichText = true
-		label.Text = string.format('<font color="#B48CFF">VoidHub</font>  %s', tostring(text))
-		label.Parent = card
-
-		card.Parent = NotifyList
-		task.wait(duration or 4)
-		if card.Parent then
-			card:Destroy()
-		end
-	end)
+	Library:Notify({ Title = HUB_NAME, Description = tostring(text), Duration = duration or 4 })
 end
 
 F.isOn = function(name)
@@ -328,121 +265,105 @@ F.selectionAllows = function(name, value)
 end
 
 -- ============================================================
--- VoidHub- control wrappers
+-- Control wrappers
 --
--- The library only ships Toggle / Checkbox / Slider / Dropdown /
--- Colorpicker (README "Controls" section) - there is no Button, Label,
--- Paragraph, multi-select Dropdown, TextBox or KeyBind. The wrappers
--- below build the missing pieces honestly out of what is real:
---   AddButton       -> a Toggle that fires once and snaps back to off
---   AddMultiSelect  -> an Accordion of Checkboxes, one per option
+-- This library keys its config system by control title, and the only
+-- way to get a handle back is Window.ConfigElements[title] right after
+-- creating the control - so titles must stay unique across the window.
+-- Dropdown/AddDropdown's 3rd arg is native multi-select, which replaces
+-- the accordion-of-checkboxes hack the old library needed.
 -- ============================================================
 
 local function AddToggle(section, id, title, default, callback)
 	State[id] = default == true
-	local handle = section:AddToggle(title, default == true, function(value)
+	section:AddToggle(title, default == true, function(value)
 		State[id] = value == true
 		if callback then
 			task.spawn(callback, value == true)
 		end
 	end)
-	Components[id] = handle
-	return handle
+	Components[id] = Window.ConfigElements[title]
+	return Components[id]
 end
 
 local function AddSlider(section, id, title, min, max, default, suffix, callback)
+	if suffix then
+		title = title .. " (" .. suffix .. ")"
+	end
 	State[id] = default
-	local handle = section:AddSlider(title, min, max, default, function(value)
-		State[id] = value
-		if callback then
-			task.spawn(callback, value)
-		end
-	end, suffix)
-	Components[id] = handle
-	return handle
-end
-
-local function AddDropdown(section, id, title, options, default, callback)
-	State[id] = default
-	local handle = section:AddDropdown(title, options, default, function(value)
+	section:AddSlider(title, min, max, default, function(value)
 		State[id] = value
 		if callback then
 			task.spawn(callback, value)
 		end
 	end)
+	Components[id] = Window.ConfigElements[title]
+	return Components[id]
+end
+
+local function AddDropdown(section, id, title, options, default, callback)
+	State[id] = default
+	section:AddDropdown(title, options, false, function(value)
+		State[id] = value
+		if callback then
+			task.spawn(callback, value)
+		end
+	end)
+	local handle = Window.ConfigElements[title]
+	if handle and default ~= nil and default ~= options[1] then
+		handle.Set(default)
+	end
 	Components[id] = handle
 	return handle
 end
 
 local function AddMultiSelect(section, id, title, options, defaults, callback)
-	local defaultSet = {}
+	local initial = {}
 	for _, name in ipairs(defaults or {}) do
-		defaultSet[name] = true
+		table.insert(initial, name)
 	end
-	State[id] = {}
-	local accordion = section:AddAccordion(title)
-	for _, option in ipairs(options) do
-		local isDefault = defaultSet[option] == true
-		if isDefault then
-			State[id][option] = true
+	State[id] = initial
+	section:AddDropdown(title, options, true, function(value)
+		State[id] = value
+		if callback then
+			task.spawn(callback, value)
 		end
-		accordion:AddCheckbox(option, isDefault, function(value)
-			State[id][option] = value or nil
-			if callback then
-				task.spawn(callback, State[id])
-			end
-		end)
+	end)
+	local handle = Window.ConfigElements[title]
+	if handle and #initial > 0 then
+		handle.Set(initial)
 	end
-	return accordion
+	Components[id] = handle
+	return handle
 end
 
 local function AddButton(section, title, callback)
-	local resetting = false
-	local handle
-	handle = section:AddToggle(title, false, function(value)
-		if not value or resetting then
-			return
-		end
-		resetting = true
+	section:AddButton(title, function()
 		task.spawn(function()
 			local ok, err = pcall(callback)
 			if not ok then
 				warn("[VoidHub] " .. tostring(err))
 			end
-			task.wait(0.15)
-			pcall(function()
-				handle:Set(false)
-			end)
-			resetting = false
 		end)
 	end)
-	return handle
+end
+
+local function AddTextBox(section, id, title, placeholder, callback)
+	section:AddTextbox(title, placeholder, function(value)
+		State[id] = value
+		if callback then
+			task.spawn(callback, value)
+		end
+	end)
+	Components[id] = Window.ConfigElements[title]
 end
 
 F.setControl = function(id, value)
 	State[id] = value
 	local component = Components[id]
 	if component then
-		pcall(function()
-			component:Set(value)
-		end)
+		pcall(component.Set, value)
 	end
-end
-
-F.copyText = function(text, message)
-	if setclipboard then
-		setclipboard(text)
-	elseif toclipboard then
-		toclipboard(text)
-	else
-		F.notify("Your executor does not support copying to the clipboard")
-		return
-	end
-	F.notify(message)
-end
-
-F.copyDiscord = function()
-	F.copyText(DISCORD_INVITE, "Copied Discord invite to clipboard")
 end
 
 local RARITY_RANK = {}
@@ -2727,7 +2648,8 @@ F.httpPost = function(payload)
 	if typeof(sender) ~= "function" then
 		return false
 	end
-	if WEBHOOK_URL == "" then
+	local url = tostring(F.optionValue("WebhookUrl", "") or "")
+	if url == "" then
 		return false
 	end
 	local encoded
@@ -2738,7 +2660,7 @@ F.httpPost = function(payload)
 		return false
 	end
 	local sent = pcall(sender, {
-		Url = WEBHOOK_URL,
+		Url = url,
 		Method = "POST",
 		Headers = { ["Content-Type"] = "application/json" },
 		Body = encoded,
@@ -2770,7 +2692,7 @@ local spawnLog = {}
 local stealLog = {}
 
 F.webhookPing = function()
-	local id = tostring(WEBHOOK_PING_ID):gsub("%D", "")
+	local id = tostring(F.optionValue("WebhookPingId", "") or ""):gsub("%D", "")
 	if id == "" then
 		return nil
 	end
@@ -3331,39 +3253,31 @@ end)
 -- name overlap with that list, so it cannot feed tab icons here.
 -- ============================================================
 
-Window:AddTabLabel("Farming")
-
-local TabSteal = Window:AddTab("Steal", "farm")
-local TabEggs = Window:AddTab("Eggs", "egg")
-local TabPets = Window:AddTab("Pets", "box")
-local TabShop = Window:AddTab("Shop", "shop")
-
-Window:AddTabLabel("Visuals")
-
-local TabEsp = Window:AddTab("ESP", "crosshair")
-local TabMovement = Window:AddTab("Movement", "run")
-
-Window:AddTabLabel("System")
-
-local TabPriority = Window:AddTab("Priority", "list")
-local TabServer = Window:AddTab("Server", "earth")
-local TabWebhooks = Window:AddTab("Webhooks", "code")
-local TabSettings = Window:AddTab("Settings", "gear")
-
-Window:AddTabLabel("Community")
-
-local TabInfo = Window:AddTab("Info", "bio")
+-- This library has no tab-icon or sidebar-label API (CreateTab only takes
+-- name/isDefault/isLocked), and CreateSection has no left/right side arg -
+-- it auto-alternates columns on each call within a page.
+local TabSteal = Window:CreateTab("Steal", true, false):CreatePage("Steal")
+local TabEggs = Window:CreateTab("Eggs", false, false):CreatePage("Eggs")
+local TabPets = Window:CreateTab("Pets", false, false):CreatePage("Pets")
+local TabShop = Window:CreateTab("Shop", false, false):CreatePage("Shop")
+local TabEsp = Window:CreateTab("ESP", false, false):CreatePage("ESP")
+local TabMovement = Window:CreateTab("Movement", false, false):CreatePage("Movement")
+local TabPriority = Window:CreateTab("Priority", false, false):CreatePage("Priority")
+local TabServer = Window:CreateTab("Server", false, false):CreatePage("Server")
+local TabWebhooks = Window:CreateTab("Webhooks", false, false):CreatePage("Webhooks")
+local TabSettings = Window:CreateTab("Settings", false, false):CreatePage("Settings")
+local TabInfo = Window:CreateTab("Info", false, false):CreatePage("Info")
 
 -- ===== Steal =====
 
-local StealFilters = TabSteal:AddSection("Filters", "left")
+local StealFilters = TabSteal:AddSection("Filters")
 
-AddMultiSelect(StealFilters, "StealZones", "Areas", ZONE_VALUES, {})
-AddMultiSelect(StealFilters, "StealRarities", "Rarities", RARITY_VALUES, {})
-AddMultiSelect(StealFilters, "StealMutations", "Mutations", MUTATION_VALUES, {})
+AddMultiSelect(StealFilters, "StealZones", "Steal Areas", ZONE_VALUES, {})
+AddMultiSelect(StealFilters, "StealRarities", "Steal Rarities", RARITY_VALUES, {})
+AddMultiSelect(StealFilters, "StealMutations", "Steal Mutations", MUTATION_VALUES, {})
 AddDropdown(StealFilters, "StealPriority", "Target Priority", PRIORITY_VALUES, "Rarest")
 
-local StealAutomation = TabSteal:AddSection("Automation", "right")
+local StealAutomation = TabSteal:AddSection("Automation")
 
 AddToggle(StealAutomation, "AutoStealSelected", "Auto Steal Selected", false)
 AddToggle(StealAutomation, "AutoStealAll", "Auto Steal All", false)
@@ -3371,37 +3285,37 @@ AddToggle(StealAutomation, "StealBigEggs", "Steal Big Eggs", false)
 AddSlider(StealAutomation, "StealBigEggScale", "Big Egg Minimum Size", 1, 50, 2, "x")
 AddSlider(StealAutomation, "StealSpeed", "Steal Speed", 50, 1000, 300)
 
-local StealCarrying = TabSteal:AddSection("Carrying", "left")
+local StealCarrying = TabSteal:AddSection("Carrying")
 
 AddToggle(StealCarrying, "AutoReturn", "Auto Return to Base", true)
 AddToggle(StealCarrying, "AutoDropEgg", "Auto Drop Held Egg", false)
 
 -- ===== Eggs =====
 
-local EggFilters = TabEggs:AddSection("Filters", "left")
+local EggFilters = TabEggs:AddSection("Filters")
 
-AddMultiSelect(EggFilters, "LifecycleRarities", "Rarities", RARITY_VALUES, {})
-AddMultiSelect(EggFilters, "LifecycleMutations", "Mutations", MUTATION_VALUES, {})
+AddMultiSelect(EggFilters, "LifecycleRarities", "Egg Rarities", RARITY_VALUES, {})
+AddMultiSelect(EggFilters, "LifecycleMutations", "Egg Mutations", MUTATION_VALUES, {})
 
-local EggLifecycle = TabEggs:AddSection("Place & Hatch", "right")
+local EggLifecycle = TabEggs:AddSection("Place & Hatch")
 
 AddToggle(EggLifecycle, "AutoPlaceSelected", "Auto Place Selected", false)
 AddToggle(EggLifecycle, "AutoPlaceAll", "Auto Place All", false)
 AddToggle(EggLifecycle, "AutoOpenReadyEggs", "Auto Hatch Ready", false)
 
-local EggSell = TabEggs:AddSection("Auto Sell Eggs", "left")
+local EggSell = TabEggs:AddSection("Auto Sell Eggs")
 
 AddToggle(EggSell, "AutoSellEggs", "Auto Sell Eggs", false)
-AddMultiSelect(EggSell, "SellEggRarities", "Sell Rarities", RARITY_VALUES, {})
-AddSlider(EggSell, "SellEggInterval", "Sell Interval", 1, 120, 8, "s")
+AddMultiSelect(EggSell, "SellEggRarities", "Sell Egg Rarities", RARITY_VALUES, {})
+AddSlider(EggSell, "SellEggInterval", "Sell Egg Interval", 1, 120, 8, "s")
 
 -- ===== Pets =====
 
-local PetEquip = TabPets:AddSection("Equip", "left")
+local PetEquip = TabPets:AddSection("Equip")
 
 AddToggle(PetEquip, "AutoEquipBest", "Auto Equip Best Pets", false)
 
-local PetFuse = TabPets:AddSection("Auto Fuse", "right")
+local PetFuse = TabPets:AddSection("Auto Fuse")
 
 AddToggle(PetFuse, "AutoFusePets", "Auto Fuse Pets [Beta]", false)
 AddMultiSelect(PetFuse, "FuseRarities", "Fuse Rarities", RARITY_VALUES, {})
@@ -3419,51 +3333,51 @@ AddButton(PetFuse, "Fuse Now", function()
 	end)
 end)
 
-local PetSell = TabPets:AddSection("Auto Sell Pets", "left")
+local PetSell = TabPets:AddSection("Auto Sell Pets")
 
 AddToggle(PetSell, "AutoSellPets", "Auto Sell Pets", false)
-AddMultiSelect(PetSell, "SellRarities", "Sell Rarities", RARITY_VALUES, {})
-AddMultiSelect(PetSell, "SellMutations", "Sell Mutations", MUTATION_VALUES, {})
+AddMultiSelect(PetSell, "SellRarities", "Sell Pet Rarities", RARITY_VALUES, {})
+AddMultiSelect(PetSell, "SellMutations", "Sell Pet Mutations", MUTATION_VALUES, {})
 AddSlider(PetSell, "SellMaxScale", "Maximum Scale to Sell", 0, 10, 10, "x")
-AddSlider(PetSell, "SellInterval", "Sell Interval", 1, 120, 6, "s")
+AddSlider(PetSell, "SellInterval", "Sell Pet Interval", 1, 120, 6, "s")
 AddToggle(PetSell, "SellKeepMutated", "Never Sell Mutated", true)
 AddToggle(PetSell, "SellKeepEquipped", "Never Sell Equipped", true)
 
-local PetEarnings = TabPets:AddSection("Earnings", "right")
+local PetEarnings = TabPets:AddSection("Earnings")
 
 AddToggle(PetEarnings, "AutoClaimOffline", "Claim Offline Earnings", false)
 
 -- ===== Shop =====
 
-local ShopUpgrades = TabShop:AddSection("Upgrades", "left")
+local ShopUpgrades = TabShop:AddSection("Upgrades")
 
 AddToggle(ShopUpgrades, "AutoUpgrades", "Auto Buy Upgrades", false)
 AddMultiSelect(ShopUpgrades, "UpgradeTypes", "Upgrades", UPGRADE_VALUES, { "Base", "Treadmill" })
 
-local ShopRewards = TabShop:AddSection("Rewards", "right")
+local ShopRewards = TabShop:AddSection("Rewards")
 
 AddToggle(ShopRewards, "AutoClaimIndex", "Auto Claim Index", false)
 AddToggle(ShopRewards, "AutoClaimGroupReward", "Auto Claim Group Reward", false)
 
-local ShopTrails = TabShop:AddSection("Trails", "left")
+local ShopTrails = TabShop:AddSection("Trails")
 
 AddToggle(ShopTrails, "AutoBuyTrail", "Auto Buy Trail", false)
 AddMultiSelect(ShopTrails, "TrailWanted", "Trails", TRAIL_VALUES, {})
 AddToggle(ShopTrails, "AutoEquipBestTrail", "Auto Equip Best Trail", false)
 
-local ShopTraining = TabShop:AddSection("Training & Gear", "right")
+local ShopTraining = TabShop:AddSection("Training & Gear")
 
 AddToggle(ShopTraining, "AutoTreadmill", "Auto Treadmill Training", false)
 AddToggle(ShopTraining, "AutoEquipBestGear", "Auto Equip Best Gear", false)
 
 -- ===== ESP =====
 
-local EspEggs = TabEsp:AddSection("Eggs", "left")
+local EspEggs = TabEsp:AddSection("Eggs")
 
 AddToggle(EspEggs, "EspWorldEggs", "World Egg ESP", false)
 AddToggle(EspEggs, "EspCarriedEggs", "Carried & Dropped Eggs", false)
 
-local EspWorld = TabEsp:AddSection("World", "right")
+local EspWorld = TabEsp:AddSection("World")
 
 AddToggle(EspWorld, "EspGuards", "Guard ESP", false)
 AddToggle(EspWorld, "EspPets", "Pet ESP", false)
@@ -3474,7 +3388,7 @@ AddSlider(EspWorld, "EspDistance", "Render Distance", 100, 6000, 2000, " studs")
 
 -- ===== Movement =====
 
-local MoveCharacter = TabMovement:AddSection("Character", "left")
+local MoveCharacter = TabMovement:AddSection("Character")
 
 AddToggle(MoveCharacter, "WalkSpeedEnabled", "Walk Speed Override", false, function(value)
 	if not value then
@@ -3490,7 +3404,7 @@ AddSlider(MoveCharacter, "JumpPower", "Jump Power", 10, 500, 50)
 AddToggle(MoveCharacter, "InfJump", "Infinite Jump", false)
 AddToggle(MoveCharacter, "NoClip", "NoClip", false)
 
-local MoveFly = TabMovement:AddSection("Fly", "right")
+local MoveFly = TabMovement:AddSection("Fly")
 
 AddToggle(MoveFly, "Fly", "Fly (WASD, Space up, Ctrl down)", false, function(value)
 	if not value then
@@ -3502,7 +3416,7 @@ AddToggle(MoveFly, "Fly", "Fly (WASD, Space up, Ctrl down)", false, function(val
 end)
 AddSlider(MoveFly, "FlySpeed", "Fly Speed", 10, 400, 60)
 
-local MoveTeleport = TabMovement:AddSection("Teleport", "right")
+local MoveTeleport = TabMovement:AddSection("Teleport")
 
 AddDropdown(MoveTeleport, "WaypointTarget", "Waypoint", WAYPOINT_VALUES, "Base")
 AddButton(MoveTeleport, "Teleport to Waypoint", function()
@@ -3520,7 +3434,7 @@ end)
 
 -- ===== Priority =====
 
-local PriorityOrder = TabPriority:AddSection("Task Order", "left")
+local PriorityOrder = TabPriority:AddSection("Task Order")
 
 for index, slot in ipairs(PRIORITY_SLOTS) do
 	AddDropdown(PriorityOrder, slot, string.format("Priority %d", index), PRIORITY_TASKS, PRIORITY_TASKS[index])
@@ -3528,7 +3442,7 @@ end
 
 -- ===== Server =====
 
-local ServerHop = TabServer:AddSection("Server Hop", "left")
+local ServerHop = TabServer:AddSection("Server Hop")
 
 AddToggle(ServerHop, "AutoServerHop", "Auto Server Hop", false)
 AddDropdown(ServerHop, "HopMode", "Hop When", HOP_MODES, "No Matching Eggs")
@@ -3540,23 +3454,22 @@ AddButton(ServerHop, "Hop Now", function()
 	end)
 end)
 
-local ServerConnection = TabServer:AddSection("Connection", "right")
+local ServerConnection = TabServer:AddSection("Connection")
 
 AddToggle(ServerConnection, "AutoReconnect", "Auto Reconnect", false)
-AddButton(ServerConnection, "Copy Join Script", function()
-	local joinScript = string.format(
-		'game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s", game:GetService("Players").LocalPlayer)',
-		game.PlaceId,
-		jobIdText
-	)
-	F.copyText(joinScript, "Copied join script to clipboard")
-end)
+ServerConnection:AddCopyButton("Copy Join Script", string.format(
+	'game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s", game:GetService("Players").LocalPlayer)',
+	game.PlaceId,
+	jobIdText
+))
 
 -- ===== Webhooks =====
 
-local WebhookMain = TabWebhooks:AddSection("Webhook", "left")
+local WebhookMain = TabWebhooks:AddSection("Webhook")
 
 AddToggle(WebhookMain, "WebhookEnabled", "Enable Webhooks", false)
+AddTextBox(WebhookMain, "WebhookUrl", "Webhook URL", "https://discord.com/api/webhooks/...")
+AddTextBox(WebhookMain, "WebhookPingId", "Ping User ID", "123456789012345678")
 AddSlider(WebhookMain, "WebhookInterval", "Summary Interval", 1, 180, 15, " min")
 AddButton(WebhookMain, "Send Summary Now", function()
 	task.spawn(function()
@@ -3564,7 +3477,7 @@ AddButton(WebhookMain, "Send Summary Now", function()
 	end)
 end)
 
-local WebhookContents = TabWebhooks:AddSection("Contents", "right")
+local WebhookContents = TabWebhooks:AddSection("Contents")
 
 AddToggle(WebhookContents, "WebhookEggSpawns", "List Spawned Eggs", true)
 AddMultiSelect(WebhookContents, "WebhookRarities", "Only Report Rarities", RARITY_VALUES, {})
@@ -3572,7 +3485,7 @@ AddToggle(WebhookContents, "WebhookDisconnectAlerts", "Disconnect Alerts", false
 
 -- ===== Settings =====
 
-local SettingsMenu = TabSettings:AddSection("Menu", "left")
+local SettingsMenu = TabSettings:AddSection("Menu")
 
 AddToggle(SettingsMenu, "AntiAfk", "Anti-AFK", true)
 AddToggle(SettingsMenu, "AntiGameplayPause", "No Gameplay Paused", true, function(value)
@@ -3582,7 +3495,7 @@ AddToggle(SettingsMenu, "DisableRendering", "Disable 3D Rendering", false, funct
 	F.applyRendering(value)
 end)
 
-local SettingsPerformance = TabSettings:AddSection("Performance", "right")
+local SettingsPerformance = TabSettings:AddSection("Performance")
 
 AddToggle(SettingsPerformance, "FpsBoost", "FPS Boost", false, function(value)
 	F.applyFpsBoost(value)
@@ -3592,7 +3505,7 @@ AddSlider(SettingsPerformance, "FpsCap", "FPS Cap", 15, 360, 60, nil, function(v
 	F.applyFpsCap(value)
 end)
 
-local SettingsDanger = TabSettings:AddSection("Danger Zone", "left")
+local SettingsDanger = TabSettings:AddSection("Danger Zone")
 
 local PANIC_TOGGLES = {
 	"AutoStealSelected", "AutoStealAll", "StealBigEggs", "AutoDropEgg",
@@ -3615,14 +3528,16 @@ AddButton(SettingsDanger, "Unload VoidHub", function()
 	F.unload()
 end)
 
+local SettingsConfig = TabSettings:AddSection("Config")
+
+SettingsConfig:AddConfigManager("VoidHubStealAnEgg")
+
 -- ===== Info =====
 
-local InfoCommunity = TabInfo:AddSection("Community", "left")
+local InfoCommunity = TabInfo:AddSection("Community")
 
-AddButton(InfoCommunity, "Copy Discord Link", F.copyDiscord)
-AddButton(InfoCommunity, "Copy Credits", function()
-	F.copyText(HUB_NAME .. " - Steal An Egg Script Hub | Credits: von63rd | Script Developer & Designer", "Copied credits")
-end)
+InfoCommunity:AddCopyButton("Copy Discord Link", DISCORD_INVITE)
+InfoCommunity:AddCopyButton("Copy Credits", HUB_NAME .. " - Steal An Egg Script Hub | Credits: von63rd | Script Developer & Designer")
 
 -- ============================================================
 -- Movement / anti-detect event handlers
@@ -4103,10 +4018,6 @@ F.unload = function()
 		if hopFailConnection then
 			hopFailConnection:Disconnect()
 		end
-	end)
-
-	pcall(function()
-		NotifyGui:Destroy()
 	end)
 
 	if getgenv then
