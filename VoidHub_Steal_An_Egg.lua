@@ -187,10 +187,31 @@ local NET = {
 	},
 }
 
-local OBSIDIAN_REPO = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
-local Library = loadstring(game:HttpGet(OBSIDIAN_REPO .. "Library.lua"))()
-local ThemeManager = loadstring(game:HttpGet(OBSIDIAN_REPO .. "addons/ThemeManager.lua"))()
-local SaveManager = loadstring(game:HttpGet(OBSIDIAN_REPO .. "addons/SaveManager.lua"))()
+-- Path matches https://docs.mspaint.cc/obsidian/installation/executor exactly.
+local OBSIDIAN_REPO = "https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/"
+
+-- Mobile executors (Delta, etc.) can flake on a single large HttpGet
+-- (Library.lua alone is ~450 KB), so retry a couple of times before
+-- giving up instead of dying on one bad request.
+local function loadObsidianModule(path)
+	local url = OBSIDIAN_REPO .. path
+	local lastError = "unknown error"
+	for attempt = 1, 3 do
+		local ok, result = pcall(function()
+			return loadstring(game:HttpGet(url))()
+		end)
+		if ok then
+			return result
+		end
+		lastError = result
+		task.wait(1)
+	end
+	error(string.format("[VoidHub] Failed to load %s after 3 attempts: %s", path, tostring(lastError)), 0)
+end
+
+local Library = loadObsidianModule("Library.lua")
+local ThemeManager = loadObsidianModule("addons/ThemeManager.lua")
+local SaveManager = loadObsidianModule("addons/SaveManager.lua")
 
 if getgenv then
 	local previous = getgenv().VoidHubStealAnEgg
