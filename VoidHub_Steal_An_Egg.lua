@@ -184,10 +184,27 @@ local NET = {
 	},
 }
 
-local repo = "https://raw.githubusercontent.com/joustingmatch/ObsidianUltra/main/"
-local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
-local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
-local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/"
+
+local function loadObsidianModule(path)
+	local url = repo .. path
+	local lastError = "unknown error"
+	for attempt = 1, 3 do
+		local ok, result = pcall(function()
+			return loadstring(game:HttpGet(url))()
+		end)
+		if ok then
+			return result
+		end
+		lastError = result
+		task.wait(1)
+	end
+	error(string.format("[VoidHub] Failed to load %s after 3 attempts: %s", path, tostring(lastError)), 0)
+end
+
+local Library = loadObsidianModule("Library.lua")
+local ThemeManager = loadObsidianModule("addons/ThemeManager.lua")
+local SaveManager = loadObsidianModule("addons/SaveManager.lua")
 
 local Toggles = Library.Toggles
 local Options = Library.Options
@@ -2719,23 +2736,29 @@ local Window = Library:CreateWindow({
 	ShowCustomCursor = false,
 	CornerRadius = 6,
 	Size = UDim2.fromOffset(940, 680),
+	Animations = {
+		ToggleWindow = true,
+		TabSwitch = true,
+		Groupbox = true,
+		Dropdown = true,
+		KeyPicker = true,
+	},
 })
 
+-- Vanilla Obsidian has no Tab:AddSubTab, so what was a "Main" tab with Eggs/
+-- Pets/Shop subtabs (and a "Visuals" tab with ESP/Movement subtabs) becomes
+-- flat top-level tabs instead. Same content, one less navigation layer.
 local Tabs = {
 	Info = Window:AddTab("Info", "info"),
-	Main = Window:AddTab("Main", "egg"),
-	Visuals = Window:AddTab("Visuals", "eye"),
+	Steal = Window:AddTab("Eggs", "hand-grab"),
+	Pets = Window:AddTab("Pets", "paw-print"),
+	Shop = Window:AddTab("Shop", "shopping-cart"),
+	Esp = Window:AddTab("ESP", "eye"),
+	Movement = Window:AddTab("Movement", "footprints"),
 	Priority = Window:AddTab("Priority System", "list-ordered"),
 	Webhooks = Window:AddTab("Webhooks", "webhook"),
 	Settings = Window:AddTab("Settings", "settings"),
 }
-
-Tabs.Steal = Tabs.Main:AddSubTab("Eggs", "hand-grab")
-Tabs.Pets = Tabs.Main:AddSubTab("Pets", "paw-print")
-Tabs.Shop = Tabs.Main:AddSubTab("Shop", "shopping-cart")
-
-Tabs.Esp = Tabs.Visuals:AddSubTab("ESP", "eye")
-Tabs.Movement = Tabs.Visuals:AddSubTab("Movement", "footprints")
 
 local Groups = {}
 
