@@ -74,6 +74,42 @@ local HUB_NAME = "VoidHub"
 local HUB_ICON = "rbxassetid://101833678008843"
 local DISCORD_INVITE = "https://discord.gg/Wsarxj9Gzz"
 
+-- Only the icon names actually used below, pulled from the Lucide-style
+-- icon pack (name -> rbxassetid).
+local ICON = {
+	Sprout = "rbxassetid://10734965572",
+	Eye = "rbxassetid://10723346959",
+	Settings = "rbxassetid://10734950309",
+	Info = "rbxassetid://10723415903",
+	Filter = "rbxassetid://10723375128",
+	Bot = "rbxassetid://10709782230",
+	Hand = "rbxassetid://10723405649",
+	Egg = "rbxassetid://10723345518",
+	Coins = "rbxassetid://10709811110",
+	Star = "rbxassetid://10734966248",
+	Flask = "rbxassetid://10734883986",
+	Tags = "rbxassetid://10734976739",
+	Wallet = "rbxassetid://10747376205",
+	ArrowUp = "rbxassetid://10709768432",
+	Gift = "rbxassetid://10723396402",
+	Gem = "rbxassetid://10723396000",
+	Activity = "rbxassetid://10709752035",
+	Globe = "rbxassetid://10723404337",
+	Person = "rbxassetid://10734920149",
+	Feather = "rbxassetid://10723354671",
+	MapPin = "rbxassetid://10734886004",
+	ListOrdered = "rbxassetid://10723427199",
+	Server = "rbxassetid://10734949856",
+	Wifi = "rbxassetid://10747382504",
+	Send = "rbxassetid://10734943902",
+	ClipboardList = "rbxassetid://10709798792",
+	Menu = "rbxassetid://10734887784",
+	Gauge = "rbxassetid://10723395708",
+	AlertTriangle = "rbxassetid://10709753149",
+	Save = "rbxassetid://10734941499",
+	Users = "rbxassetid://10747373426",
+}
+
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes"))
 local Constants = require(ReplicatedStorage.Shared.Globals.Constants)
@@ -3253,35 +3289,35 @@ end)
 -- within a page.
 -- ============================================================
 
-local FarmingTab = Window:CreateTab("Farming", true, false)
+local FarmingTab = Window:CreateTab("Farming", true, false, ICON.Sprout)
 local TabSteal = FarmingTab:CreatePage("Steal")
 local TabEggs = FarmingTab:CreatePage("Eggs")
 local TabPets = FarmingTab:CreatePage("Pets")
 local TabShop = FarmingTab:CreatePage("Shop")
 
-local VisualsTab = Window:CreateTab("Visuals", false, false)
+local VisualsTab = Window:CreateTab("Visuals", false, false, ICON.Eye)
 local TabEsp = VisualsTab:CreatePage("ESP")
 local TabMovement = VisualsTab:CreatePage("Movement")
 
-local SystemTab = Window:CreateTab("System", false, false)
+local SystemTab = Window:CreateTab("System", false, false, ICON.Settings)
 local TabPriority = SystemTab:CreatePage("Priority")
 local TabServer = SystemTab:CreatePage("Server")
 local TabWebhooks = SystemTab:CreatePage("Webhooks")
 local TabSettings = SystemTab:CreatePage("Settings")
 
-local InfoTab = Window:CreateTab("Info", false, false)
+local InfoTab = Window:CreateTab("Info", false, false, ICON.Info)
 local TabInfo = InfoTab:CreatePage("Info")
 
 -- ===== Steal =====
 
-local StealFilters = TabSteal:CreateSection("Filters")
+local StealFilters = TabSteal:CreateSection("Filters", ICON.Filter)
 
 AddMultiSelect(StealFilters, "StealZones", "Steal Areas", ZONE_VALUES, {})
 AddMultiSelect(StealFilters, "StealRarities", "Steal Rarities", RARITY_VALUES, {})
 AddMultiSelect(StealFilters, "StealMutations", "Steal Mutations", MUTATION_VALUES, {})
 AddDropdown(StealFilters, "StealPriority", "Target Priority", PRIORITY_VALUES, "Rarest")
 
-local StealAutomation = TabSteal:CreateSection("Automation")
+local StealAutomation = TabSteal:CreateSection("Automation", ICON.Bot)
 
 AddToggle(StealAutomation, "AutoStealSelected", "Auto Steal Selected", false)
 AddToggle(StealAutomation, "AutoStealAll", "Auto Steal All", false)
@@ -3289,25 +3325,25 @@ AddToggle(StealAutomation, "StealBigEggs", "Steal Big Eggs", false)
 AddSlider(StealAutomation, "StealBigEggScale", "Big Egg Minimum Size", 1, 50, 2, "x")
 AddSlider(StealAutomation, "StealSpeed", "Steal Speed", 50, 1000, 300)
 
-local StealCarrying = TabSteal:CreateSection("Carrying")
+local StealCarrying = TabSteal:CreateSection("Carrying", ICON.Hand)
 
 AddToggle(StealCarrying, "AutoReturn", "Auto Return to Base", true)
 AddToggle(StealCarrying, "AutoDropEgg", "Auto Drop Held Egg", false)
 
 -- ===== Eggs =====
 
-local EggFilters = TabEggs:CreateSection("Filters")
+local EggFilters = TabEggs:CreateSection("Filters", ICON.Filter)
 
 AddMultiSelect(EggFilters, "LifecycleRarities", "Egg Rarities", RARITY_VALUES, {})
 AddMultiSelect(EggFilters, "LifecycleMutations", "Egg Mutations", MUTATION_VALUES, {})
 
-local EggLifecycle = TabEggs:CreateSection("Place & Hatch")
+local EggLifecycle = TabEggs:CreateSection("Place & Hatch", ICON.Egg)
 
 AddToggle(EggLifecycle, "AutoPlaceSelected", "Auto Place Selected", false)
 AddToggle(EggLifecycle, "AutoPlaceAll", "Auto Place All", false)
 AddToggle(EggLifecycle, "AutoOpenReadyEggs", "Auto Hatch Ready", false)
 
-local EggSell = TabEggs:CreateSection("Auto Sell Eggs")
+local EggSell = TabEggs:CreateSection("Auto Sell Eggs", ICON.Coins)
 
 AddToggle(EggSell, "AutoSellEggs", "Auto Sell Eggs", false)
 AddMultiSelect(EggSell, "SellEggRarities", "Sell Egg Rarities", RARITY_VALUES, {})
@@ -3315,11 +3351,11 @@ AddSlider(EggSell, "SellEggInterval", "Sell Egg Interval", 1, 120, 8, "s")
 
 -- ===== Pets =====
 
-local PetEquip = TabPets:CreateSection("Equip")
+local PetEquip = TabPets:CreateSection("Equip", ICON.Star)
 
 AddToggle(PetEquip, "AutoEquipBest", "Auto Equip Best Pets", false)
 
-local PetFuse = TabPets:CreateSection("Auto Fuse")
+local PetFuse = TabPets:CreateSection("Auto Fuse", ICON.Flask)
 
 AddToggle(PetFuse, "AutoFusePets", "Auto Fuse Pets [Beta]", false)
 AddMultiSelect(PetFuse, "FuseRarities", "Fuse Rarities", RARITY_VALUES, {})
@@ -3337,7 +3373,7 @@ AddButton(PetFuse, "Fuse Now", function()
 	end)
 end)
 
-local PetSell = TabPets:CreateSection("Auto Sell Pets")
+local PetSell = TabPets:CreateSection("Auto Sell Pets", ICON.Tags)
 
 AddToggle(PetSell, "AutoSellPets", "Auto Sell Pets", false)
 AddMultiSelect(PetSell, "SellRarities", "Sell Pet Rarities", RARITY_VALUES, {})
@@ -3347,41 +3383,41 @@ AddSlider(PetSell, "SellInterval", "Sell Pet Interval", 1, 120, 6, "s")
 AddToggle(PetSell, "SellKeepMutated", "Never Sell Mutated", true)
 AddToggle(PetSell, "SellKeepEquipped", "Never Sell Equipped", true)
 
-local PetEarnings = TabPets:CreateSection("Earnings")
+local PetEarnings = TabPets:CreateSection("Earnings", ICON.Wallet)
 
 AddToggle(PetEarnings, "AutoClaimOffline", "Claim Offline Earnings", false)
 
 -- ===== Shop =====
 
-local ShopUpgrades = TabShop:CreateSection("Upgrades")
+local ShopUpgrades = TabShop:CreateSection("Upgrades", ICON.ArrowUp)
 
 AddToggle(ShopUpgrades, "AutoUpgrades", "Auto Buy Upgrades", false)
 AddMultiSelect(ShopUpgrades, "UpgradeTypes", "Upgrades", UPGRADE_VALUES, { "Base", "Treadmill" })
 
-local ShopRewards = TabShop:CreateSection("Rewards")
+local ShopRewards = TabShop:CreateSection("Rewards", ICON.Gift)
 
 AddToggle(ShopRewards, "AutoClaimIndex", "Auto Claim Index", false)
 AddToggle(ShopRewards, "AutoClaimGroupReward", "Auto Claim Group Reward", false)
 
-local ShopTrails = TabShop:CreateSection("Trails")
+local ShopTrails = TabShop:CreateSection("Trails", ICON.Gem)
 
 AddToggle(ShopTrails, "AutoBuyTrail", "Auto Buy Trail", false)
 AddMultiSelect(ShopTrails, "TrailWanted", "Trails", TRAIL_VALUES, {})
 AddToggle(ShopTrails, "AutoEquipBestTrail", "Auto Equip Best Trail", false)
 
-local ShopTraining = TabShop:CreateSection("Training & Gear")
+local ShopTraining = TabShop:CreateSection("Training & Gear", ICON.Activity)
 
 AddToggle(ShopTraining, "AutoTreadmill", "Auto Treadmill Training", false)
 AddToggle(ShopTraining, "AutoEquipBestGear", "Auto Equip Best Gear", false)
 
 -- ===== ESP =====
 
-local EspEggs = TabEsp:CreateSection("Eggs")
+local EspEggs = TabEsp:CreateSection("Eggs", ICON.Egg)
 
 AddToggle(EspEggs, "EspWorldEggs", "World Egg ESP", false)
 AddToggle(EspEggs, "EspCarriedEggs", "Carried & Dropped Eggs", false)
 
-local EspWorld = TabEsp:CreateSection("World")
+local EspWorld = TabEsp:CreateSection("World", ICON.Globe)
 
 AddToggle(EspWorld, "EspGuards", "Guard ESP", false)
 AddToggle(EspWorld, "EspPets", "Pet ESP", false)
@@ -3392,7 +3428,7 @@ AddSlider(EspWorld, "EspDistance", "Render Distance", 100, 6000, 2000, " studs")
 
 -- ===== Movement =====
 
-local MoveCharacter = TabMovement:CreateSection("Character")
+local MoveCharacter = TabMovement:CreateSection("Character", ICON.Person)
 
 AddToggle(MoveCharacter, "WalkSpeedEnabled", "Walk Speed Override", false, function(value)
 	if not value then
@@ -3408,7 +3444,7 @@ AddSlider(MoveCharacter, "JumpPower", "Jump Power", 10, 500, 50)
 AddToggle(MoveCharacter, "InfJump", "Infinite Jump", false)
 AddToggle(MoveCharacter, "NoClip", "NoClip", false)
 
-local MoveFly = TabMovement:CreateSection("Fly")
+local MoveFly = TabMovement:CreateSection("Fly", ICON.Feather)
 
 AddToggle(MoveFly, "Fly", "Fly (WASD, Space up, Ctrl down)", false, function(value)
 	if not value then
@@ -3420,7 +3456,7 @@ AddToggle(MoveFly, "Fly", "Fly (WASD, Space up, Ctrl down)", false, function(val
 end)
 AddSlider(MoveFly, "FlySpeed", "Fly Speed", 10, 400, 60)
 
-local MoveTeleport = TabMovement:CreateSection("Teleport")
+local MoveTeleport = TabMovement:CreateSection("Teleport", ICON.MapPin)
 
 AddDropdown(MoveTeleport, "WaypointTarget", "Waypoint", WAYPOINT_VALUES, "Base")
 AddButton(MoveTeleport, "Teleport to Waypoint", function()
@@ -3438,7 +3474,7 @@ end)
 
 -- ===== Priority =====
 
-local PriorityOrder = TabPriority:CreateSection("Task Order")
+local PriorityOrder = TabPriority:CreateSection("Task Order", ICON.ListOrdered)
 
 for index, slot in ipairs(PRIORITY_SLOTS) do
 	AddDropdown(PriorityOrder, slot, string.format("Priority %d", index), PRIORITY_TASKS, PRIORITY_TASKS[index])
@@ -3446,7 +3482,7 @@ end
 
 -- ===== Server =====
 
-local ServerHop = TabServer:CreateSection("Server Hop")
+local ServerHop = TabServer:CreateSection("Server Hop", ICON.Server)
 
 AddToggle(ServerHop, "AutoServerHop", "Auto Server Hop", false)
 AddDropdown(ServerHop, "HopMode", "Hop When", HOP_MODES, "No Matching Eggs")
@@ -3458,7 +3494,7 @@ AddButton(ServerHop, "Hop Now", function()
 	end)
 end)
 
-local ServerConnection = TabServer:CreateSection("Connection")
+local ServerConnection = TabServer:CreateSection("Connection", ICON.Wifi)
 
 AddToggle(ServerConnection, "AutoReconnect", "Auto Reconnect", false)
 ServerConnection:AddCopyButton("Copy Join Script", string.format(
@@ -3469,7 +3505,7 @@ ServerConnection:AddCopyButton("Copy Join Script", string.format(
 
 -- ===== Webhooks =====
 
-local WebhookMain = TabWebhooks:CreateSection("Webhook")
+local WebhookMain = TabWebhooks:CreateSection("Webhook", ICON.Send)
 
 AddToggle(WebhookMain, "WebhookEnabled", "Enable Webhooks", false)
 AddTextBox(WebhookMain, "WebhookUrl", "Webhook URL", "https://discord.com/api/webhooks/...")
@@ -3481,7 +3517,7 @@ AddButton(WebhookMain, "Send Summary Now", function()
 	end)
 end)
 
-local WebhookContents = TabWebhooks:CreateSection("Contents")
+local WebhookContents = TabWebhooks:CreateSection("Contents", ICON.ClipboardList)
 
 AddToggle(WebhookContents, "WebhookEggSpawns", "List Spawned Eggs", true)
 AddMultiSelect(WebhookContents, "WebhookRarities", "Only Report Rarities", RARITY_VALUES, {})
@@ -3489,7 +3525,7 @@ AddToggle(WebhookContents, "WebhookDisconnectAlerts", "Disconnect Alerts", false
 
 -- ===== Settings =====
 
-local SettingsMenu = TabSettings:CreateSection("Menu")
+local SettingsMenu = TabSettings:CreateSection("Menu", ICON.Menu)
 
 AddToggle(SettingsMenu, "AntiAfk", "Anti-AFK", true)
 AddToggle(SettingsMenu, "AntiGameplayPause", "No Gameplay Paused", true, function(value)
@@ -3499,7 +3535,7 @@ AddToggle(SettingsMenu, "DisableRendering", "Disable 3D Rendering", false, funct
 	F.applyRendering(value)
 end)
 
-local SettingsPerformance = TabSettings:CreateSection("Performance")
+local SettingsPerformance = TabSettings:CreateSection("Performance", ICON.Gauge)
 
 AddToggle(SettingsPerformance, "FpsBoost", "FPS Boost", false, function(value)
 	F.applyFpsBoost(value)
@@ -3509,7 +3545,7 @@ AddSlider(SettingsPerformance, "FpsCap", "FPS Cap", 15, 360, 60, nil, function(v
 	F.applyFpsCap(value)
 end)
 
-local SettingsDanger = TabSettings:CreateSection("Danger Zone")
+local SettingsDanger = TabSettings:CreateSection("Danger Zone", ICON.AlertTriangle)
 
 local PANIC_TOGGLES = {
 	"AutoStealSelected", "AutoStealAll", "StealBigEggs", "AutoDropEgg",
@@ -3532,13 +3568,13 @@ AddButton(SettingsDanger, "Unload VoidHub", function()
 	F.unload()
 end)
 
-local SettingsConfig = TabSettings:CreateSection("Config")
+local SettingsConfig = TabSettings:CreateSection("Config", ICON.Save)
 
 SettingsConfig:AddConfigManager("VoidHubStealAnEgg")
 
 -- ===== Info =====
 
-local InfoCommunity = TabInfo:CreateSection("Community")
+local InfoCommunity = TabInfo:CreateSection("Community", ICON.Users)
 
 InfoCommunity:AddCopyButton("Copy Discord Link", DISCORD_INVITE)
 InfoCommunity:AddCopyButton("Copy Credits", HUB_NAME .. " - Steal An Egg Script Hub | Credits: von63rd | Script Developer & Designer")
