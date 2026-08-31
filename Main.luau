@@ -48,6 +48,20 @@ local function Create(className, properties)
 
     return instance
 end
+-- Diagonal dark-light-dark sheen used for the window, cards, and popups,
+-- instead of a flat two-stop fill - reads as glass/depth rather than a
+-- plain color swatch.
+local function DiagonalGradient(parent, colorLight, colorDark, rotation)
+    return Create("UIGradient", {
+        Parent = parent,
+        Rotation = rotation or 45,
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, colorDark),
+            ColorSequenceKeypoint.new(0.5, colorLight),
+            ColorSequenceKeypoint.new(1, colorDark),
+        }),
+    })
+end
 local function BuildSearchIndex(card)
     local parts = {}
     for _, desc in ipairs(card:GetDescendants()) do
@@ -150,32 +164,59 @@ function Library:Notify(options)
     if not GlobalNotifContainer then return end
     local title = options.Title or "Notification"
     local desc = options.Description or "Information updated."
-    local duration = options.Duration or 3
+    local duration = options.Duration or 4
+    local icon = options.Icon
 
-    local Notif = Create("Frame", {Parent = GlobalNotifContainer, BackgroundColor3 = CardColor, Size = UDim2.new(1, 0, 0, 65), BackgroundTransparency = 1, ZIndex = 201, ClipsDescendants = true})
+    -- The slot is what the container's UIListLayout stacks; Notif lives
+    -- one level below it so it's free to slide on its own, independent
+    -- of the layout's own positioning.
+    local Slot = Create("Frame", {Parent = GlobalNotifContainer, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y})
+    local Notif = Create("TextButton", {Parent = Slot, Text = "", AutoButtonColor = false, Active = true, BackgroundColor3 = CardColor, Size = UDim2.new(1, 0, 0, 0), Position = UDim2.new(1, 60, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ClipsDescendants = true, ZIndex = 201})
     Create("UICorner", {Parent = Notif, CornerRadius = UDim.new(0, 10)})
-    Create("UIGradient", {Parent = Notif, Color = ColorSequence.new(CardColorLight, CardColor), Rotation = 90})
-    local Stroke = Create("UIStroke", {Parent = Notif, Color = BorderColor, Thickness = 1, Transparency = 1})
-    local AccentBar = Create("Frame", {Parent = Notif, BackgroundColor3 = AccentColor, Size = UDim2.new(0, 3, 1, 0), BorderSizePixel = 0, ZIndex = 202, BackgroundTransparency = 1})
+    DiagonalGradient(Notif, CardColorLight, CardColor)
+    local Stroke = Create("UIStroke", {Parent = Notif, Color = BorderColor, Thickness = 1, Transparency = 0.3})
+    local AccentBar = Create("Frame", {Parent = Notif, BackgroundColor3 = AccentColor, Size = UDim2.new(0, 3, 1, 0), BorderSizePixel = 0, ZIndex = 202})
     Create("UIGradient", {Parent = AccentBar, Color = ColorSequence.new(AccentColor, AccentColorDark), Rotation = 90})
 
-    local TitleText = Create("TextLabel", {Parent = Notif, Text = title, Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = TextColor, BackgroundTransparency = 1, Position = UDim2.new(0, 15, 0, 15), Size = UDim2.new(1, -30, 0, 15), TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 1, ZIndex = 202})
-    local DescText = Create("TextLabel", {Parent = Notif, Text = desc, Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = SubTextColor, BackgroundTransparency = 1, Position = UDim2.new(0, 15, 0, 32), Size = UDim2.new(1, -30, 0, 15), TextXAlignment = Enum.TextXAlignment.Left, TextTransparency = 1, ZIndex = 202})
+    local textOffsetX = 15
+    if icon then
+        Create("ImageLabel", {Parent = Notif, Image = icon, ImageColor3 = AccentColor, BackgroundTransparency = 1, Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(0, 14, 0, 14), ScaleType = Enum.ScaleType.Fit, ZIndex = 202})
+        textOffsetX = 14 + 22 + 10
+    end
 
-    Tween(Notif, {BackgroundTransparency = 0}, 0.3)
-    Tween(Stroke, {Transparency = 0.3}, 0.3)
-    Tween(AccentBar, {BackgroundTransparency = 0}, 0.3)
-    Tween(TitleText, {TextTransparency = 0}, 0.3)
-    Tween(DescText, {TextTransparency = 0}, 0.3)
+    local Countdown = Create("TextLabel", {Parent = Notif, Text = string.format("%ds", math.ceil(duration)), Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = SubTextColor, BackgroundTransparency = 1, Size = UDim2.new(0, 30, 0, 14), Position = UDim2.new(1, -12, 0, 12), AnchorPoint = Vector2.new(1, 0), TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 202})
+    local TitleText = Create("TextLabel", {Parent = Notif, Text = title, Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = TextColor, BackgroundTransparency = 1, Position = UDim2.new(0, textOffsetX, 0, 12), Size = UDim2.new(1, -textOffsetX - 40, 0, 15), TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 202})
+    Create("TextLabel", {Parent = Notif, Text = desc, Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = SubTextColor, BackgroundTransparency = 1, Position = UDim2.new(0, textOffsetX, 0, 30), Size = UDim2.new(1, -textOffsetX - 15, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 202})
+    Create("UIPadding", {Parent = Notif, PaddingBottom = UDim.new(0, 12)})
 
-    task.delay(duration, function()
-        Tween(Notif, {BackgroundTransparency = 1}, 0.4)
-        Tween(Stroke, {Transparency = 1}, 0.4)
-        Tween(AccentBar, {BackgroundTransparency = 1}, 0.4)
-        Tween(TitleText, {TextTransparency = 1}, 0.4)
-        Tween(DescText, {TextTransparency = 1}, 0.4)
-        task.wait(0.4)
-        Notif:Destroy()
+    Tween(Notif, {Position = UDim2.new(0, 0, 0, 0)}, 0.35)
+
+    local closed = false
+    local paused = false
+
+    local function close()
+        if closed then return end
+        closed = true
+        Tween(Notif, {Position = UDim2.new(1, 60, 0, 0)}, 0.3)
+        task.wait(0.3)
+        Slot:Destroy()
+    end
+
+    Notif.MouseEnter:Connect(function() paused = true end)
+    Notif.MouseLeave:Connect(function() paused = false end)
+    Notif.MouseButton1Click:Connect(close)
+
+    task.spawn(function()
+        local remaining = duration
+        while remaining > 0 and not closed do
+            Countdown.Text = string.format("%ds", math.ceil(remaining))
+            if paused then
+                repeat task.wait() until not paused or closed
+            else
+                remaining -= task.wait()
+            end
+        end
+        close()
     end)
 end
 
@@ -237,8 +278,9 @@ function Library:CreateWindow(options)
     GlobalNotifContainer = NotifContainer
 
     local function SendPremiumNotification()
-        local Notif = Create("Frame", {Parent = NotifContainer, BackgroundColor3 = Color3.fromRGB(20, 20, 22), Size = UDim2.new(1, 0, 0, 65), BackgroundTransparency = 1, ZIndex = 201, ClipsDescendants = true})
-        Create("UICorner", {Parent = Notif, CornerRadius = UDim.new(0, 8)})
+        local Notif = Create("Frame", {Parent = NotifContainer, BackgroundColor3 = CardColor, Size = UDim2.new(1, 0, 0, 65), BackgroundTransparency = 1, ZIndex = 201, ClipsDescendants = true})
+        Create("UICorner", {Parent = Notif, CornerRadius = UDim.new(0, 10)})
+        DiagonalGradient(Notif, CardColorLight, CardColor)
 
         local Stroke = Create("UIStroke", {Parent = Notif, Thickness = 1.5, Transparency = 1})
         local StrokeGrad = Create("UIGradient", {Parent = Stroke, Color = ColorSequence.new(Color3.fromRGB(255, 215, 0), Color3.fromRGB(180, 130, 20)), Rotation = 45})
@@ -272,7 +314,7 @@ function Library:CreateWindow(options)
     local InfoOverlay = Create("Frame", {Parent = ScreenGui, BackgroundColor3 = Color3.fromRGB(5, 5, 8), BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), ZIndex = 150, Visible = false, Active = true})
     local InfoCard = Create("Frame", {Parent = InfoOverlay, BackgroundColor3 = CardColor, Size = UDim2.new(0, 360, 0, 280), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 151, BackgroundTransparency = 1, ClipsDescendants = true})
     Create("UICorner", {Parent = InfoCard, CornerRadius = UDim.new(0, 10)})
-    Create("UIGradient", {Parent = InfoCard, Color = ColorSequence.new(CardColorLight, CardColor), Rotation = 90})
+    DiagonalGradient(InfoCard, CardColorLight, CardColor)
     Create("UIStroke", {Parent = InfoCard, Color = AccentColor, Thickness = 1.5, Transparency = 1})
     local InfoScale = Create("UIScale", {Parent = InfoCard, Scale = 0})
 
@@ -335,10 +377,10 @@ function Library:CreateWindow(options)
         Btn.MouseButton1Click:Connect(function() OpenInfoWindow(data) end)
     end
 
-    local MainFrame = Create("Frame", {Parent = ScreenGui, BackgroundColor3 = BackgroundColor, Size = UDim2.new(0, 650, 0, 420), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), ClipsDescendants = true, BackgroundTransparency = 1, Active = true})
+    local MainFrame = Create("Frame", {Parent = ScreenGui, BackgroundColor3 = BackgroundColor, Size = UDim2.new(0, 580, 0, 400), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), ClipsDescendants = true, BackgroundTransparency = 1, Active = true})
     local MainScale = Create("UIScale", {Parent = MainFrame, Scale = 0.8})
     Create("UICorner", {Parent = MainFrame, CornerRadius = UDim.new(0, 10)})
-    Create("UIGradient", {Parent = MainFrame, Color = ColorSequence.new(BackgroundColorLight, BackgroundColor), Rotation = 90})
+    DiagonalGradient(MainFrame, BackgroundColorLight, BackgroundColor)
     local MainFrameStroke = Create("UIStroke", {Parent = MainFrame, Color = BorderColor, Thickness = 1})
     Create("UIGradient", {Parent = MainFrameStroke, Color = ColorSequence.new(AccentColor, BorderColor), Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(0.4, 1), NumberSequenceKeypoint.new(1, 1)}), Rotation = 90})
     Tween(MainScale, {Scale = 1}, 0.5)
@@ -372,8 +414,8 @@ function Library:CreateWindow(options)
         if MainFrame and MainFrame.Visible then
             BottomDragHitbox.Visible = true
             local currentScale = MainScale.Scale
-            local frameHeight = 420 * currentScale
-            local frameWidth = 650 * currentScale
+            local frameHeight = 400 * currentScale
+            local frameWidth = 580 * currentScale
 
             BottomDragHitbox.Position = UDim2.new(
                 MainFrame.Position.X.Scale,
@@ -507,7 +549,7 @@ function Library:CreateWindow(options)
     local Popup = Create("Frame", {Parent = ScreenGui, BackgroundColor3 = Color3.fromRGB(0, 0, 0), BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), ZIndex = 100, Visible = false, Active = true})
     local PopupCard = Create("Frame", {Parent = Popup, BackgroundColor3 = CardColor, Size = UDim2.new(0, 320, 0, 160), Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 101, BackgroundTransparency = 1, ClipsDescendants = false})
     Create("UICorner", {Parent = PopupCard, CornerRadius = UDim.new(0, 12)})
-    Create("UIGradient", {Parent = PopupCard, Color = ColorSequence.new(CardColorLight, CardColor), Rotation = 90})
+    DiagonalGradient(PopupCard, CardColorLight, CardColor)
     local PopupScale = Create("UIScale", {Parent = PopupCard, Scale = 0.8})
     local PopupStroke = Create("UIStroke", {Parent = PopupCard, Color = Color3.fromRGB(50, 50, 55), Thickness = 1, Transparency = 1})
     local PopupTitle = Create("TextLabel", {Parent = PopupCard, Text = "Exit Application", Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = TextColor, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 30), Position = UDim2.new(0, 0, 0, 25), ZIndex = 102, TextTransparency = 1, TextXAlignment = Enum.TextXAlignment.Center})
@@ -768,7 +810,7 @@ function Library:CreateWindow(options)
 
                 local SectionContainer = Create("Frame", {Parent = targetColumn, BackgroundColor3 = CardColor, Size = UDim2.new(1, 0, 0, 30), AutomaticSize = Enum.AutomaticSize.Y, ClipsDescendants = true})
                 Create("UICorner", {Parent = SectionContainer, CornerRadius = UDim.new(0, 8)})
-                Create("UIGradient", {Parent = SectionContainer, Color = ColorSequence.new(CardColorLight, CardColor), Rotation = 90})
+                DiagonalGradient(SectionContainer, CardColorLight, CardColor)
                 Create("UIStroke", {Parent = SectionContainer, Color = BorderColor, Thickness = 1})
 
                 table.insert(Window.AllCards, {
