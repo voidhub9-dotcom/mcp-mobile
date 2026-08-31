@@ -3144,6 +3144,7 @@ F.runEsp = function()
 	F.collectPlayerEsp()
 	F.collectMachineEsp()
 	F.collectPlotEsp()
+	F.collectTrapEsp()
 	for key in pairs(espObjects) do
 		if not espSeen[key] then
 			F.releaseEsp(key)
@@ -3692,6 +3693,87 @@ F.applyFpsCap = function(value)
 	pcall(setter, math.clamp(tonumber(value) or 60, 15, 360))
 end
 
+local godModeConnection = nil
+
+F.applyGodMode = function(enabled)
+	if godModeConnection then
+		godModeConnection:Disconnect()
+		godModeConnection = nil
+	end
+	local humanoid = F.getHumanoid()
+	if not humanoid then
+		return
+	end
+	if not enabled then
+		if humanoid.MaxHealth ~= 100 then
+			humanoid.MaxHealth = 100
+			humanoid.Health = 100
+		end
+		return
+	end
+	humanoid.MaxHealth = math.huge
+	humanoid.Health = math.huge
+	godModeConnection = humanoid.HealthChanged:Connect(function(health)
+		if F.isOn("GodMode") and health < humanoid.MaxHealth then
+			humanoid.Health = humanoid.MaxHealth
+		end
+	end)
+end
+
+local ANTI_TRAP_RADIUS = 10
+
+F.findNearestTrap = function()
+	local debris = Workspace:FindFirstChild("__DEBRIS")
+	local root = F.getRoot()
+	if not debris or not root then
+		return nil, nil
+	end
+	local nearest, nearestDist = nil, math.huge
+	for _, part in ipairs(debris:GetChildren()) do
+		if part.Name == "PlayerTrap" and part:IsA("BasePart") then
+			local dist = (root.Position - part.Position).Magnitude
+			if dist < nearestDist then
+				nearest, nearestDist = part, dist
+			end
+		end
+	end
+	return nearest, nearestDist
+end
+
+F.runAntiTrap = function()
+	local trap, dist = F.findNearestTrap()
+	if not trap or not dist or dist > ANTI_TRAP_RADIUS then
+		return
+	end
+	local root = F.getRoot()
+	if not root then
+		return
+	end
+	local away = root.Position - trap.Position
+	away = Vector3.new(away.X, 0, away.Z)
+	away = away.Magnitude > 1e-3 and away.Unit or Vector3.new(1, 0, 0)
+	local safeX = trap.Position.X + away.X * (ANTI_TRAP_RADIUS + 4)
+	local safeZ = trap.Position.Z + away.Z * (ANTI_TRAP_RADIUS + 4)
+	local safeY = F.groundedY(safeX, safeZ, root.Position.Y)
+	F.rawTeleport(Vector3.new(safeX, safeY, safeZ))
+end
+
+F.collectTrapEsp = function()
+	if not F.isOn("TrapEsp") then
+		return
+	end
+	local debris = Workspace:FindFirstChild("__DEBRIS")
+	if not debris then
+		return
+	end
+	for _, part in ipairs(debris:GetChildren()) do
+		if part.Name == "PlayerTrap" and part:IsA("BasePart") and F.withinEspRange(part.Position) then
+			local key = string.format("trap_%d_%d", math.floor(part.Position.X), math.floor(part.Position.Z))
+			F.drawEspAt(key, part.Position, "Trap", Color3.fromRGB(255, 60, 60), part)
+		end
+	end
+end
+
 F.rejoinServer = function()
 	local ok = pcall(function()
 		TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
@@ -4018,6 +4100,7 @@ AddToggle(EspWorld, "EspPets", "Pet ESP", false)
 AddToggle(EspWorld, "EspPlayers", "Player ESP", false)
 AddToggle(EspWorld, "EspMachines", "Machine ESP", false)
 AddToggle(EspWorld, "EspPlots", "Plot ESP", false)
+AddToggle(EspWorld, "TrapEsp", "Trap ESP", false)
 AddSlider(EspWorld, "EspDistance", "Render Distance", 100, 6000, 2000, " studs")
 
 -- ===== Movement =====
@@ -4037,6 +4120,17 @@ AddToggle(MoveCharacter, "JumpPowerEnabled", "Jump Power Override", false)
 AddSlider(MoveCharacter, "JumpPower", "Jump Power", 10, 500, 50)
 AddToggle(MoveCharacter, "InfJump", "Infinite Jump", false)
 AddToggle(MoveCharacter, "NoClip", "NoClip", false)
+AddToggle(MoveCharacter, "GodMode", "God Mode", false, function(value)
+	F.applyGodMode(value)
+end)
+AddToggle(
+	MoveCharacter,
+	"AntiTrap",
+	"Anti Trap",
+	false,
+	nil,
+	"Steps you away automatically when you get within 10 studs of a live trap part."
+)
 
 local MoveFly = TabMovement:AddGroupbox({ Side = "Left", Name = "Fly" })
 
@@ -4220,6 +4314,7 @@ local PANIC_TOGGLES = {
 	"AutoEquipBestTrail", "AutoTreadmill", "AutoEquipBestGear",
 	"AutoServerHop", "Fly", "NoClip", "InfJump",
 	"AutoFeedParasite", "AutoClaimMonsterChest", "AutoGrowthSwap",
+	"GodMode", "AntiTrap",
 }
 
 F.panic = function()
@@ -4339,6 +4434,18 @@ LocalPlayer.CharacterAdded:Connect(function()
 	if F.stealingEnabled() then
 		F.swapStealHumanoid()
 	end
+	if F.isOn("GodMode") then
+		F.applyGodMode(true)
+	end
+end)
+
+task.spawn(function()
+	while not Unloaded do
+		task.wait(0.3)
+		if F.isOn("AntiTrap") then
+			pcall(F.runAntiTrap)
+		end
+	end
 end)
 
 task.spawn(function()
@@ -4349,7 +4456,7 @@ task.spawn(function()
 		end
 		local root = F.getRoot()
 		local humanoid = F.getHumanoid()
-		if not root or not humanoid or humanoid:GetAttribute("VoidHubStealHum") ~= true then
+		if not root or not humanoid then
 			continue
 		end
 		local laneY = F.getLaneY()
@@ -4723,6 +4830,7 @@ local function stopAutomation()
 	pcall(F.applyAntiGameplayPause, false)
 	pcall(F.applyRendering, false)
 	pcall(F.applyFpsBoost, false)
+	pcall(F.applyGodMode, false)
 	pcall(F.destroyRenderOverlay)
 	pcall(F.stopTreadmillTraining)
 	pcall(F.clearAllEsp)
