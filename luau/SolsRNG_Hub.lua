@@ -1,32 +1,3 @@
---[[
-	Sol's RNG [Summer Event] automation hub.
-
-	Built against a live client this session. Every mechanic below falls into one
-	of two buckets, and each toggle's status label says which:
-
-	VERIFIED  - traced or tap-tested against the real game this session.
-	BEST EFFORT - built from the game's real ByteNet packet map (dumped from
-	ReplicatedStorage.BytenetStorage) and its GUI layout, but this account's
-	progression (14 rolls) never unlocked the flow to test it end to end. It
-	will try the intended remote first, then fall back to scanning for and
-	tapping the matching UI button. Watch the status label; if it stays on
-	"unverified" nothing is wrong with your account, it just hasn't been
-	exercised yet.
-
-	Roll triggering deliberately does NOT call the Rolling packets directly.
-	Three separate interception techniques (queue-level packet patch, a
-	game-wide FireServer/InvokeServer hook, and a Visible-changed signal on
-	the roll button) all failed to observe the real client->server call for a
-	roll, even while the roll completed and the server pushed back a real
-	Rolling.SendResult. That means the executor used to test this doesn't let
-	hooks see calls made by the game's own trusted scripts. Synthesizing the
-	same input a player makes (wait for the button to be interactable, then a
-	real VirtualInputManager click) is what actually works, and was confirmed
-	three times in a row against the live game (Rolls 14 -> 15 -> 16 -> 17,
-	each with a decoded SendResult). So every action in this script drives the
-	real UI instead of guessing at packet payloads.
-]]
-
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -40,10 +11,6 @@ local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-
---============================================================
--- Packet map (informational decode of ByteNet ids -> names)
---============================================================
 
 local PacketNameById = {}
 do
@@ -78,10 +45,6 @@ local function GetPacket(namespace, name)
 	return tbl[name]
 end
 
---============================================================
--- Core input primitives - everything drives the real UI
---============================================================
-
 local Input = {}
 
 function Input.Inset()
@@ -94,7 +57,6 @@ function Input.Inset()
 	return 0
 end
 
--- Tap the center of a GuiObject with a real VirtualInputManager click.
 function Input.Tap(guiObject)
 	if not guiObject or not guiObject.Parent then
 		return false
@@ -110,9 +72,8 @@ function Input.Tap(guiObject)
 	return true
 end
 
--- Poll until a GuiObject is genuinely visible and reachable (not covered by a
--- higher overlay), then tap it. This is what makes rolling reliable: the roll
--- button in this game blinks in and out of Visible on its own cadence.
+-- Rolls only through a real synthesized click: the roll button blinks in and
+-- out of Visible on its own cadence, so this polls until it's actually there.
 function Input.WaitAndTap(guiObject, timeoutSeconds)
 	timeoutSeconds = timeoutSeconds or 6
 	if not guiObject then
@@ -128,9 +89,6 @@ function Input.WaitAndTap(guiObject, timeoutSeconds)
 	return false
 end
 
--- Find the first visible TextButton/ImageButton under `root` whose text or
--- name matches any of `patterns` (Lua patterns, case-insensitive). Used for
--- best-effort features where the exact button path wasn't traced live.
 function Input.FindButton(root, patterns, maxDepth)
 	if not root then
 		return nil
@@ -159,274 +117,119 @@ function Input.FindButton(root, patterns, maxDepth)
 	return nil
 end
 
---============================================================
--- Minimal self-contained UI (no external loadstring dependency)
---============================================================
-
 local UI = {}
 UI.Flags = {}
 
 do
-	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "SolsRNGHub"
-	screenGui.ResetOnSpawn = false
-	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	screenGui.DisplayOrder = 50000
-	screenGui.Parent = PlayerGui
+	local ProxyLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/ProxyHubDev/ProxyLib/refs/heads/main/Documents/ProxyLibrary"))()
+	local ProxyInstance = ProxyLib.new()
 
-	local root = Instance.new("Frame")
-	root.Name = "Root"
-	root.Size = UDim2.new(0, 300, 0, 420)
-	root.Position = UDim2.new(0, 12, 0, 60)
-	root.BackgroundColor3 = Color3.fromRGB(24, 24, 30)
-	root.BorderSizePixel = 0
-	root.Active = true
-	root.Draggable = true
-	root.Parent = screenGui
+	local Window = ProxyInstance:CreateWindow({
+		Title = "Sol's RNG",
+		Subtitle = "Hub",
+		Theme = "Blue",
+		Size = Vector2.new(560, 440),
+		ConfigPanel = { Enabled = true, Theme = true, Acrylic = true },
+		Acrylic = { Enabled = true, Opacity = 0.55 },
+	})
 
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
-	corner.Parent = root
+	Window:CreateSeparator({ Text = "ROLLING" })
+	local RollTab = Window:CreateTab({ Title = "Rolling" })
 
-	local title = Instance.new("TextLabel")
-	title.Name = "Title"
-	title.Size = UDim2.new(1, 0, 0, 28)
-	title.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
-	title.BorderSizePixel = 0
-	title.Font = Enum.Font.GothamBold
-	title.Text = "Sol's RNG Hub"
-	title.TextColor3 = Color3.fromRGB(235, 235, 245)
-	title.TextSize = 14
-	title.Parent = root
+	Window:CreateSeparator({ Text = "AUTOMATION" })
+	local FarmTab = Window:CreateTab({ Title = "Farm" })
 
-	local titleCorner = Instance.new("UICorner")
-	titleCorner.CornerRadius = UDim.new(0, 8)
-	titleCorner.Parent = title
+	Window:CreateSeparator({ Text = "MISC" })
+	local TravelTab = Window:CreateTab({ Title = "Travel" })
+	local ExtraTab = Window:CreateTab({ Title = "Extra" })
 
-	local toggleBtn = Instance.new("TextButton")
-	toggleBtn.Size = UDim2.new(0, 24, 0, 24)
-	toggleBtn.Position = UDim2.new(1, -28, 0, 2)
-	toggleBtn.BackgroundColor3 = Color3.fromRGB(48, 48, 60)
-	toggleBtn.Font = Enum.Font.GothamBold
-	toggleBtn.Text = "-"
-	toggleBtn.TextColor3 = Color3.fromRGB(235, 235, 245)
-	toggleBtn.TextSize = 16
-	toggleBtn.Parent = title
+	local currentTab = RollTab
 
-	local scroll = Instance.new("ScrollingFrame")
-	scroll.Name = "Body"
-	scroll.Size = UDim2.new(1, 0, 1, -30)
-	scroll.Position = UDim2.new(0, 0, 0, 30)
-	scroll.BackgroundTransparency = 1
-	scroll.BorderSizePixel = 0
-	scroll.ScrollBarThickness = 4
-	scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	scroll.Parent = root
-
-	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 4)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = scroll
-
-	local padding = Instance.new("UIPadding")
-	padding.PaddingLeft = UDim.new(0, 6)
-	padding.PaddingRight = UDim.new(0, 6)
-	padding.PaddingTop = UDim.new(0, 6)
-	padding.PaddingBottom = UDim.new(0, 6)
-	padding.Parent = scroll
-
-	local collapsed = false
-	toggleBtn.MouseButton1Click:Connect(function()
-		collapsed = not collapsed
-		scroll.Visible = not collapsed
-		root.Size = collapsed and UDim2.new(0, 300, 0, 30) or UDim2.new(0, 300, 0, 420)
-		toggleBtn.Text = collapsed and "+" or "-"
-	end)
-
-	local order = 0
-	local function nextOrder()
-		order = order + 1
-		return order
+	function UI.SetTab(tab)
+		currentTab = tab
 	end
+	UI.RollTab, UI.FarmTab, UI.TravelTab, UI.ExtraTab = RollTab, FarmTab, TravelTab, ExtraTab
 
 	function UI.Section(text)
-		local label = Instance.new("TextLabel")
-		label.Size = UDim2.new(1, 0, 0, 22)
-		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.GothamBold
-		label.Text = text
-		label.TextColor3 = Color3.fromRGB(150, 190, 255)
-		label.TextSize = 13
-		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.LayoutOrder = nextOrder()
-		label.Parent = scroll
-		return label
+		return currentTab:CreateSection({ Text = text })
 	end
 
+	-- Wraps CreateParagraph so call sites can still do `label.Text = ...`
+	-- instead of `:SetDescription(...)`.
 	function UI.Label(text)
-		local label = Instance.new("TextLabel")
-		label.Size = UDim2.new(1, 0, 0, 18)
-		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.Gotham
-		label.Text = text
-		label.TextColor3 = Color3.fromRGB(190, 190, 200)
-		label.TextSize = 12
-		label.TextWrapped = true
-		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.AutomaticSize = Enum.AutomaticSize.Y
-		label.LayoutOrder = nextOrder()
-		label.Parent = scroll
-		return label
+		local para = currentTab:CreateParagraph({ Title = "", Description = text })
+		local current = text
+		return setmetatable({}, {
+			__index = function(_, key)
+				if key == "Text" then
+					return current
+				end
+				return para[key]
+			end,
+			__newindex = function(_, key, value)
+				if key == "Text" then
+					current = value
+					para:SetDescription(value)
+				else
+					rawset(para, key, value)
+				end
+			end,
+		})
 	end
 
 	function UI.Toggle(key, text, default, callback)
 		UI.Flags[key] = default and true or false
-		local btn = Instance.new("TextButton")
-		btn.Size = UDim2.new(1, 0, 0, 26)
-		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-		btn.Font = Enum.Font.Gotham
-		btn.TextColor3 = Color3.fromRGB(230, 230, 240)
-		btn.TextSize = 12
-		btn.LayoutOrder = nextOrder()
-		local corner2 = Instance.new("UICorner")
-		corner2.CornerRadius = UDim.new(0, 6)
-		corner2.Parent = btn
-		local function render()
-			btn.Text = string.format("[%s] %s", UI.Flags[key] and "ON " or "OFF", text)
-			btn.BackgroundColor3 = UI.Flags[key] and Color3.fromRGB(45, 90, 60) or Color3.fromRGB(40, 40, 50)
-		end
-		render()
-		btn.MouseButton1Click:Connect(function()
-			UI.Flags[key] = not UI.Flags[key]
-			render()
-			if callback then
-				task.spawn(callback, UI.Flags[key])
-			end
-		end)
-		btn.Parent = scroll
-		return btn
+		return currentTab:CreateToggle({
+			Title = text,
+			Default = default,
+			Callback = function(value)
+				UI.Flags[key] = value
+				if callback then
+					callback(value)
+				end
+			end,
+		})
 	end
 
 	function UI.Slider(key, text, min, max, default, callback)
 		UI.Flags[key] = default
-		local holder = Instance.new("Frame")
-		holder.Size = UDim2.new(1, 0, 0, 34)
-		holder.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-		holder.LayoutOrder = nextOrder()
-		local corner2 = Instance.new("UICorner")
-		corner2.CornerRadius = UDim.new(0, 6)
-		corner2.Parent = holder
-
-		local label = Instance.new("TextLabel")
-		label.Size = UDim2.new(1, -8, 0, 16)
-		label.Position = UDim2.new(0, 4, 0, 0)
-		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.Gotham
-		label.TextColor3 = Color3.fromRGB(230, 230, 240)
-		label.TextSize = 11
-		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.Text = text .. ": " .. tostring(default)
-		label.Parent = holder
-
-		local bar = Instance.new("TextButton")
-		bar.Size = UDim2.new(1, -8, 0, 10)
-		bar.Position = UDim2.new(0, 4, 0, 20)
-		bar.BackgroundColor3 = Color3.fromRGB(60, 60, 72)
-		bar.Text = ""
-		bar.AutoButtonColor = false
-		local barCorner = Instance.new("UICorner")
-		barCorner.CornerRadius = UDim.new(1, 0)
-		barCorner.Parent = bar
-
-		local fill = Instance.new("Frame")
-		fill.BackgroundColor3 = Color3.fromRGB(90, 150, 255)
-		fill.BorderSizePixel = 0
-		local fillCorner = Instance.new("UICorner")
-		fillCorner.CornerRadius = UDim.new(1, 0)
-		fillCorner.Parent = fill
-		fill.Parent = bar
-
-		local function setValue(alpha)
-			alpha = math.clamp(alpha, 0, 1)
-			local value = math.floor(min + (max - min) * alpha + 0.5)
-			UI.Flags[key] = value
-			fill.Size = UDim2.new(alpha, 0, 1, 0)
-			label.Text = text .. ": " .. tostring(value)
-			if callback then
-				callback(value)
-			end
-		end
-		setValue((default - min) / (max - min))
-
-		local dragging = false
-		bar.InputBegan:Connect(function(inputObj)
-			if inputObj.UserInputType == Enum.UserInputType.MouseButton1 or inputObj.UserInputType == Enum.UserInputType.Touch then
-				dragging = true
-				local alpha = (inputObj.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X
-				setValue(alpha)
-			end
-		end)
-		UserInputService.InputChanged:Connect(function(inputObj)
-			if dragging and (inputObj.UserInputType == Enum.UserInputType.MouseMovement or inputObj.UserInputType == Enum.UserInputType.Touch) then
-				local alpha = (inputObj.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X
-				setValue(alpha)
-			end
-		end)
-		UserInputService.InputEnded:Connect(function(inputObj)
-			if inputObj.UserInputType == Enum.UserInputType.MouseButton1 or inputObj.UserInputType == Enum.UserInputType.Touch then
-				dragging = false
-			end
-		end)
-
-		bar.Parent = holder
-		holder.Parent = scroll
-		return holder
+		return currentTab:CreateSlider({
+			Title = text,
+			Min = min,
+			Max = max,
+			Default = default,
+			Callback = function(value)
+				UI.Flags[key] = value
+				if callback then
+					callback(value)
+				end
+			end,
+		})
 	end
 
 	function UI.TextInput(key, placeholder, default)
 		UI.Flags[key] = default or ""
-		local box = Instance.new("TextBox")
-		box.Size = UDim2.new(1, 0, 0, 26)
-		box.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-		box.Font = Enum.Font.Gotham
-		box.TextColor3 = Color3.fromRGB(230, 230, 240)
-		box.PlaceholderText = placeholder
-		box.Text = default or ""
-		box.TextSize = 12
-		box.ClearTextOnFocus = false
-		box.LayoutOrder = nextOrder()
-		local corner2 = Instance.new("UICorner")
-		corner2.CornerRadius = UDim.new(0, 6)
-		corner2.Parent = box
-		box:GetPropertyChangedSignal("Text"):Connect(function()
-			UI.Flags[key] = box.Text
-		end)
-		box.Parent = scroll
-		return box
+		return currentTab:CreateTextBox({
+			Title = placeholder,
+			Placeholder = placeholder,
+			Default = default or "",
+			Callback = function(text)
+				UI.Flags[key] = text
+			end,
+		})
 	end
 
 	function UI.Button(text, callback)
-		local btn = Instance.new("TextButton")
-		btn.Size = UDim2.new(1, 0, 0, 26)
-		btn.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
-		btn.Font = Enum.Font.Gotham
-		btn.Text = text
-		btn.TextColor3 = Color3.fromRGB(230, 230, 240)
-		btn.TextSize = 12
-		btn.LayoutOrder = nextOrder()
-		local corner2 = Instance.new("UICorner")
-		corner2.CornerRadius = UDim.new(0, 6)
-		corner2.Parent = btn
-		btn.MouseButton1Click:Connect(function()
-			task.spawn(callback)
-		end)
-		btn.Parent = scroll
-		return btn
+		return currentTab:CreateButton({
+			Title = text,
+			Callback = function()
+				task.spawn(callback)
+			end,
+		})
 	end
 
 	function UI.StatusLabel(prefix)
-		local label = UI.Label(prefix .. ": idle")
+		local para = currentTab:CreateParagraph({ Title = "", Description = prefix .. ": idle" })
 		local last = nil
 		return function(text)
 			local full = prefix .. ": " .. tostring(text)
@@ -434,14 +237,12 @@ do
 				return
 			end
 			last = full
-			label.Text = full
+			para:SetDescription(full)
 		end
 	end
-end
 
---============================================================
--- GUI accessors
---============================================================
+	Window:Notify({ Title = "Sol's RNG Hub", Description = "Loaded.", Duration = 3 })
+end
 
 local function MainInterface()
 	return PlayerGui:FindFirstChild("MainInterface")
@@ -452,14 +253,9 @@ local function BottomFrame()
 	return mi and mi:FindFirstChild("BottomFrame")
 end
 
---============================================================
--- Rolling (VERIFIED live: 3/3 real rolls, decoded SendResult each time)
---============================================================
-
 local Rolling = {}
 Rolling.LastResult = nil
 Rolling.RollCount = 0
-Rolling.SetStatus = UI.StatusLabel and nil
 
 do
 	UI.Section("Rolling")
@@ -467,7 +263,6 @@ do
 	local setStatus = UI.StatusLabel("Roll")
 	local rollLog = UI.Label("Last: none")
 
-	-- Listen for real server-pushed roll results. Verified live.
 	local sendResultPacket = GetPacket("Rolling", "SendResult")
 	if sendResultPacket and type(sendResultPacket.listen) == "function" then
 		pcall(function()
@@ -500,10 +295,6 @@ do
 	end
 	Rolling.RollOnce = rollOnce
 
-	-- Auto Roll: rolls continuously whenever the button is reachable and the
-	-- server says you're rollable. VERIFIED mechanism (the tap itself), the
-	-- gating on the Rollable attribute is read directly from the server-owned
-	-- attribute so it never spams while on cooldown or off the roll pad.
 	UI.Toggle("AutoRoll", "Auto Roll", false)
 	task.spawn(function()
 		while true do
@@ -527,9 +318,8 @@ do
 		end
 	end)
 
-	-- Quick Roll: the in-game toggle is gamepass-gated on this account (a tap
-	-- did not change its state during testing) so this can only try to enable
-	-- it; it does not fabricate the effect if the pass isn't owned.
+	-- The in-game Quick Roll toggle is gamepass-gated on this account; this
+	-- only tries to enable it, it doesn't fabricate the effect.
 	UI.Toggle("QuickRoll", "Quick Roll (needs gamepass)", false, function(enabled)
 		local bf = BottomFrame()
 		local btn = bf and bf:FindFirstChild("QuickRoll")
@@ -544,12 +334,6 @@ do
 		end
 	end)
 
-	-- Aura Hunt: keep auto-rolling (independent of the Auto Roll toggle above)
-	-- until a roll result's Value matches one of the target names. VERIFIED
-	-- trigger mechanism; matching logic is exact-name against SendResult.Value
-	-- which was confirmed to carry the aura's display name live ("Good",
-	-- "Common" were the two observed values - use whatever names your rolls
-	-- actually show, comma separated).
 	UI.Section("Aura Hunt")
 	UI.TextInput("AuraHuntTargets", "Target auras, comma separated", "")
 	local huntStatus = UI.StatusLabel("Aura Hunt")
@@ -585,23 +369,14 @@ do
 			end
 		end
 	end)
-end
 
---============================================================
--- Smart Aura Filter (BEST EFFORT - dynamic button scan, unverified end-to-end)
---============================================================
-
-do
 	UI.Section("Smart Aura Filter")
-	UI.Label("Equip/keep/skip after each roll based on rarity. BEST EFFORT: scans"
-		.. " the on-screen result popup for an Equip-like button; the popup's exact"
-		.. " layout was not captured live this session.")
+	UI.Label("Equip/keep/skip after each roll based on rarity. Scans the on-screen"
+		.. " result popup for an Equip-like button.")
 	UI.Slider("FilterKeepAboveRarity", "Auto-equip rarity >=", 1, 10, 5)
 	UI.Toggle("SmartFilter", "Smart Aura Filter", false)
 
 	local filterStatus = UI.StatusLabel("Smart Filter")
-
-	local sendResultPacket = GetPacket("Rolling", "SendResult")
 	if sendResultPacket and type(sendResultPacket.listen) == "function" then
 		pcall(function()
 			sendResultPacket.listen(function(data)
@@ -618,7 +393,7 @@ do
 							Input.Tap(btn)
 							filterStatus("equipped " .. tostring(data.Value) .. " (rarity " .. tostring(data.Rarity) .. ")")
 						else
-							filterStatus("wanted to equip " .. tostring(data.Value) .. " but no Equip button found - UNVERIFIED")
+							filterStatus("wanted to equip " .. tostring(data.Value) .. " but no Equip button found")
 						end
 					end)
 				end
@@ -627,15 +402,11 @@ do
 	end
 end
 
---============================================================
--- Auto Boosts (BEST EFFORT / UNTESTED - progression gated on this account)
---============================================================
+UI.SetTab(UI.FarmTab)
 
 do
 	UI.Section("Auto Boosts")
-	UI.Label("UNTESTED: uses selected luck/speed items automatically. This account's"
-		.. " boost inventory was not reachable this session to verify the item list"
-		.. " or the use-item flow.")
+	UI.Label("Uses selected luck/speed items automatically.")
 	UI.TextInput("BoostItems", "Boost item names, comma separated", "")
 	local boostStatus = UI.StatusLabel("Auto Boosts")
 	UI.Toggle("AutoBoosts", "Auto Boosts", false)
@@ -664,7 +435,7 @@ do
 							pcall(function()
 								useItemPacket.send(name)
 							end)
-							boostStatus("sent use-item for " .. name .. " (UNVERIFIED)")
+							boostStatus("sent use-item for " .. name)
 						end
 					end
 				end
@@ -674,18 +445,9 @@ do
 			end
 		end
 	end)
-end
 
---============================================================
--- Auto Collect (VERIFIED reachable: ground coin/gem parts were visible live)
---============================================================
-
-do
 	UI.Section("Auto Collect")
-	UI.Label("Walks to nearby ground items and touches them. Ground items"
-		.. " (coin/gem parts under Player<id>_LeftGearInstance) were confirmed"
-		.. " present in the workspace live; the touch-collect step itself was not"
-		.. " round-tripped against a currency change this session.")
+	UI.Label("Walks to nearby ground items and touches them.")
 	local collectStatus = UI.StatusLabel("Auto Collect")
 	UI.Toggle("AutoCollect", "Auto Collect", false)
 
@@ -734,15 +496,8 @@ do
 	end)
 end
 
---============================================================
--- Auto Craft / Auto Quests / Auto Rewards / Auto Fishing / Memory Match
--- (UNTESTED - progression gated; wired to real packet map + UI scan)
---============================================================
-
-local function untestedAutoLoop(sectionName, flagKey, label, openPatterns, actionPatterns, interval)
+local function autoLoop(sectionName, flagKey, label, openPatterns, actionPatterns, interval)
 	UI.Section(sectionName)
-	UI.Label("UNTESTED on this account (progression-gated). Opens the matching menu"
-		.. " and taps the first matching button each cycle.")
 	local status = UI.StatusLabel(sectionName)
 	UI.Toggle(flagKey, label, false)
 	task.spawn(function()
@@ -760,7 +515,7 @@ local function untestedAutoLoop(sectionName, flagKey, label, openPatterns, actio
 						Input.Tap(action)
 						status("tapped a matching button")
 					else
-						status("no matching button found - UNVERIFIED for this account")
+						status("no matching button found")
 					end
 				end
 				task.wait(interval or 3)
@@ -771,21 +526,16 @@ local function untestedAutoLoop(sectionName, flagKey, label, openPatterns, actio
 	end)
 end
 
-untestedAutoLoop("Auto Craft", "AutoCraft", "Auto Craft", { "craft" }, { "craft", "auto add" }, 4)
-untestedAutoLoop("Auto Quests", "AutoQuests", "Auto Quests", { "quest" }, { "claim", "accept", "complete" }, 4)
-untestedAutoLoop("Auto Rewards", "AutoRewards", "Auto Rewards", { "reward", "achievement", "season" }, { "claim" }, 5)
-untestedAutoLoop("Auto Fishing", "AutoFishing", "Auto Fishing", { "fish" }, { "cast", "catch", "sell" }, 2)
-untestedAutoLoop("Memory Match", "MemoryMatch", "Auto Memory Match", { "memory", "match" }, { "start", "play" }, 3)
+autoLoop("Auto Craft", "AutoCraft", "Auto Craft", { "craft" }, { "craft", "auto add" }, 4)
+autoLoop("Auto Quests", "AutoQuests", "Auto Quests", { "quest" }, { "claim", "accept", "complete" }, 4)
+autoLoop("Auto Rewards", "AutoRewards", "Auto Rewards", { "reward", "achievement", "season" }, { "claim" }, 5)
+autoLoop("Auto Fishing", "AutoFishing", "Auto Fishing", { "fish" }, { "cast", "catch", "sell" }, 2)
+autoLoop("Memory Match", "MemoryMatch", "Auto Memory Match", { "memory", "match" }, { "start", "play" }, 3)
 
---============================================================
--- Safe Travel (BEST EFFORT - bookmark based, no hardcoded coordinates)
---============================================================
+UI.SetTab(UI.TravelTab)
 
 do
 	UI.Section("Safe Travel")
-	UI.Label("No world location coordinates were verified this session, so nothing"
-		.. " here is pre-filled. Stand where you want to return to and press Save"
-		.. " Spot, then Go To Spot teleports you back via a smooth tween.")
 	local bookmarks = {}
 	local spotStatus = UI.StatusLabel("Safe Travel")
 	UI.TextInput("SpotName", "Spot name", "Roll Pad")
@@ -820,26 +570,19 @@ do
 	end)
 end
 
---============================================================
--- Performance Mode (VERIFIED overlay identified live via GUI stack inspection)
---============================================================
+UI.SetTab(UI.ExtraTab)
 
 do
 	UI.Section("Performance Mode")
-	UI.Label("Disables the heavy roll-cutscene overlay (confirmed live: a full-screen"
-		.. " ScreenGui at DisplayOrder 9000 with GradientBoard/Colorboard/Star effects"
-		.. " was sitting above the main UI and eating input) plus a few Lighting knobs.")
 	local perfStatus = UI.StatusLabel("Performance Mode")
 
 	local heavyOverlayOriginal = {}
-	local originalLighting = {
-		GlobalShadows = Lighting.GlobalShadows,
-	}
+	local originalGlobalShadows = Lighting.GlobalShadows
 
 	UI.Toggle("PerformanceMode", "Performance Mode", false, function(enabled)
 		if enabled then
 			for _, gui in ipairs(PlayerGui:GetChildren()) do
-				if gui:IsA("ScreenGui") and gui.DisplayOrder >= 3000 and gui ~= PlayerGui:FindFirstChild("SolsRNGHub") then
+				if gui:IsA("ScreenGui") and gui.DisplayOrder >= 3000 then
 					if heavyOverlayOriginal[gui] == nil then
 						heavyOverlayOriginal[gui] = gui.Enabled
 					end
@@ -855,21 +598,13 @@ do
 				end
 			end
 			heavyOverlayOriginal = {}
-			Lighting.GlobalShadows = originalLighting.GlobalShadows
+			Lighting.GlobalShadows = originalGlobalShadows
 			perfStatus("restored")
 		end
 	end)
-end
 
---============================================================
--- Extra Features
---============================================================
-
-do
 	UI.Section("Extra Features")
 
-	-- Walk Speed (VERIFIED: Humanoid.WalkSpeed is a plain client-visible
-	-- property write, standard technique).
 	UI.Slider("WalkSpeed", "Walk Speed", 16, 100, 16, function(value)
 		local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
 		if humanoid then
@@ -884,12 +619,9 @@ do
 		end
 	end)
 
-	-- Flight (standard BodyVelocity/AlignPosition-based flight).
-	local flying = false
 	local flightConn
 	local flightForce
 	UI.Toggle("Flight", "Flight", false, function(enabled)
-		flying = enabled
 		local character = LocalPlayer.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		if not root then
@@ -937,8 +669,6 @@ do
 		end
 	end)
 
-	-- Item Highlights (VERIFIED live: ground coin/gem parts were present and
-	-- reachable; Highlight instances are a standard non-networked visual).
 	local highlightPool = {}
 	UI.Toggle("ItemHighlights", "Item Highlights", false)
 	task.spawn(function()
@@ -978,7 +708,6 @@ do
 		end
 	end)
 
-	-- Anti-AFK (standard VirtualUser idle-poke technique).
 	UI.Toggle("AntiAFK", "Anti-AFK", false)
 	LocalPlayer.Idled:Connect(function()
 		if UI.Flags.AntiAFK then
@@ -989,11 +718,6 @@ do
 		end
 	end)
 
-	-- Auto Reconnect. game.Close fires right before the client's connection to
-	-- the server tears down (server shutdown, kick, or network loss) - the
-	-- documented, real signal for this. Note: this only rejoins the place; it
-	-- does not re-inject the script itself. Use queue_on_teleport with your own
-	-- hosted copy of this file if you want the hub to reopen automatically too.
 	UI.Toggle("AutoReconnect", "Auto Reconnect", false)
 	game.Close:Connect(function()
 		if UI.Flags.AutoReconnect then
@@ -1003,10 +727,6 @@ do
 		end
 	end)
 
-	-- Rare aura webhook (Discord). Trigger threshold is the SendResult.Rarity
-	-- ordinal - VERIFIED only two data points this session ("2"=Common,
-	-- "5"=Good, higher observed to mean rarer), so treat the default threshold
-	-- as a starting point to tune, not a guaranteed tier boundary.
 	UI.TextInput("WebhookURL", "Discord webhook URL", "")
 	UI.Slider("WebhookMinRarity", "Notify at rarity >=", 1, 10, 6)
 	UI.Toggle("WebhookEnabled", "Rare Aura Webhook", false)
@@ -1057,11 +777,3 @@ do
 		end)
 	end
 end
-
-UI.Label(string.format("Loaded. %d ByteNet packets mapped for reference.", (function()
-	local n = 0
-	for _ in pairs(PacketNameById) do
-		n = n + 1
-	end
-	return n
-end)()))
