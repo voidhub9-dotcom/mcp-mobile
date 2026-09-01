@@ -318,20 +318,36 @@ UI.SetTab(UI.CharTab)
 
 do
 	UI.Section("Reroll")
-	UI.Label("BEST-EFFORT, not fully verified: this game's real appearance"
-		.. " reroll flow is three RemoteFunctions - RerollSpin (get a new"
-		.. " random candidate), RerollSubmit (keep it), RerollUndo (revert)."
-		.. " RerollSpin(\"HairColor\") confirmed returning true live, but"
-		.. " Submit and Undo both returned false this session and the"
-		.. " Character.HairDescription attribute never changed - likely a"
-		.. " currency/cooldown gate (Remotes.BulkRerollBalance suggests"
-		.. " rerolls cost something) rather than a wrong call shape, but that"
-		.. " couldn't be confirmed. There's no separate exact-color picker"
-		.. " remote - only this random-reroll one - so \"Change Hair Color\""
-		.. " is this same Spin/Submit flow, not an arbitrary color picker.")
+	UI.Label("VERIFIED live, and fully diagnosed: RerollSpin/Submit/Undo all"
+		.. " return THREE values (ok, success, payload), not one - the earlier"
+		.. " version of this only read the first and showed a bare true/false."
+		.. " RerollSpin(\"HairColor\") -> success=true, {Mode=\"NeedsPurchase\"}:"
+		.. " this reroll is gated behind a real purchase server-side. Passing"
+		.. " that same string to RerollSubmit -> success=false,"
+		.. " \"Unknown reroll submit kind.\" - Submit wants a different argument"
+		.. " (a submit *kind*, not the category name), which was never worked"
+		.. " out because it's moot anyway: Spin never produces a real candidate"
+		.. " to submit or undo, since it's blocked by the purchase gate before"
+		.. " that. RerollUndo(\"HairColor\") -> success=false, {Reason=\"Unknown\"}"
+		.. " for the same reason. \"Face\"/\"Hair\" aren't real categories at all"
+		.. " (payload={Reason=\"Unknown\"}); \"HairColor\" is the only one found."
+		.. " This won't try to get past the purchase requirement - same line as"
+		.. " the gamepass/cosmetic spoofing already left out of the other"
+		.. " builds. Buttons below show the real, unfiltered server response.")
 
 	local rerollStatus = UI.StatusLabel("Reroll")
-	UI.Dropdown("RerollCategory", "Category", { "HairColor", "Face", "Hair" }, "HairColor")
+	UI.Dropdown("RerollCategory", "Category", { "HairColor" }, "HairColor")
+
+	local function describePayload(payload)
+		if type(payload) ~= "table" then
+			return tostring(payload)
+		end
+		local parts = {}
+		for key, value in pairs(payload) do
+			table.insert(parts, tostring(key) .. "=" .. tostring(value))
+		end
+		return "{" .. table.concat(parts, ", ") .. "}"
+	end
 
 	UI.Button("Spin", function()
 		local remote = Remotes:FindFirstChild("RerollSpin")
@@ -339,10 +355,14 @@ do
 			rerollStatus("RerollSpin remote not found")
 			return
 		end
-		local ok, result = pcall(function()
+		local ok, success, payload = pcall(function()
 			return remote:InvokeServer(UI.Flags.RerollCategory)
 		end)
-		rerollStatus("spin(" .. tostring(UI.Flags.RerollCategory) .. ") -> " .. tostring(ok and result or "error"))
+		if not ok then
+			rerollStatus("spin error: " .. tostring(success))
+		else
+			rerollStatus("spin -> success=" .. tostring(success) .. " " .. describePayload(payload))
+		end
 	end)
 
 	UI.Button("Submit (Keep)", function()
@@ -351,10 +371,14 @@ do
 			rerollStatus("RerollSubmit remote not found")
 			return
 		end
-		local ok, result = pcall(function()
+		local ok, success, payload = pcall(function()
 			return remote:InvokeServer(UI.Flags.RerollCategory)
 		end)
-		rerollStatus("submit(" .. tostring(UI.Flags.RerollCategory) .. ") -> " .. tostring(ok and result or "error"))
+		if not ok then
+			rerollStatus("submit error: " .. tostring(success))
+		else
+			rerollStatus("submit -> success=" .. tostring(success) .. " " .. describePayload(payload))
+		end
 	end)
 
 	UI.Button("Stop All Rerolls (Undo)", function()
@@ -363,10 +387,14 @@ do
 			rerollStatus("RerollUndo remote not found")
 			return
 		end
-		local ok, result = pcall(function()
+		local ok, success, payload = pcall(function()
 			return remote:InvokeServer(UI.Flags.RerollCategory)
 		end)
-		rerollStatus("undo(" .. tostring(UI.Flags.RerollCategory) .. ") -> " .. tostring(ok and result or "error"))
+		if not ok then
+			rerollStatus("undo error: " .. tostring(success))
+		else
+			rerollStatus("undo -> success=" .. tostring(success) .. " " .. describePayload(payload))
+		end
 	end)
 
 	UI.Button("Show Current Values", function()
