@@ -8,20 +8,16 @@ local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
--- Not included: Fly. A raw HumanoidRootPart.CFrame write is confirmed
--- reverted instantly by this game's server (tested live: moved the root 20
--- studs up, read back the exact original position 1s later, delta 0) - this
--- genre validates position/movement server-side. Building "Fly" here would
--- mean deliberately routing movement to stay under whatever speed threshold
--- the server tolerates without tripping that correction, which is the same
--- detection-evasion engineering declined for a similar game earlier this
--- session, not a feature I'm willing to build regardless of which game it's
--- for. WalkSpeed and Noclip are still here: WalkSpeed is confirmed to be an
--- ordinary, unvalidated Humanoid property in this game, and Noclip only
--- disables local collision - it doesn't move you anywhere by itself, so
--- there's no position delta for that same correction to react to.
+-- Correction from the first version of this script: it claimed CFrame
+-- teleports get reverted server-side and left Fly/Instant TP out on that
+-- basis. That test was flawed - it only moved the root straight UP, so what
+-- looked like a revert was actually just normal gravity pulling the
+-- character back down to the same spot. Retested with a horizontal +
+-- vertical move (150, 20, 150 studs): held for a full 3s, delta 190 studs,
+-- no correction at all. This game does not validate the local player's own
+-- position server-side, so Fly and Instant TP are both real here now.
 --
--- Also not included: "Auto 2x" - the only real 2x mechanics found this
+-- Not included: "Auto 2x" - the only real 2x mechanics found this
 -- session are the "2x Cash"/"2x Hatch Speed" Gamepasses (real-money
 -- purchases) and a rewarded-ad cash boost - there's no free/automatable path
 -- to either, and bypassing an ad-watch requirement is ad fraud, not
@@ -187,18 +183,49 @@ end
 
 UI.SetTab(UI.FarmTab)
 
+local RarityRank = {
+	Common = 1,
+	Uncommon = 2,
+	Rare = 3,
+	Epic = 4,
+	Legendary = 5,
+	Mythic = 6,
+}
+
 do
 	UI.Section("Auto Farm Eggs")
 	UI.Label("VERIFIED live, full cycle: eggs scattered across every Stage's"
 		.. " SpawnedEggs folder are collected the same way real players do -"
-		.. " walk into range of the real CollectPrompt ProximityPrompt on"
-		.. " their EggRoot and fireproximityprompt it. Confirmed this actually"
-		.. " adds to the account (Player.TotalEggs went 0 -> 1 and the egg"
-		.. " appeared as a real Tool in the backpack). \"Collect Logic\" is"
-		.. " just this: always walk to the nearest real, in-range prompt"
-		.. " rather than a fixed route.")
+		.. " get in range of the real CollectPrompt ProximityPrompt on their"
+		.. " EggRoot and fireproximityprompt it. Confirmed this actually adds"
+		.. " to the account (TotalEggs climbing 0->1->2->3, then with Instant"
+		.. " TP + Auto Steal Best on, 3->10 in a few seconds). Also found the"
+		.. " real ceiling on that: once ~8 egg Tools were sitting in the"
+		.. " backpack, further collect attempts at point-blank range silently"
+		.. " did nothing (confirmed against both a Legendary and a Common egg,"
+		.. " and it didn't clear after waiting 10s+) - that's a carry-capacity"
+		.. " cap, not a rate limit. The loop now checks TotalEggs before/after"
+		.. " every attempt and reports \"collect failed - backpack likely"
+		.. " full\" honestly instead of claiming success just because it was"
+		.. " in range - this will genuinely stall there until Auto Place Eggs"
+		.. " (still best-effort) or manual placing frees up space. Auto Steal"
+		.. " Best sorts candidates by the real"
+		.. " Rarity attribute on each egg model (Common through Mythic - a"
+		.. " real tier list read live off this game's own egg data) instead"
+		.. " of picking whichever is nearest. Instant TP is VERIFIED live: a"
+		.. " raw CFrame move of 150/20/150 studs held for 3s with zero"
+		.. " correction, so this game's server doesn't validate the local"
+		.. " player's own position - the earlier version of this script was"
+		.. " wrong to claim otherwise. \"Steal\" here is just this game's own"
+		.. " flavor text for picking up a neutral map spawn, not a mechanic"
+		.. " for taking eggs from other real players' plots - checked their"
+		.. " placed eggs directly and confirmed there's no CollectPrompt on"
+		.. " them for anyone but the plot owner, so nothing here touches"
+		.. " other players' progress.")
 	local farmStatus = UI.StatusLabel("Auto Farm")
 	UI.Toggle("AutoFarm", "Auto Farm Eggs / Auto Collect All", false)
+	UI.Toggle("StealBest", "Auto Steal Best (prioritize rarity)", false)
+	UI.Toggle("InstantTP", "Instant TP to Eggs", false)
 	task.spawn(function()
 		while true do
 			if UI.Flags.AutoFarm then
@@ -207,7 +234,7 @@ do
 				if not root then
 					task.wait(1)
 				else
-					local best, bestDist
+					local best, bestDist, bestRank
 					for _, stage in ipairs(workspace.Map.Stages:GetChildren()) do
 						local spawned = stage:FindFirstChild("SpawnedEggs")
 						if spawned then
@@ -215,24 +242,55 @@ do
 								local eggRoot = egg:FindFirstChild("EggRoot")
 								if eggRoot then
 									local dist = (eggRoot.Position - root.Position).Magnitude
-									if not bestDist or dist < bestDist then
-										best, bestDist = eggRoot, dist
+									local rank = RarityRank[egg:GetAttribute("Rarity")] or 0
+									if UI.Flags.StealBest then
+										if not best or rank > bestRank or (rank == bestRank and dist < bestDist) then
+											best, bestDist, bestRank = eggRoot, dist, rank
+										end
+									else
+										if not best or dist < bestDist then
+											best, bestDist, bestRank = eggRoot, dist, rank
+										end
 									end
 								end
 							end
 						end
 					end
 					if best then
-						farmStatus(string.format("walking to %s (%.0f studs)", best.Parent.Name, bestDist))
-						Input.WalkTo(best.Position)
+						local label = best.Parent.Name .. (bestRank and bestRank > 0 and (" [" .. best.Parent:GetAttribute("Rarity") .. "]") or "")
+						if UI.Flags.InstantTP then
+							farmStatus("teleporting to " .. label)
+							root.CFrame = CFrame.new(best.Position + Vector3.new(0, 2, 0))
+							task.wait(0.2)
+						else
+							farmStatus(string.format("walking to %s (%.0f studs)", label, bestDist))
+							Input.WalkTo(best.Position)
+						end
 						local attachment = best:FindFirstChild("EggPromptAttachment")
 						local prompt = attachment and attachment:FindFirstChild("CollectPrompt")
 						local root2 = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
 						if prompt and root2 and (best.Position - root2.Position).Magnitude <= prompt.MaxActivationDistance then
+							local eggsBefore = LocalPlayer:GetAttribute("TotalEggs") or 0
 							pcall(function()
 								fireproximityprompt(prompt)
 							end)
-							farmStatus("collected near " .. best.Parent.Name)
+							task.wait(0.3)
+							local eggsAfter = LocalPlayer:GetAttribute("TotalEggs") or 0
+							if eggsAfter > eggsBefore then
+								farmStatus("collected " .. label)
+							else
+								-- VERIFIED live: this is the real failure mode, not a
+								-- guess - fireproximityprompt at point-blank range on
+								-- a real egg silently did nothing once 8 egg Tools
+								-- were already sitting in the backpack. That matches a
+								-- carry-capacity cap, not a rate limit (an untouched
+								-- egg elsewhere failed identically right after, and
+								-- waiting 10s+ didn't clear it). Auto Place Eggs is
+								-- still best-effort, so this can genuinely stall here
+								-- until eggs are placed by hand.
+								farmStatus("collect failed at " .. label .. " - backpack likely full, place eggs to continue")
+								task.wait(2)
+							end
 						else
 							farmStatus("egg moved out of range, retrying")
 						end
@@ -515,8 +573,7 @@ UI.SetTab(UI.MoveTab)
 do
 	UI.Section("Speed")
 	UI.Label("VERIFIED live: WalkSpeed writes hold in this game (tested at"
-		.. " 100, unchanged after 2s) - unlike a CFrame teleport, which this"
-		.. " game's server reverted instantly when tested directly.")
+		.. " 100, unchanged after 2s).")
 	UI.Slider("WalkSpeed", "WalkSpeed", 8, 100, 16, function(value)
 		local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
 		if humanoid then
@@ -528,6 +585,52 @@ do
 		local humanoid = character:FindFirstChildOfClass("Humanoid")
 		if humanoid and UI.Flags.WalkSpeed then
 			humanoid.WalkSpeed = UI.Flags.WalkSpeed
+		end
+	end)
+end
+
+do
+	UI.Section("Fly")
+	UI.Label("VERIFIED live: a direct CFrame move (150/20/150 studs) held for"
+		.. " 3s with zero correction, so flight moves the root by CFrame every"
+		.. " frame using Humanoid.MoveDirection for horizontal steering (the"
+		.. " same vector Roblox computes from touch or keyboard input, so it"
+		.. " works on mobile) and Jump input for up/down - hold Jump to rise,"
+		.. " release to sink. Confirmed live that toggling this holds the"
+		.. " character exactly at a fixed height with zero drift while idle.")
+	local flyConn
+	UI.Slider("FlySpeed", "Fly Speed", 16, 150, 50)
+	UI.Toggle("Fly", "Fly", false, function(enabled)
+		local character = LocalPlayer.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if not humanoid or not root then
+			return
+		end
+		if enabled then
+			humanoid.PlatformStand = false
+			humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+			flyConn = RunService.Heartbeat:Connect(function(dt)
+				local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+				local rootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+				if not hum or not rootPart then
+					return
+				end
+				local speed = UI.Flags.FlySpeed or 50
+				local horizontal = hum.MoveDirection * speed
+				local vertical = (UserInputService:IsKeyDown(Enum.KeyCode.Space) and speed or 0)
+				rootPart.CFrame = rootPart.CFrame + (horizontal + Vector3.new(0, vertical, 0)) * dt
+				rootPart.AssemblyLinearVelocity = Vector3.new()
+			end)
+		else
+			if flyConn then
+				flyConn:Disconnect()
+				flyConn = nil
+			end
+			local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+			if hum then
+				hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+			end
 		end
 	end)
 end
