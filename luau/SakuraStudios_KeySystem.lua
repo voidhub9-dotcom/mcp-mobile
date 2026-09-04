@@ -18,6 +18,7 @@ local Players = game:GetService("Players")
 -- Palette -------------------------------------------------------------------
 
 local ICON = "rbxassetid://77119006317483"
+local BANNER = "rbxassetid://106736100104036"
 local PINK_BRIGHT = Color3.fromRGB(255, 92, 178)
 local PINK_MID = Color3.fromRGB(219, 39, 119)
 local PINK_DEEP = Color3.fromRGB(140, 20, 80)
@@ -54,18 +55,23 @@ INTRO2.GroupTransparency = 1.000000
 INTRO2.GroupColor3 = Color3.fromRGB(255,255,255)
 INTRO2.Parent = ScreenGui
 
+-- Now uses the Sakura hub banner as a full-bleed cover background instead
+-- of the original wallpaper art. Switched Size to exactly fill INTRO2 and
+-- ScaleType to Crop (rather than the original oversized-Fit trick, which
+-- was tuned for the old asset's aspect ratio) so it fills edge-to-edge
+-- regardless of the banner's own proportions.
 local Wallpaper3 = Instance.new("ImageLabel")
 Wallpaper3.Name = "Wallpaper"
-Wallpaper3.Size = UDim2.new(1.110640,0,1.599890,0)
-Wallpaper3.Position = UDim2.new(-0.036170,0,-0.158876,0)
+Wallpaper3.Size = UDim2.new(1.000000,0,1.000000,0)
+Wallpaper3.Position = UDim2.new(0.000000,0,0.000000,0)
 Wallpaper3.AnchorPoint = Vector2.new(0.000000,0.000000)
 Wallpaper3.BackgroundColor3 = Color3.fromRGB(255,255,255)
 Wallpaper3.BackgroundTransparency = 0.000000
 Wallpaper3.BorderSizePixel = 0.000000
-Wallpaper3.Image = "rbxassetid://16073585738"
+Wallpaper3.Image = BANNER
 Wallpaper3.ImageColor3 = Color3.fromRGB(255,255,255)
 Wallpaper3.ImageTransparency = 0.000000
-Wallpaper3.ScaleType = Enum.ScaleType.Fit
+Wallpaper3.ScaleType = Enum.ScaleType.Crop
 Wallpaper3.SliceCenter = Rect.new(0,0,0,0)
 Wallpaper3.Visible = true
 Wallpaper3.ZIndex = 1.000000
@@ -170,39 +176,10 @@ Pattern9.Visible = true
 Pattern9.ZIndex = 0.000000
 Pattern9.Parent = Gradient7
 
-local Logo10 = Instance.new("ImageLabel")
-Logo10.Name = "Logo"
-Logo10.Size = UDim2.new(0.453191,0,0.550704,0)
-Logo10.Position = UDim2.new(0.271609,0,0.122057,0)
-Logo10.AnchorPoint = Vector2.new(0.000000,0.000000)
-Logo10.BackgroundColor3 = Color3.fromRGB(255,255,255)
-Logo10.BackgroundTransparency = 1.000000
-Logo10.BorderSizePixel = 0.000000
-Logo10.Image = ICON
-Logo10.ImageColor3 = Color3.fromRGB(0,0,0)
-Logo10.ImageTransparency = 0.500000
-Logo10.ScaleType = Enum.ScaleType.Fit
-Logo10.SliceCenter = Rect.new(0,0,0,0)
-Logo10.Visible = true
-Logo10.ZIndex = 2.000000
-Logo10.Parent = INTRO2
-
-local Main11 = Instance.new("ImageLabel")
-Main11.Name = "Main"
-Main11.Size = UDim2.new(0.950000,0,0.950000,0)
-Main11.Position = UDim2.new(0.500000,0,0.500000,0)
-Main11.AnchorPoint = Vector2.new(0.500000,0.500000)
-Main11.BackgroundColor3 = Color3.fromRGB(255,255,255)
-Main11.BackgroundTransparency = 1.000000
-Main11.BorderSizePixel = 0.000000
-Main11.Image = ICON
-Main11.ImageColor3 = Color3.fromRGB(255,255,255)
-Main11.ImageTransparency = 0.000000
-Main11.ScaleType = Enum.ScaleType.Fit
-Main11.SliceCenter = Rect.new(0,0,0,0)
-Main11.Visible = true
-Main11.ZIndex = 1.000000
-Main11.Parent = Logo10
+-- Logo10/Main11 (the small circular flower badge) removed from the intro
+-- screen per request - the banner above already carries the branding, so
+-- it's not shown twice here. The flower still appears once, in the
+-- GET_KEY panel below as Pfp38 (now cropped to a full circle).
 
 local UIAspectRatioConstraint12 = Instance.new("UIAspectRatioConstraint")
 UIAspectRatioConstraint12.AspectRatio = 2.083570
@@ -286,7 +263,7 @@ GET_KEY19.Visible = true
 GET_KEY19.AutomaticSize = Enum.AutomaticSize.None
 GET_KEY19.ClipsDescendants = true
 GET_KEY19.LayoutOrder = 0.000000
-GET_KEY19.GroupTransparency = 1.000000-- starts hidden, revealed after the intro finishes
+GET_KEY19.GroupTransparency = 1.000000 -- starts hidden, revealed after the intro finishes
 GET_KEY19.GroupColor3 = Color3.fromRGB(255,255,255)
 GET_KEY19.Parent = ScreenGui
 
@@ -294,6 +271,13 @@ local UICorner20 = Instance.new("UICorner")
 UICorner20.CornerRadius = UDim.new(0.075000,0)
 UICorner20.Parent = GET_KEY19
 
+-- NOTE: this slot is a wide 3.6:1 rectangle (0.481 x 0.134), not a square -
+-- it was showing the round flower badge letterboxed with big empty gaps on
+-- both sides. That shape is actually a much better fit for the wide
+-- Sakura hub banner, so this now shows the banner here too (Crop, no
+-- masking needed since it's already a plain rectangle) rather than
+-- cropping a circular badge into a thin box. Say the word if you wanted
+-- the flower kept here instead and the banner intro-only.
 local Logo21 = Instance.new("ImageLabel")
 Logo21.Name = "Logo"
 Logo21.Size = UDim2.new(0.481145,0,0.133585,0)
@@ -302,10 +286,10 @@ Logo21.AnchorPoint = Vector2.new(0.000000,0.000000)
 Logo21.BackgroundColor3 = Color3.fromRGB(255,255,255)
 Logo21.BackgroundTransparency = 1.000000
 Logo21.BorderSizePixel = 0.000000
-Logo21.Image = ICON
+Logo21.Image = BANNER
 Logo21.ImageColor3 = Color3.fromRGB(255,255,255)
 Logo21.ImageTransparency = 0.000000
-Logo21.ScaleType = Enum.ScaleType.Fit
+Logo21.ScaleType = Enum.ScaleType.Crop
 Logo21.SliceCenter = Rect.new(0,0,0,0)
 Logo21.Visible = true
 Logo21.ZIndex = 2.000000
@@ -565,6 +549,16 @@ Title37.TextXAlignment = Enum.TextXAlignment.Center
 Title37.TextYAlignment = Enum.TextYAlignment.Center
 Title37.Parent = Get233
 
+-- VERIFIED: UICorner correctly masks an ImageLabel's own image content (not
+-- just its background) when applied directly to it - confirmed live, and
+-- it's exactly what the original file was already doing here at a small
+-- 0.075 radius. Bumped to 0.5 (full circle) for the "trim it" fix. Note:
+-- this crops the badge to a circle, but can't zoom past a margin baked
+-- into the source image itself without either resizing this element (which
+-- would shift it against its neighbors in this layout) or the image's real
+-- pixel dimensions for ImageRectOffset/Size (which I don't have) - if a
+-- thin dark ring is still visible around the flower after this, tell me
+-- the image's actual pixel size and I can crop it properly.
 local Pfp38 = Instance.new("ImageLabel")
 Pfp38.Name = "Pfp"
 Pfp38.Size = UDim2.new(0.229672,0,0.261163,0)
@@ -583,7 +577,7 @@ Pfp38.ZIndex = 2.000000
 Pfp38.Parent = GET_KEY19
 
 local UICorner39 = Instance.new("UICorner")
-UICorner39.CornerRadius = UDim.new(0.075000,0)
+UICorner39.CornerRadius = UDim.new(0.500000,0)
 UICorner39.Parent = Pfp38
 
 local Support40 = Instance.new("TextButton")
@@ -958,20 +952,30 @@ task.spawn(function()
 	task.wait(0.3)
 
 	-- fill the loading bar while the status text updates
+	-- BUG FIX: this used to Play() the tween, run a 3x0.6s = 1.8s message
+	-- loop (matching the tween's own 1.8s duration) and then call
+	-- fillTween.Completed:Wait() - but since both finished at essentially
+	-- the same moment, the Completed event had usually already fired by
+	-- the time execution reached that line, so :Wait() sat waiting for a
+	-- second firing that was never coming, hanging forever on the last
+	-- message ("Almost there..."), exactly what you saw. Fixed by driving
+	-- the message timing directly off the tween's own duration instead of
+	-- waiting on the signal at all.
+	local FILL_DURATION = 1.8
 	local messages = {
 		"Preparing Sakura Studios for an amazing experience.",
 		"Loading assets...",
 		"Almost there...",
 	}
-	local fillTween = TweenService:Create(Content14, TweenInfo.new(1.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+	local fillTween = TweenService:Create(Content14, TweenInfo.new(FILL_DURATION, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Size = UDim2.new(1, 0, 1, 0),
 	})
 	fillTween:Play()
+	local perMessage = FILL_DURATION / #messages
 	for _, msg in ipairs(messages) do
 		Status5.Text = msg
-		task.wait(0.6)
+		task.wait(perMessage)
 	end
-	fillTween.Completed:Wait()
 	task.wait(0.2)
 
 	-- fade the intro out, fade the key gate in
