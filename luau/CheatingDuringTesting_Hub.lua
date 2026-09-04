@@ -5,6 +5,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
 
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -162,6 +163,72 @@ local function submitAnswer(qnum, letter)
 	end
 	local callOk = pcall(fn)
 	return callOk, callOk and "submitted" or "handler call failed"
+end
+
+-- VERIFIED live, and this needed a fix mid-testing: the lettered A/B/C/D
+-- ImageButtons stay Visible=false until an answer is actually committed
+-- (they're the "filled-in pencil mark" art, checked live on a real
+-- UNANSWERED question), so a stroke on one wouldn't render. The
+-- AnswerInputHitbox for that letter (the real click target, same one
+-- submitAnswer drives) stays Visible=true the whole time, confirmed live,
+-- so the highlight is put there instead - it outlines the real tappable
+-- spot with no click involved, you tap it yourself.
+local highlightStrokes = {}
+
+local function clearAnswerHighlight(qnum)
+	local stroke = highlightStrokes[qnum]
+	if stroke then
+		pcall(function()
+			stroke:Destroy()
+		end)
+		highlightStrokes[qnum] = nil
+	end
+end
+
+local function highlightAnswer(qnum, letter)
+	local idx = LetterIndex[letter]
+	local group = getQuestionGroup(qnum)
+	if not idx or not group then
+		return false
+	end
+	local hitboxes = {}
+	for _, c in ipairs(group:GetChildren()) do
+		if c.Name == "AnswerInputHitbox" then
+			table.insert(hitboxes, c)
+		end
+	end
+	local btn = hitboxes[idx]
+	if not btn then
+		return false
+	end
+	local existing = highlightStrokes[qnum]
+	if existing and existing.Parent == btn then
+		return true
+	end
+	clearAnswerHighlight(qnum)
+	local stroke = Instance.new("UIStroke")
+	stroke.Name = "SerenityAnswerHighlight"
+	stroke.Color = Color3.fromRGB(0, 255, 140)
+	stroke.Thickness = 3
+	stroke.Transparency = 0
+	stroke.Parent = btn
+	highlightStrokes[qnum] = stroke
+	task.spawn(function()
+		while stroke.Parent do
+			local ok1 = pcall(function()
+				TweenService:Create(stroke, TweenInfo.new(0.5), { Thickness = 1 }):Play()
+			end)
+			task.wait(0.5)
+			if not stroke.Parent then
+				break
+			end
+			local ok2 = pcall(function()
+				TweenService:Create(stroke, TweenInfo.new(0.5), { Thickness = 5 }):Play()
+			end)
+			task.wait(0.5)
+		end
+	end)
+	return true
 end
 
 -- BEST-EFFORT: a real reveal payload (from Phone/Chalkboard/Glasses) was
@@ -468,6 +535,46 @@ do
 		.. "tools above - it will not guess or fabricate an answer for a "
 		.. "question nothing was captured for.")
 	UI.Toggle("AutoSubmitAnswers", "Auto-Submit Captured Answers", false)
+
+	UI.Section("Highlight On Paper")
+	UI.Label("VERIFIED live: outlines the real tappable spot for that option "
+		.. "(the underlying A/B/C/D art stays invisible until answered, "
+		.. "confirmed live, so this outlines the real AnswerInputHitbox "
+		.. "instead - same target Manual Submit drives, just no click). "
+		.. "Only shows for questions still UNANSWERED, and clears "
+		.. "automatically once you (or Auto-Submit) answer it. Same parsing "
+		.. "gap as above: only highlights what was actually captured, never "
+		.. "a guess.")
+	UI.Toggle("HighlightCapturedAnswers", "Highlight Captured Answers", false)
+
+	task.spawn(function()
+		while true do
+			if UI.Flags.HighlightCapturedAnswers then
+				local answers
+				local ok = pcall(function()
+					answers = ReplicatedStorage.PlayerAnswerTable:InvokeServer()
+				end)
+				local active = {}
+				for _, entry in ipairs(Captured) do
+					local q, letter = parseCaptureText(entry.text)
+					if q and letter and (not ok or answers[q] == "UNANSWERED") then
+						active[q] = true
+						highlightAnswer(q, letter)
+					end
+				end
+				for q in pairs(highlightStrokes) do
+					if not active[q] then
+						clearAnswerHighlight(q)
+					end
+				end
+			else
+				for q in pairs(highlightStrokes) do
+					clearAnswerHighlight(q)
+				end
+			end
+			task.wait(1)
+		end
+	end)
 
 	UI.Section("Manual Submit")
 	UI.Label("If you already know an answer (read it yourself, a walkthrough, "
