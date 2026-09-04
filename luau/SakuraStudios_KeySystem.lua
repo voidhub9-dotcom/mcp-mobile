@@ -299,9 +299,12 @@ UICorner20.Parent = GET_KEY19
 -- the flower kept here instead and the banner intro-only.
 local Logo21 = Instance.new("ImageLabel")
 Logo21.Name = "Logo"
-Logo21.Size = UDim2.new(0.481145,0,0.133585,0)
-Logo21.Position = UDim2.new(0.256362,0,0.070055,0)
-Logo21.AnchorPoint = Vector2.new(0.000000,0.000000)
+-- Was a small 0.48-wide slot, which (with Fit) rendered the banner as a
+-- postage stamp. Widened to nearly the full panel and given more height -
+-- with Fit the height is what actually drives how big a wide banner draws.
+Logo21.Size = UDim2.new(0.900000,0,0.185000,0)
+Logo21.Position = UDim2.new(0.500000,0,0.130000,0)
+Logo21.AnchorPoint = Vector2.new(0.500000,0.500000)
 Logo21.BackgroundColor3 = Color3.fromRGB(255,255,255)
 Logo21.BackgroundTransparency = 1.000000
 Logo21.BorderSizePixel = 0.000000
@@ -323,8 +326,11 @@ UIAspectRatioConstraint22.Parent = GET_KEY19
 
 local Get23 = Instance.new("TextButton")
 Get23.Name = "Get"
-Get23.Size = UDim2.new(0.510000,0,0.095000,0)
-Get23.Position = UDim2.new(0.336000,0,0.453770,0)
+-- Even halves of the same 0.868 grid the key card and SUBMIT KEY sit on -
+-- these two were 0.510 / 0.312, which made them visibly lopsided and forced
+-- the longer label into much smaller text than its neighbour.
+Get23.Size = UDim2.new(0.425000,0,0.095000,0)
+Get23.Position = UDim2.new(0.278500,0,0.470000,0)
 Get23.AnchorPoint = Vector2.new(0.500000,0.500000)
 Get23.BackgroundColor3 = PINK_MID
 Get23.BackgroundTransparency = 0.000000
@@ -406,8 +412,8 @@ Title27.Parent = Get23
 
 local Submit28 = Instance.new("TextButton")
 Submit28.Name = "Submit"
-Submit28.Size = UDim2.new(0.838618,0,0.095000,0)
-Submit28.Position = UDim2.new(0.500630,0,0.578448,0)
+Submit28.Size = UDim2.new(0.868000,0,0.095000,0)
+Submit28.Position = UDim2.new(0.500000,0,0.578448,0)
 Submit28.AnchorPoint = Vector2.new(0.500000,0.500000)
 Submit28.BackgroundColor3 = PINK_MID
 Submit28.BackgroundTransparency = 0.000000
@@ -489,8 +495,8 @@ Title32.Parent = Submit28
 
 local Get233 = Instance.new("TextButton")
 Get233.Name = "Get2"
-Get233.Size = UDim2.new(0.312000,0,0.095000,0)
-Get233.Position = UDim2.new(0.764000,0,0.453770,0)
+Get233.Size = UDim2.new(0.425000,0,0.095000,0)
+Get233.Position = UDim2.new(0.721500,0,0.470000,0)
 Get233.AnchorPoint = Vector2.new(0.500000,0.500000)
 Get233.BackgroundColor3 = PINK_MID
 Get233.BackgroundTransparency = 0.000000
@@ -553,7 +559,7 @@ Title37.SizeConstraint = Enum.SizeConstraint.RelativeXY
 Title37.ZIndex = 1.000000
 Title37.Rotation = 0.000000
 Title37.Transparency = 1.000000
-Title37.Text = "How To Get Key"
+Title37.Text = "HOW TO GET KEY" -- uppercase, to match the other button labels
 Title37.TextColor3 = Color3.fromRGB(255,255,255)
 Title37.TextSize = 8.000000
 Title37.Font = Enum.Font.GothamBold
@@ -585,7 +591,7 @@ Pfp38.Name = "Pfp"
 Pfp38.Size = UDim2.new(0.229672,0,0.261163,0)
 -- Centre anchor (was top-left) so the breathing-pulse animation added at the
 -- bottom scales it in place instead of drifting it toward the corner.
-Pfp38.Position = UDim2.new(0.195850,0,0.783432,0)
+Pfp38.Position = UDim2.new(0.180836,0,0.783432,0) -- left edge aligned to the 0.066 grid
 Pfp38.AnchorPoint = Vector2.new(0.500000,0.500000)
 Pfp38.BackgroundColor3 = Color3.fromRGB(255,255,255)
 Pfp38.BackgroundTransparency = 1.000000
@@ -606,7 +612,7 @@ UICorner39.Parent = Pfp38
 local Support40 = Instance.new("TextButton")
 Support40.Name = "Support"
 Support40.Size = UDim2.new(0.581950,0,0.081186,0)
-Support40.Position = UDim2.new(0.626422,0,0.765503,0)
+Support40.Position = UDim2.new(0.643025,0,0.765503,0) -- right edge aligned to the 0.934 grid
 Support40.AnchorPoint = Vector2.new(0.500000,0.500000)
 Support40.BackgroundColor3 = PINK_STROKE
 Support40.BackgroundTransparency = 1.000000
@@ -672,7 +678,7 @@ Title43.Parent = Support40
 local Credit44 = Instance.new("TextLabel")
 Credit44.Name = "Credit"
 Credit44.Size = UDim2.new(0.584491,0,0.053618,0)
-Credit44.Position = UDim2.new(0.627693,0,0.679660,0)
+Credit44.Position = UDim2.new(0.641754,0,0.679660,0)
 Credit44.AnchorPoint = Vector2.new(0.500000,0.500000)
 Credit44.BackgroundColor3 = Color3.fromRGB(255,255,255)
 Credit44.BackgroundTransparency = 1.000000
@@ -708,7 +714,7 @@ Credit44.Parent = GET_KEY19
 local Close45 = Instance.new("TextButton")
 Close45.Name = "Close"
 Close45.Size = UDim2.new(0.582000,0,0.081000,0)
-Close45.Position = UDim2.new(0.626422,0,0.871296,0)
+Close45.Position = UDim2.new(0.643025,0,0.871296,0)
 Close45.AnchorPoint = Vector2.new(0.500000,0.500000)
 Close45.BackgroundColor3 = PINK_STROKE
 Close45.BackgroundTransparency = 1.000000
@@ -777,8 +783,8 @@ UICorner48.Parent = Close45
 -- actually tap and type a key into on mobile.
 local Frame49 = Instance.new("Frame")
 Frame49.Name = "Frame"
-Frame49.Size = UDim2.new(0.868000,0,0.162000,0)
-Frame49.Position = UDim2.new(0.500630,0,0.300000,0)
+Frame49.Size = UDim2.new(0.868000,0,0.155000,0)
+Frame49.Position = UDim2.new(0.500000,0,0.328000,0)
 Frame49.AnchorPoint = Vector2.new(0.500000,0.500000)
 Frame49.BackgroundColor3 = DARK_BG2
 Frame49.BackgroundTransparency = 0.000000
@@ -1126,31 +1132,49 @@ glossify(Get23)
 glossify(Submit28)
 glossify(Get233)
 
--- Soft pulsing glow ring behind the flower badge + a gentle breathing pulse
--- on the badge itself.
-local pfpGlow = Instance.new("ImageLabel")
-pfpGlow.Name = "PfpGlow"
-pfpGlow.BackgroundTransparency = 1
-pfpGlow.AnchorPoint = Vector2.new(0.5, 0.5)
-pfpGlow.Position = UDim2.new(0.195850, 0, 0.783432, 0)
-pfpGlow.Size = UDim2.new(0.229672 * 1.85, 0, 0.261163 * 1.85, 0)
-pfpGlow.Image = "rbxassetid://16261022724"
-pfpGlow.ImageColor3 = PINK_STROKE
-pfpGlow.ImageTransparency = 0.45
-pfpGlow.ScaleType = Enum.ScaleType.Fit
-pfpGlow.ZIndex = 1
-pfpGlow.Parent = GET_KEY19
+-- Cap the button label text. TextScaled sizes each label to whatever fits
+-- its own box, which is why "HOW TO GET KEY" rendered noticeably smaller
+-- than "GET KEY" next to it - a shared ceiling makes the row read evenly.
+local function capText(label, maxSize)
+	local c = Instance.new("UITextSizeConstraint")
+	c.MinTextSize = 1
+	c.MaxTextSize = maxSize
+	c.Parent = label
+end
+capText(Title27, 15)
+capText(Title32, 15)
+capText(Title37, 15)
+capText(Title43, 14)
+capText(Title46, 14)
+
+-- Pulsing ring around the flower badge + a gentle breathing pulse on the
+-- badge itself.
+--
+-- BUG FIX - the faint vertical line next to the badge: this used to be an
+-- ImageLabel using the 9-slice glow sprite with ScaleType.Fit. Fit renders
+-- the whole sprite including its hard rectangular boundary, so the glow's
+-- edge showed as a straight line across the panel. A UIStroke on the badge
+-- itself gives a genuinely circular ring (it follows the badge's UICorner)
+-- with no sprite edge to leak, and it composites inside the CanvasGroup so
+-- it fades correctly with the panel.
+local pfpRing = Instance.new("UIStroke")
+pfpRing.Name = "PfpRing"
+pfpRing.Color = PINK_STROKE
+pfpRing.Thickness = 2
+pfpRing.Transparency = 0.3
+pfpRing.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+pfpRing.Parent = Pfp38
 
 local pfpScale = Instance.new("UIScale")
 pfpScale.Parent = Pfp38
 task.spawn(function()
 	while pfpScale.Parent do
-		TweenService:Create(pfpScale, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Scale = 1.06 }):Play()
-		TweenService:Create(pfpGlow, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { ImageTransparency = 0.15 }):Play()
+		TweenService:Create(pfpScale, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Scale = 1.05 }):Play()
+		TweenService:Create(pfpRing, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Thickness = 3.2, Transparency = 0.05 }):Play()
 		task.wait(1.6)
 		if not pfpScale.Parent then break end
 		TweenService:Create(pfpScale, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Scale = 1 }):Play()
-		TweenService:Create(pfpGlow, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { ImageTransparency = 0.5 }):Play()
+		TweenService:Create(pfpRing, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Thickness = 2, Transparency = 0.35 }):Play()
 		task.wait(1.6)
 	end
 end)
@@ -1198,7 +1222,11 @@ do
 		local p = Instance.new("ImageLabel")
 		p.BackgroundTransparency = 1
 		p.Image = "rbxassetid://16261022724"
-		p.ScaleType = Enum.ScaleType.Fit
+		-- Slice (not Fit) for the same reason as the badge ring: Fit shows
+		-- this sprite's hard rectangular edge, Slice scales it as the soft
+		-- glow it was authored to be.
+		p.ScaleType = Enum.ScaleType.Slice
+		p.SliceCenter = Rect.new(205, 197, 828, 828)
 		p.AnchorPoint = Vector2.new(0.5, 0.5)
 		p.SizeConstraint = Enum.SizeConstraint.RelativeXX
 		p.ImageColor3 = Color3.fromRGB(255, 175, 210)
@@ -1308,7 +1336,7 @@ end)
 Get233.Activated:Connect(function()
 	Title37.Text = "LINK NOT SET"
 	task.delay(1.2, function()
-		Title37.Text = "How To Get Key"
+		Title37.Text = "HOW TO GET KEY"
 	end)
 end)
 
