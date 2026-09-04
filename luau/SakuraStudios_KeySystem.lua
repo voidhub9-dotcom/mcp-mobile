@@ -562,8 +562,10 @@ Title37.Parent = Get233
 local Pfp38 = Instance.new("ImageLabel")
 Pfp38.Name = "Pfp"
 Pfp38.Size = UDim2.new(0.229672,0,0.261163,0)
-Pfp38.Position = UDim2.new(0.081014,0,0.652851,0)
-Pfp38.AnchorPoint = Vector2.new(0.000000,0.000000)
+-- Centre anchor (was top-left) so the breathing-pulse animation added at the
+-- bottom scales it in place instead of drifting it toward the corner.
+Pfp38.Position = UDim2.new(0.195850,0,0.783432,0)
+Pfp38.AnchorPoint = Vector2.new(0.500000,0.500000)
 Pfp38.BackgroundColor3 = Color3.fromRGB(255,255,255)
 Pfp38.BackgroundTransparency = 1.000000
 Pfp38.BorderSizePixel = 0.000000
@@ -946,8 +948,205 @@ local function fadeGroup(group, target, duration)
 	})
 end
 
+local Camera = workspace.CurrentCamera
+
+--========================= AUTO DPI =========================--
+-- A UIScale per panel, recomputed from the viewport so the hub keeps a
+-- comfortable on-screen size on phones, tablets and desktop, and re-adjusts
+-- live if the window resizes or the device rotates. REF_HEIGHT is the
+-- resolution it's tuned around: LOWER it to make the whole UI bigger, raise
+-- it to make it smaller. The clamp stops it ever going tiny or oversized.
+local REF_HEIGHT = 820
+local DPI_MIN, DPI_MAX = 0.80, 1.35
+local introScale = Instance.new("UIScale")
+introScale.Parent = INTRO2
+local keyScale = Instance.new("UIScale")
+keyScale.Parent = GET_KEY19
+
+local baseScale = 1
+local function updateDPI()
+	local vp = (Camera and Camera.ViewportSize) or Vector2.new(1280, 720)
+	baseScale = (vp.Y > 0) and math.clamp(vp.Y / REF_HEIGHT, DPI_MIN, DPI_MAX) or 1
+	introScale.Scale = baseScale
+	keyScale.Scale = baseScale
+end
+updateDPI()
+if Camera then
+	Camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateDPI)
+end
+
+-- pop-in overshoot (Back easing) using the DPI scale as the target
+local function popIn(scaleObj, dur)
+	scaleObj.Scale = baseScale * 0.9
+	TweenService:Create(scaleObj, TweenInfo.new(dur or 0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = baseScale,
+	}):Play()
+end
+
+--======================== LOOK-MAX ========================--
+
+-- Glowing, breathing pink border on each panel. The UIStroke lives inside
+-- the CanvasGroup so it fades with the panel and always lines up, and its
+-- gradient slowly rotates for a moving-light shimmer.
+local function addPanelGlow(panel)
+	local s = Instance.new("UIStroke")
+	s.Color = PINK_STROKE
+	s.Thickness = 2
+	s.Transparency = 0.2
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	s.Parent = panel
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, PINK_STROKE_LIGHT),
+		ColorSequenceKeypoint.new(0.5, PINK_STROKE),
+		ColorSequenceKeypoint.new(1, PINK_MID),
+	})
+	g.Rotation = 90
+	g.Parent = s
+	task.spawn(function()
+		while s.Parent do
+			TweenService:Create(s, TweenInfo.new(1.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Thickness = 3.4, Transparency = 0 }):Play()
+			task.wait(1.7)
+			if not s.Parent then break end
+			TweenService:Create(s, TweenInfo.new(1.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Thickness = 2, Transparency = 0.25 }):Play()
+			task.wait(1.7)
+		end
+	end)
+	task.spawn(function()
+		while g.Parent do
+			g.Rotation = 90
+			TweenService:Create(g, TweenInfo.new(5, Enum.EasingStyle.Linear), { Rotation = 450 }):Play()
+			task.wait(5)
+		end
+	end)
+end
+addPanelGlow(INTRO2)
+addPanelGlow(GET_KEY19)
+
+-- Glossy top-lit gradient on the three action buttons (bright pink up top,
+-- deeper pink at the bottom - reads like a soft-lit button instead of a
+-- flat fill).
+local function glossify(btn)
+	btn.BackgroundColor3 = PINK_BRIGHT
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(176, 176, 176)),
+	})
+	g.Rotation = 90
+	g.Parent = btn
+end
+glossify(Get23)
+glossify(Submit28)
+glossify(Get233)
+
+-- Soft pulsing glow ring behind the flower badge + a gentle breathing pulse
+-- on the badge itself.
+local pfpGlow = Instance.new("ImageLabel")
+pfpGlow.Name = "PfpGlow"
+pfpGlow.BackgroundTransparency = 1
+pfpGlow.AnchorPoint = Vector2.new(0.5, 0.5)
+pfpGlow.Position = UDim2.new(0.195850, 0, 0.783432, 0)
+pfpGlow.Size = UDim2.new(0.229672 * 1.85, 0, 0.261163 * 1.85, 0)
+pfpGlow.Image = "rbxassetid://16261022724"
+pfpGlow.ImageColor3 = PINK_STROKE
+pfpGlow.ImageTransparency = 0.45
+pfpGlow.ScaleType = Enum.ScaleType.Fit
+pfpGlow.ZIndex = 1
+pfpGlow.Parent = GET_KEY19
+
+local pfpScale = Instance.new("UIScale")
+pfpScale.Parent = Pfp38
 task.spawn(function()
-	-- fade in the intro
+	while pfpScale.Parent do
+		TweenService:Create(pfpScale, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Scale = 1.06 }):Play()
+		TweenService:Create(pfpGlow, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { ImageTransparency = 0.15 }):Play()
+		task.wait(1.6)
+		if not pfpScale.Parent then break end
+		TweenService:Create(pfpScale, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Scale = 1 }):Play()
+		TweenService:Create(pfpGlow, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { ImageTransparency = 0.5 }):Play()
+		task.wait(1.6)
+	end
+end)
+
+-- Tactile press feedback: dip + glow on press, spring back on release. Works
+-- for touch (Roblox synthesizes MouseButton1Down/Up on GUI buttons for taps).
+local function addButtonFeedback(btn, glow)
+	local sc = Instance.new("UIScale")
+	sc.Parent = btn
+	local function down()
+		TweenService:Create(sc, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 0.93 }):Play()
+		if glow then
+			TweenService:Create(glow, TweenInfo.new(0.10), { ImageTransparency = 0.25 }):Play()
+		end
+	end
+	local function up()
+		TweenService:Create(sc, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+		if glow then
+			TweenService:Create(glow, TweenInfo.new(0.3), { ImageTransparency = 1 }):Play()
+		end
+	end
+	btn.MouseButton1Down:Connect(down)
+	btn.MouseButton1Up:Connect(up)
+	btn.MouseLeave:Connect(up)
+end
+addButtonFeedback(Get23, Hover24)
+addButtonFeedback(Submit28, Hover29)
+addButtonFeedback(Get233, Hover34)
+addButtonFeedback(Support40, nil)
+addButtonFeedback(Close45, nil)
+
+-- Drifting sakura in the background - soft pink orbs (uses the transparent
+-- glow sprite tinted pink, so there's no black-square backing like the raw
+-- flower icon would have). Sits behind both panels (ZIndex 0).
+do
+	local petalLayer = Instance.new("Frame")
+	petalLayer.Name = "Petals"
+	petalLayer.Size = UDim2.new(1, 0, 1, 0)
+	petalLayer.BackgroundTransparency = 1
+	petalLayer.ZIndex = 0
+	petalLayer.Parent = ScreenGui
+
+	local rand = Random.new()
+	local function runPetal()
+		local p = Instance.new("ImageLabel")
+		p.BackgroundTransparency = 1
+		p.Image = "rbxassetid://16261022724"
+		p.ScaleType = Enum.ScaleType.Fit
+		p.AnchorPoint = Vector2.new(0.5, 0.5)
+		p.SizeConstraint = Enum.SizeConstraint.RelativeXX
+		p.ImageColor3 = Color3.fromRGB(255, 175, 210)
+		p.ZIndex = 0
+		p.Parent = petalLayer
+		while p.Parent do
+			local sz = rand:NextNumber(0.018, 0.05)
+			p.Size = UDim2.new(sz, 0, sz, 0)
+			p.ImageTransparency = rand:NextNumber(0.4, 0.72)
+			local startX = rand:NextNumber(0, 1)
+			local drift = rand:NextNumber(-0.12, 0.12)
+			local dur = rand:NextNumber(7, 12)
+			p.Position = UDim2.new(startX, 0, -0.12, 0)
+			p.Rotation = rand:NextNumber(0, 360)
+			local move = TweenService:Create(p, TweenInfo.new(dur, Enum.EasingStyle.Linear), {
+				Position = UDim2.new(startX + drift, 0, 1.15, 0),
+				Rotation = p.Rotation + rand:NextNumber(120, 300),
+			})
+			move:Play()
+			move.Completed:Wait()
+		end
+	end
+	for _ = 1, 9 do
+		task.spawn(function()
+			task.wait(rand:NextNumber(0, 7))
+			runPetal()
+		end)
+	end
+end
+
+-- Intro / reveal timeline -------------------------------------------------
+task.spawn(function()
+	-- fade + pop in the intro
+	popIn(introScale, 0.6)
 	fadeGroup(INTRO2, 0, 0.6):Play()
 	task.wait(0.3)
 
@@ -978,10 +1177,11 @@ task.spawn(function()
 	end
 	task.wait(0.2)
 
-	-- fade the intro out, fade the key gate in
+	-- fade the intro out, fade + pop the key gate in
 	fadeGroup(INTRO2, 1, 0.5):Play()
 	task.wait(0.5)
 	INTRO2.Visible = false
+	popIn(keyScale, 0.55)
 	fadeGroup(GET_KEY19, 0, 0.5):Play()
 end)
 
