@@ -55,23 +55,42 @@ INTRO2.GroupTransparency = 1.000000
 INTRO2.GroupColor3 = Color3.fromRGB(255,255,255)
 INTRO2.Parent = ScreenGui
 
--- Now uses the Sakura hub banner as a full-bleed cover background instead
--- of the original wallpaper art. Switched Size to exactly fill INTRO2 and
--- ScaleType to Crop (rather than the original oversized-Fit trick, which
--- was tuned for the old asset's aspect ratio) so it fills edge-to-edge
--- regardless of the banner's own proportions.
+-- Loader background: the same topographic texture the key panel uses, so
+-- both screens read as one product instead of two different designs.
+local IntroPattern = Instance.new("ImageLabel")
+IntroPattern.Name = "Pattern"
+IntroPattern.Size = UDim2.new(1.000000,0,1.000000,0)
+IntroPattern.Position = UDim2.new(0.000000,0,0.000000,0)
+IntroPattern.AnchorPoint = Vector2.new(0.000000,0.000000)
+IntroPattern.BackgroundColor3 = Color3.fromRGB(255,255,255)
+IntroPattern.BackgroundTransparency = 1.000000
+IntroPattern.BorderSizePixel = 0.000000
+IntroPattern.Image = "rbxassetid://2151741365"
+IntroPattern.ImageColor3 = PINK_STROKE_LIGHT
+IntroPattern.ImageTransparency = 0.700000
+IntroPattern.ScaleType = Enum.ScaleType.Tile
+IntroPattern.SliceCenter = Rect.new(0,256,0,256)
+IntroPattern.Visible = true
+IntroPattern.ZIndex = 0.000000
+IntroPattern.Parent = INTRO2
+
+-- The Sakura hub banner, shown WHOLE (Fit) and centred in the upper part of
+-- the loader. It was previously a full-bleed Crop, which fills the panel but
+-- slices the edges off - and since this banner is a wide wordmark, that was
+-- cutting into the lettering on any screen that didn't happen to match its
+-- aspect ratio. Fit guarantees the whole banner is always readable.
 local Wallpaper3 = Instance.new("ImageLabel")
-Wallpaper3.Name = "Wallpaper"
-Wallpaper3.Size = UDim2.new(1.000000,0,1.000000,0)
-Wallpaper3.Position = UDim2.new(0.000000,0,0.000000,0)
-Wallpaper3.AnchorPoint = Vector2.new(0.000000,0.000000)
+Wallpaper3.Name = "Banner"
+Wallpaper3.Size = UDim2.new(0.900000,0,0.620000,0)
+Wallpaper3.Position = UDim2.new(0.500000,0,0.350000,0)
+Wallpaper3.AnchorPoint = Vector2.new(0.500000,0.500000)
 Wallpaper3.BackgroundColor3 = Color3.fromRGB(255,255,255)
-Wallpaper3.BackgroundTransparency = 0.000000
+Wallpaper3.BackgroundTransparency = 1.000000
 Wallpaper3.BorderSizePixel = 0.000000
 Wallpaper3.Image = BANNER
 Wallpaper3.ImageColor3 = Color3.fromRGB(255,255,255)
 Wallpaper3.ImageTransparency = 0.000000
-Wallpaper3.ScaleType = Enum.ScaleType.Crop
+Wallpaper3.ScaleType = Enum.ScaleType.Fit
 Wallpaper3.SliceCenter = Rect.new(0,0,0,0)
 Wallpaper3.Visible = true
 Wallpaper3.ZIndex = 1.000000
@@ -289,7 +308,9 @@ Logo21.BorderSizePixel = 0.000000
 Logo21.Image = BANNER
 Logo21.ImageColor3 = Color3.fromRGB(255,255,255)
 Logo21.ImageTransparency = 0.000000
-Logo21.ScaleType = Enum.ScaleType.Crop
+-- Fit, not Crop: Crop fills the slot but slices the edges, which was eating
+-- into the banner's lettering. Fit always shows the whole wordmark.
+Logo21.ScaleType = Enum.ScaleType.Fit
 Logo21.SliceCenter = Rect.new(0,0,0,0)
 Logo21.Visible = true
 Logo21.ZIndex = 2.000000
@@ -750,10 +771,14 @@ local UICorner48 = Instance.new("UICorner")
 UICorner48.CornerRadius = UDim.new(0.000000,7)
 UICorner48.Parent = Close45
 
+-- Expanded key-entry card. Was a cramped single row (label taking the left
+-- half, a tiny pill textbox squeezed on the right). Now it's a taller card
+-- with the label on top and a full-width input underneath - far easier to
+-- actually tap and type a key into on mobile.
 local Frame49 = Instance.new("Frame")
 Frame49.Name = "Frame"
-Frame49.Size = UDim2.new(0.838618,0,0.113080,0)
-Frame49.Position = UDim2.new(0.500630,0,0.308795,0)
+Frame49.Size = UDim2.new(0.868000,0,0.162000,0)
+Frame49.Position = UDim2.new(0.500630,0,0.300000,0)
 Frame49.AnchorPoint = Vector2.new(0.500000,0.500000)
 Frame49.BackgroundColor3 = DARK_BG2
 Frame49.BackgroundTransparency = 0.000000
@@ -785,8 +810,8 @@ UICorner52.Parent = Frame49
 
 local Title53 = Instance.new("TextLabel")
 Title53.Name = "Title"
-Title53.Size = UDim2.new(0.393164,0,0.523336,0)
-Title53.Position = UDim2.new(0.265781,0,0.485383,0)
+Title53.Size = UDim2.new(0.900000,0,0.300000,0)
+Title53.Position = UDim2.new(0.500000,0,0.255000,0)
 Title53.AnchorPoint = Vector2.new(0.500000,0.500000)
 Title53.BackgroundColor3 = DARK_BG2
 Title53.BackgroundTransparency = 1.000000
@@ -802,7 +827,7 @@ Title53.ZIndex = 1.000000
 Title53.Rotation = 0.000000
 Title53.Transparency = 1.000000
 Title53.Text = "ENTER KEY HERE"
-Title53.TextColor3 = Color3.fromRGB(255,255,255)
+Title53.TextColor3 = PINK_STROKE_LIGHT
 Title53.TextSize = 8.000000
 Title53.Font = Enum.Font.GothamMedium
 Title53.TextScaled = true
@@ -814,16 +839,22 @@ Title53.TextTransparency = 0.000000
 Title53.TextStrokeColor3 = Color3.fromRGB(0,0,0)
 Title53.TextStrokeTransparency = 1.000000
 Title53.TextTruncate = Enum.TextTruncate.None
-Title53.TextXAlignment = Enum.TextXAlignment.Left
+Title53.TextXAlignment = Enum.TextXAlignment.Center
 Title53.TextYAlignment = Enum.TextYAlignment.Center
 Title53.Parent = Frame49
 
+-- Cap the label/input text so TextScaled can't blow it up in the taller card.
+local KeyTitleTextSize = Instance.new("UITextSizeConstraint")
+KeyTitleTextSize.MinTextSize = 1
+KeyTitleTextSize.MaxTextSize = 15
+KeyTitleTextSize.Parent = Title53
+
 local Textbox54 = Instance.new("TextBox")
 Textbox54.Name = "Textbox"
-Textbox54.Size = UDim2.new(0.302255,0,0.600259,0)
-Textbox54.Position = UDim2.new(0.780933,0,0.498203,0)
+Textbox54.Size = UDim2.new(0.900000,0,0.420000,0)
+Textbox54.Position = UDim2.new(0.500000,0,0.680000,0)
 Textbox54.AnchorPoint = Vector2.new(0.500000,0.500000)
-Textbox54.BackgroundColor3 = DARK_BG2
+Textbox54.BackgroundColor3 = Color3.fromRGB(16,16,16)
 Textbox54.BackgroundTransparency = 0.000000
 Textbox54.BorderSizePixel = 0.000000
 Textbox54.Text = ""
@@ -837,7 +868,7 @@ Textbox54.RichText = false
 Textbox54.Visible = true
 Textbox54.ClearTextOnFocus = true
 Textbox54.MultiLine = false
-Textbox54.PlaceholderText = "..."
+Textbox54.PlaceholderText = "Paste your key here"
 Textbox54.PlaceholderColor3 = Color3.fromRGB(178,178,178)
 Textbox54.CursorPosition = 1.000000
 Textbox54.SelectionStart = -1.000000
@@ -846,6 +877,11 @@ Textbox54.TextEditable = true
 Textbox54.TextXAlignment = Enum.TextXAlignment.Center
 Textbox54.TextYAlignment = Enum.TextYAlignment.Center
 Textbox54.Parent = Frame49
+
+local KeyBoxTextSize = Instance.new("UITextSizeConstraint")
+KeyBoxTextSize.MinTextSize = 1
+KeyBoxTextSize.MaxTextSize = 18
+KeyBoxTextSize.Parent = Textbox54
 
 local UIStroke55 = Instance.new("UIStroke")
 UIStroke55.Color = PINK_STROKE
@@ -862,7 +898,7 @@ UIGradient56.Offset = Vector2.new(0.000000,0.000000)
 UIGradient56.Parent = UIStroke55
 
 local UICorner57 = Instance.new("UICorner")
-UICorner57.CornerRadius = UDim.new(0.000000,7)
+UICorner57.CornerRadius = UDim.new(0.500000,0) -- full pill on the wider input
 UICorner57.Parent = Textbox54
 
 local Gradient58 = Instance.new("Frame")
@@ -985,14 +1021,25 @@ end
 
 --======================== LOOK-MAX ========================--
 
--- Glowing, breathing pink border on each panel. The UIStroke lives inside
--- the CanvasGroup so it fades with the panel and always lines up, and its
--- gradient slowly rotates for a moving-light shimmer.
+-- Glowing, breathing pink border on each panel, with the gradient slowly
+-- rotating for a moving-light shimmer.
+--
+-- BUG FIX - "when loading it shows outlines of a UI before it's there":
+-- that was this stroke, added in the last pass. A UIStroke on a CanvasGroup
+-- is NOT hidden by GroupTransparency (it renders as a border decoration
+-- outside the group's composite), so the key panel's pink outline sat on
+-- screen through the whole loading screen. Fixed two ways: each panel now
+-- starts Visible = false (Visible hides everything, decorations included)
+-- and is only shown at reveal time, and the stroke starts fully transparent
+-- and fades in with its panel, with the breathing loop gated behind an
+-- `active` flag so it can't fight that fade.
+local PanelGlow = {}
+
 local function addPanelGlow(panel)
 	local s = Instance.new("UIStroke")
 	s.Color = PINK_STROKE
 	s.Thickness = 2
-	s.Transparency = 0.2
+	s.Transparency = 1
 	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	s.Parent = panel
 	local g = Instance.new("UIGradient")
@@ -1003,13 +1050,22 @@ local function addPanelGlow(panel)
 	})
 	g.Rotation = 90
 	g.Parent = s
+
+	local entry = { stroke = s, active = false }
+	PanelGlow[panel] = entry
+
 	task.spawn(function()
 		while s.Parent do
-			TweenService:Create(s, TweenInfo.new(1.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Thickness = 3.4, Transparency = 0 }):Play()
-			task.wait(1.7)
-			if not s.Parent then break end
-			TweenService:Create(s, TweenInfo.new(1.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Thickness = 2, Transparency = 0.25 }):Play()
-			task.wait(1.7)
+			if entry.active then
+				TweenService:Create(s, TweenInfo.new(1.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Thickness = 3.4, Transparency = 0 }):Play()
+				task.wait(1.7)
+				if s.Parent and entry.active then
+					TweenService:Create(s, TweenInfo.new(1.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Thickness = 2, Transparency = 0.25 }):Play()
+					task.wait(1.7)
+				end
+			else
+				task.wait(0.15)
+			end
 		end
 	end)
 	task.spawn(function()
@@ -1022,6 +1078,36 @@ local function addPanelGlow(panel)
 end
 addPanelGlow(INTRO2)
 addPanelGlow(GET_KEY19)
+
+-- Nothing renders until its panel is explicitly shown - this is what stops
+-- the outline leaking through the loading screen.
+INTRO2.Visible = false
+GET_KEY19.Visible = false
+
+local function showPanel(panel, dur)
+	panel.Visible = true
+	local entry = PanelGlow[panel]
+	if entry then
+		entry.active = false
+		entry.stroke.Transparency = 1
+		TweenService:Create(entry.stroke, TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0.2 }):Play()
+		task.delay(dur, function()
+			entry.active = true
+		end)
+	end
+	fadeGroup(panel, 0, dur):Play()
+end
+
+local function hidePanel(panel, dur)
+	local entry = PanelGlow[panel]
+	if entry then
+		entry.active = false
+		TweenService:Create(entry.stroke, TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
+	end
+	local t = fadeGroup(panel, 1, dur)
+	t:Play()
+	return t
+end
 
 -- Glossy top-lit gradient on the three action buttons (bright pink up top,
 -- deeper pink at the bottom - reads like a soft-lit button instead of a
@@ -1147,7 +1233,7 @@ end
 task.spawn(function()
 	-- fade + pop in the intro
 	popIn(introScale, 0.6)
-	fadeGroup(INTRO2, 0, 0.6):Play()
+	showPanel(INTRO2, 0.6)
 	task.wait(0.3)
 
 	-- fill the loading bar while the status text updates
@@ -1178,16 +1264,15 @@ task.spawn(function()
 	task.wait(0.2)
 
 	-- fade the intro out, fade + pop the key gate in
-	fadeGroup(INTRO2, 1, 0.5):Play()
+	hidePanel(INTRO2, 0.5)
 	task.wait(0.5)
 	INTRO2.Visible = false
 	popIn(keyScale, 0.55)
-	fadeGroup(GET_KEY19, 0, 0.5):Play()
+	showPanel(GET_KEY19, 0.5)
 end)
 
 Close45.Activated:Connect(function()
-	local tween = fadeGroup(GET_KEY19, 1, 0.3)
-	tween:Play()
+	local tween = hidePanel(GET_KEY19, 0.3)
 	tween.Completed:Wait()
 	ScreenGui:Destroy()
 end)
