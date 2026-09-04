@@ -103,6 +103,92 @@ local function myRoot()
 	return character and character:FindFirstChild("HumanoidRootPart")
 end
 
+local LetterIndex = { A = 1, B = 2, C = 3, D = 4 }
+
+local function getQuestionGroup(qnum)
+	local gui = PlayerGui:FindFirstChild("AnswerPaperScreenGui")
+	if not gui then
+		return nil
+	end
+	for _, c in ipairs(gui:GetDescendants()) do
+		if c:IsA("CanvasGroup") and c.Name == tostring(qnum) then
+			return c
+		end
+	end
+	return nil
+end
+
+-- VERIFIED live, and this took real digging: the AnswerInputHitbox buttons
+-- have ZERO connections on MouseButton1Click (confirmed via getconnections -
+-- every firesignal(hitbox.MouseButton1Click)/Activated/InputBegan attempt,
+-- plus real coordinate clicks and drags through VirtualInputManager, all
+-- produced no server-side change across 6+ live attempts). The real handler
+-- is on hitbox.Activated - but even firing that signal does nothing. Calling
+-- getconnections(hitbox.Activated)[1].Function directly is what actually
+-- works: confirmed live, PlayerAnswerTable[2] went from "UNANSWERED" to "A"
+-- and stayed there - a second call targeting a different letter on the same
+-- question did NOT overwrite it, so answers lock once committed, same as a
+-- real exam. Hitbox order within a question is confirmed 1:1 with A/B/C/D
+-- (checked by comparing each hitbox's real AbsolutePosition against each
+-- lettered ImageButton's - exact overlap, 0.0 distance).
+local function submitAnswer(qnum, letter)
+	local idx = LetterIndex[letter]
+	if not idx then
+		return false, "bad letter"
+	end
+	local group = getQuestionGroup(qnum)
+	if not group then
+		return false, "question not open"
+	end
+	local hitboxes = {}
+	for _, c in ipairs(group:GetChildren()) do
+		if c.Name == "AnswerInputHitbox" then
+			table.insert(hitboxes, c)
+		end
+	end
+	local hb = hitboxes[idx]
+	if not hb then
+		return false, "hitbox missing"
+	end
+	local ok, conns = pcall(function()
+		return getconnections(hb.Activated)
+	end)
+	if not ok or #conns == 0 then
+		return false, "no handler found"
+	end
+	local fn = conns[1].Function
+	if not fn then
+		return false, "handler not accessible"
+	end
+	local callOk = pcall(fn)
+	return callOk, callOk and "submitted" or "handler call failed"
+end
+
+-- BEST-EFFORT: a real reveal payload (from Phone/Chalkboard/Glasses) was
+-- never observed live this session - Ink sat at 0% for the entire session
+-- across three rounds with no regen observed, and no ink-source remote
+-- exists anywhere in ReplicatedStorage, so activating the phone only ever
+-- produced a no-op "Reset" event. This parser guesses at plausible
+-- "question: letter" text shapes. If your captures come through in a
+-- different format, the raw text is still shown in the Capture Log so you
+-- can read it and use Manual Submit below instead.
+local function parseCaptureText(text)
+	if type(text) ~= "string" then
+		return nil, nil
+	end
+	local q, letter = text:match("[Qq]uestion%s*(%d+)[%s:%-]+([ABCDabcd])")
+	if not q then
+		q, letter = text:match("[Qq](%d+)[%s:%-]+([ABCDabcd])")
+	end
+	if not q then
+		q, letter = text:match("^(%d+)[%s:%-]+([ABCDabcd])$")
+	end
+	if q and letter then
+		return tonumber(q), letter:upper()
+	end
+	return nil, nil
+end
+
 local Input = {}
 
 function Input.EquipByName(name)
@@ -295,9 +381,32 @@ do
 		local lines = {}
 		for i = 1, math.min(5, #Captured) do
 			local c = Captured[i]
-			table.insert(lines, string.format("[%s] %s", c.source, c.text))
+			table.insert(lines, string.format("[%s%s] %s", c.source, c.submitted and " -> submitted" or "", c.text))
 		end
 		logLabel.Text = table.concat(lines, "\n")
+	end
+
+	local submitStatus = UI.StatusLabel("Auto-Submit")
+
+	local function tryAutoSubmit(entry)
+		if not UI.Flags.AutoSubmitAnswers or entry.submitted then
+			return
+		end
+		local q, letter = parseCaptureText(entry.text)
+		if not q or not letter then
+			return
+		end
+		local answers = ReplicatedStorage.PlayerAnswerTable:InvokeServer()
+		if answers[q] ~= "UNANSWERED" then
+			return
+		end
+		local ok, reason = submitAnswer(q, letter)
+		if ok then
+			entry.submitted = true
+			submitStatus(string.format("Q%d -> %s (%s)", q, letter, entry.source))
+		else
+			submitStatus(string.format("Q%d -> %s failed: %s", q, letter, reason))
+		end
 	end
 
 	ToolEvents.PhoneDisplay.OnClientEvent:Connect(function(toolName, data)
@@ -305,6 +414,7 @@ do
 		if data ~= nil and data ~= "Reset" then
 			pushCapture("Phone", tostring(data))
 			refreshLog()
+			tryAutoSubmit(Captured[1])
 		end
 	end)
 
@@ -315,6 +425,7 @@ do
 		chalkLabel:GetPropertyChangedSignal("Text"):Connect(function()
 			pushCapture("Chalkboard", chalkLabel.Text)
 			refreshLog()
+			tryAutoSubmit(Captured[1])
 		end)
 	end
 
@@ -323,10 +434,10 @@ do
 	end)
 	if okEvt and chalkEvt then
 		chalkEvt.OnClientEvent:Connect(function(...)
-			local args = { ... }
 			if chalkOk and chalkLabel then
 				pushCapture("Chalkboard", chalkLabel.Text)
 				refreshLog()
+				tryAutoSubmit(Captured[1])
 			end
 		end)
 	end
@@ -334,11 +445,42 @@ do
 	ToolEvents.SmartGlassesTargetData.OnClientEvent:Connect(function(data)
 		pushCapture("Glasses", tostring(data))
 		refreshLog()
+		tryAutoSubmit(Captured[1])
 	end)
 
 	UI.Button("Clear Captured Log", function()
 		table.clear(Captured)
 		refreshLog()
+	end)
+end
+
+do
+	UI.Section("Auto-Submit")
+	UI.Label("VERIFIED live: submission itself is real and confirmed working "
+		.. "- getconnections(hitbox.Activated)[1].Function called directly "
+		.. "commits a real answer (confirmed live: PlayerAnswerTable[2] went "
+		.. "from UNANSWERED to \"A\" and locked). What's NOT verified is "
+		.. "whether the parser above correctly reads a real reveal's format, "
+		.. "since no real reveal was ever observed this session (Ink stuck "
+		.. "at 0%, no ink source found anywhere in the data model or a "
+		.. "45s wait). This only ever answers a question using something "
+		.. "actually captured through the real Phone/Chalkboard/Glasses "
+		.. "tools above - it will not guess or fabricate an answer for a "
+		.. "question nothing was captured for.")
+	UI.Toggle("AutoSubmitAnswers", "Auto-Submit Captured Answers", false)
+
+	UI.Section("Manual Submit")
+	UI.Label("If you already know an answer (read it yourself, a walkthrough, "
+		.. "whatever) this drives the real verified mechanism directly - "
+		.. "100% reliable regardless of the capture/parsing gap above.")
+	local manualStatus = UI.StatusLabel("Manual Submit")
+	UI.Slider("ManualQuestion", "Question #", 1, 46, 1)
+	UI.Dropdown("ManualLetter", "Answer", { "A", "B", "C", "D" }, "A")
+	UI.Button("Submit This Answer", function()
+		local q = math.floor(UI.Flags.ManualQuestion or 1)
+		local letter = UI.Flags.ManualLetter or "A"
+		local ok, reason = submitAnswer(q, letter)
+		manualStatus(string.format("Q%d -> %s: %s", q, letter, reason))
 	end)
 end
 
