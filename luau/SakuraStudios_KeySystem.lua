@@ -3,17 +3,39 @@
 -- no button logic or intro animation was present in the source, which is
 -- normal for a GUI-copy tool since those only capture Instances/properties,
 -- not the LocalScripts that drive them). This file adds back a real intro
--- sequence and real button behavior, and repaints the whole thing pink.
+-- sequence, real button behavior, a real key-check backend, ripple effects
+-- and a draggable panel, and repaints the whole thing pink.
 --
--- Two things you'll need to fill in yourself, marked TODO below:
---   1. Real key validation (VALID_KEY is a placeholder local string check -
---      swap it for whatever your actual key backend is).
---   2. Real destination links for Get Key / How To Get Key / Support -
---      left as safe no-ops since I don't have real URLs for your project
---      and won't invent ones.
+-- Modeled after the VoidHub key system you shared - same architecture
+-- (fetch a loader, loadstring + run it, judge success by "did it error
+-- within N seconds or keep running", save the key to file so returning
+-- users skip the gate), but NOT a copy of VoidHub's actual backend: their
+-- flowauth.net URLs are tied to VoidHub's own paid FlowAuth project, so
+-- reusing them here would either do nothing (wrong project) or reach into
+-- someone else's paid service - neither is what you want. SAKURA_LOADER_URL
+-- below is a placeholder for the real loader you said you'd provide.
+--
+-- One thing still marked TODO: SAKURA_LOADER_URL. Until it's set, Submit
+-- Key falls back to a local placeholder-key check (VALID_KEY) so you can
+-- still test the whole flow end-to-end.
+--
+-- Get Key / How To Get Key now copy your Discord invite to the clipboard
+-- (discord.gg/joinsakura) - Roblox executors don't have a reliable
+-- "open browser" API, so clipboard-copy-then-paste is the actual standard
+-- mechanism (same thing the reference script does for its Discord link).
 
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+-- Reentry guard: if this gets injected twice in the same session, the
+-- second run just no-ops instead of stacking a second key gate.
+if getgenv and getgenv().SakuraStudiosKeySystemLoaded then
+	return
+end
+if getgenv then
+	getgenv().SakuraStudiosKeySystemLoaded = true
+end
 
 -- Palette -------------------------------------------------------------------
 
@@ -28,7 +50,143 @@ local PINK_STROKE_LIGHT = Color3.fromRGB(255, 105, 180)
 local DARK_BG = Color3.fromRGB(30, 30, 30)
 local DARK_BG2 = Color3.fromRGB(24, 24, 24)
 
-local VALID_KEY = "SAKURA-PLACEHOLDER-KEY" -- TODO: replace with your real key check
+-- Key system config -------------------------------------------------------
+
+-- TODO: set this to the real loader URL once you have it. Left nil on
+-- purpose - see the header comment for why VoidHub's own URL isn't reused.
+local SAKURA_LOADER_URL = nil
+local SAKURA_KEY_SAVE_PATH = "SakuraStudios/Key.txt"
+local DISCORD_URL = "https://discord.gg/joinsakura"
+local VALID_KEY = "SAKURA-PLACEHOLDER-KEY" -- fallback check used only while SAKURA_LOADER_URL is nil
+
+-- File persistence for the redeemed key, so a returning user isn't asked
+-- again every session. Same shape as the reference: pcall everything since
+-- file APIs vary by executor and a missing one shouldn't hard-crash the UI.
+local function saveKey(key)
+	pcall(function()
+		if not isfolder("SakuraStudios") then
+			makefolder("SakuraStudios")
+		end
+		writefile(SAKURA_KEY_SAVE_PATH, key)
+	end)
+end
+
+local function loadSavedKey()
+	local ok, key = pcall(function()
+		if isfile(SAKURA_KEY_SAVE_PATH) then
+			return readfile(SAKURA_KEY_SAVE_PATH)
+		end
+		return nil
+	end)
+	if ok and key and #key:gsub("%s", "") > 0 then
+		return key:gsub("^%s+", ""):gsub("%s+$", "")
+	end
+	return nil
+end
+
+local function deleteSavedKey()
+	pcall(function()
+		if isfile(SAKURA_KEY_SAVE_PATH) then
+			delfile(SAKURA_KEY_SAVE_PATH)
+		end
+	end)
+end
+
+-- Runs the real loader for a given key: fetch it, loadstring it, run it.
+-- Same success heuristic as the reference - if the loader body errors
+-- within the timeout, the key is bad; if it's still running past the
+-- timeout, treat that as the script having loaded successfully (a real
+-- hub script doesn't return quickly, it keeps a UI/loop alive).
+local function executeSakuraAuth(key)
+	if not SAKURA_LOADER_URL then
+		if key == VALID_KEY then
+			return true
+		end
+		return false, "Loader not configured yet - using the placeholder key for now"
+	end
+
+	if getgenv then
+		getgenv().script_key = key
+	end
+	if _G then
+		_G.script_key = key
+	end
+
+	local done, ok, err = false, false, nil
+	task.spawn(function()
+		local runOk, runErr = pcall(function()
+			local body = game:HttpGet(SAKURA_LOADER_URL, true)
+			if type(body) ~= "string" or #body < 16 then
+				error("Empty or invalid loader response")
+			end
+			local fn, loadErr = loadstring(body)
+			if not fn then
+				error("Loader parse error: " .. tostring(loadErr))
+			end
+			local execOk, execErr = pcall(fn)
+			if not execOk then
+				error(execErr)
+			end
+		end)
+		ok, err = runOk, runErr
+		done = true
+	end)
+
+	local started = os.clock()
+	while not done and os.clock() - started < 6 do
+		task.wait()
+	end
+	if done then
+		return ok, err
+	end
+	return true -- timed out = still running = success
+end
+
+-- Turns a raw backend error string into a short (code, message) pair so
+-- both auto-login and manual Submit can react the same way.
+local function classifyAuthError(err)
+	local msg = tostring(err or ""):lower()
+	if msg:find("linked to another device") or msg:find("hwid mismatch") or msg:find("device mismatch") then
+		return "HWID", "Key is linked to another device"
+	elseif msg:find("expired") or msg:find("expir") or msg:find("inactive") then
+		return "EXPIRED", "Your key has expired"
+	elseif msg:find("invalid") or msg:find("not found") or msg:find("wrong") or msg:find("unauthorized") then
+		return "INVALID", "Invalid key"
+	elseif msg:find("blacklist") or msg:find("banned") then
+		return "BANNED", "This key has been blacklisted"
+	elseif msg:find("rate") or msg:find("cooldown") or msg:find("too many") then
+		return "RATE", "Rate limited - wait a moment"
+	elseif msg:find("not configured") then
+		return "UNCONFIGURED", tostring(err)
+	else
+		return "UNKNOWN", tostring(err)
+	end
+end
+
+-- Kicked off now (before any UI exists) so it runs in parallel with the
+-- intro animation instead of adding its own delay on top. A saved key from
+-- last time gets one silent check; if it's still good, the intro plays and
+-- then closes straight to nothing instead of showing the key gate.
+local autoLoginResult = nil -- nil = still checking, true = valid, false = show the gate
+local autoLoginErrorCode = nil
+task.spawn(function()
+	local saved = loadSavedKey()
+	if not saved then
+		autoLoginResult = false
+		return
+	end
+	local ok, err = executeSakuraAuth(saved)
+	if ok then
+		autoLoginResult = true
+		return
+	end
+	local code = classifyAuthError(err)
+	if code == "HWID" or code == "EXPIRED" or code == "INVALID" or code == "BANNED" then
+		deleteSavedKey()
+		autoLoginErrorCode = code
+	end
+	autoLoginResult = false
+end)
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "SakuraStudios_KeySystem"
@@ -1291,53 +1449,253 @@ task.spawn(function()
 	end
 	task.wait(0.2)
 
+	-- Bounded wait for the auto-login check kicked off at the top of the
+	-- file - it's been running the whole time the intro was playing, so
+	-- normally this adds zero extra delay. Capped at 6s (matching
+	-- executeSakuraAuth's own timeout) so a slow/dead backend can never
+	-- hang the intro forever.
+	local waitStart = os.clock()
+	while autoLoginResult == nil and os.clock() - waitStart < 6 do
+		task.wait()
+	end
+
+	if autoLoginResult == true then
+		-- Saved key is still good - the intro plays for the branding
+		-- moment, then closes straight through with no key gate at all.
+		hidePanel(INTRO2, 0.5)
+		task.wait(0.5)
+		if getgenv then
+			getgenv().SakuraStudiosKeySystemLoaded = false
+		end
+		ScreenGui:Destroy()
+		return
+	end
+
 	-- fade the intro out, fade + pop the key gate in
 	hidePanel(INTRO2, 0.5)
 	task.wait(0.5)
 	INTRO2.Visible = false
 	popIn(keyScale, 0.55)
 	showPanel(GET_KEY19, 0.5)
-end)
 
-Close45.Activated:Connect(function()
-	local tween = hidePanel(GET_KEY19, 0.3)
-	tween.Completed:Wait()
-	ScreenGui:Destroy()
-end)
-
-Submit28.Activated:Connect(function()
-	local entered = Textbox54.Text
-	local flashColor = (entered == VALID_KEY) and Color3.fromRGB(80, 220, 140) or Color3.fromRGB(220, 60, 60)
-	local originalColor = UIStroke55.Color
-	UIStroke55.Color = flashColor
-	task.delay(0.6, function()
-		UIStroke55.Color = originalColor
-	end)
-	if entered == VALID_KEY then
-		Title53.Text = "KEY ACCEPTED"
-		-- TODO: unlock/launch your actual hub here
-	else
-		Title53.Text = "INVALID KEY"
-		task.delay(1.2, function()
-			Title53.Text = "ENTER KEY HERE"
+	-- If a saved key just failed (expired/invalid/HWID-mismatched/banned)
+	-- surface that once, briefly, instead of silently deleting it.
+	if autoLoginErrorCode then
+		task.delay(0.6, function()
+			local label = ({
+				EXPIRED = "SAVED KEY EXPIRED",
+				HWID = "KEY LINKED TO ANOTHER DEVICE",
+				INVALID = "SAVED KEY WAS INVALID",
+				BANNED = "SAVED KEY WAS BLACKLISTED",
+			})[autoLoginErrorCode] or "SAVED KEY CHECK FAILED"
+			Title53.Text = label
+			task.delay(2.2, function()
+				if Title53.Text == label then
+					Title53.Text = "ENTER KEY HERE"
+				end
+			end)
 		end)
 	end
 end)
 
--- TODO: point these at your real "get key" site / tutorial / support link.
--- Left as no-ops rather than guessed URLs.
-Get23.Activated:Connect(function()
-	Title27.Text = "LINK NOT SET"
-	task.delay(1.2, function()
-		Title27.Text = "GET KEY"
+-- Ripple effect on tap, matching the reference. Clipped to a same-radius
+-- overlay frame rather than the button itself, so it doesn't cut off the
+-- Hover glow images (Hover24/29/34), which are deliberately larger than
+-- their buttons for a soft bleed-out effect.
+local function createRipple(button, x, y)
+	task.spawn(function()
+		local clip = Instance.new("Frame")
+		clip.Name = "RippleClip"
+		clip.Size = UDim2.new(1, 0, 1, 0)
+		clip.BackgroundTransparency = 1
+		clip.BorderSizePixel = 0
+		clip.ClipsDescendants = true
+		clip.ZIndex = button.ZIndex + 5
+		clip.Parent = button
+		local buttonCorner = button:FindFirstChildOfClass("UICorner")
+		if buttonCorner then
+			local matchCorner = Instance.new("UICorner")
+			matchCorner.CornerRadius = buttonCorner.CornerRadius
+			matchCorner.Parent = clip
+		end
+
+		local size = button.AbsoluteSize
+		local maxSize = math.max(size.X, size.Y) * 2.2
+		local ripple = Instance.new("Frame")
+		ripple.Name = "Ripple"
+		ripple.Size = UDim2.new(0, 0, 0, 0)
+		ripple.Position = UDim2.new(0, x - button.AbsolutePosition.X, 0, y - button.AbsolutePosition.Y)
+		ripple.AnchorPoint = Vector2.new(0.5, 0.5)
+		ripple.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		ripple.BackgroundTransparency = 0.65
+		ripple.BorderSizePixel = 0
+		ripple.ZIndex = clip.ZIndex
+		ripple.Parent = clip
+		local rippleCorner = Instance.new("UICorner")
+		rippleCorner.CornerRadius = UDim.new(1, 0)
+		rippleCorner.Parent = ripple
+
+		local tw = TweenService:Create(ripple, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+			Size = UDim2.new(0, maxSize, 0, maxSize),
+			BackgroundTransparency = 1,
+		})
+		tw:Play()
+		tw.Completed:Wait()
+		clip:Destroy()
 	end)
+end
+
+local function addRipple(btn)
+	btn.MouseButton1Down:Connect(function(x, y)
+		createRipple(btn, x, y)
+	end)
+end
+addRipple(Get23)
+addRipple(Get233)
+addRipple(Submit28)
+addRipple(Close45)
+addRipple(Support40)
+
+-- Draggable panel - the banner is the handle, matching the reference's
+-- title-bar-drags-the-window pattern. Clamped so it can't be dragged off
+-- screen.
+do
+	local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
+
+	local function clampToScreen(proposedPos)
+		local vp = (Camera and Camera.ViewportSize) or Vector2.new(1280, 720)
+		local half = GET_KEY19.AbsoluteSize / 2
+		local absX = proposedPos.X.Scale * vp.X + proposedPos.X.Offset
+		local absY = proposedPos.Y.Scale * vp.Y + proposedPos.Y.Offset
+		absX = math.clamp(absX, half.X, math.max(half.X, vp.X - half.X))
+		absY = math.clamp(absY, half.Y, math.max(half.Y, vp.Y - half.Y))
+		return UDim2.new(0, absX, 0, absY)
+	end
+
+	Logo21.Active = true
+	Logo21.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = GET_KEY19.Position
+			local conn
+			conn = input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+					conn:Disconnect()
+				end
+			end)
+		end
+	end)
+	Logo21.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input == dragInput then
+			local delta = input.Position - dragStart
+			local proposed = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			GET_KEY19.Position = clampToScreen(proposed)
+		end
+	end)
+end
+
+Close45.Activated:Connect(function()
+	local tween = hidePanel(GET_KEY19, 0.3)
+	tween.Completed:Wait()
+	if getgenv then
+		getgenv().SakuraStudiosKeySystemLoaded = false
+	end
+	ScreenGui:Destroy()
+end)
+
+-- Real redeem flow: runs the actual loader (or the placeholder check while
+-- SAKURA_LOADER_URL isn't set yet), shows live status in the key card's own
+-- label, and reacts to specific backend error text the same way the
+-- reference does (HWID mismatch / expired / invalid / blacklisted / rate
+-- limited all get their own message instead of a generic failure).
+local isRedeeming = false
+
+local function redeemKey()
+	if isRedeeming then
+		return
+	end
+	local key = Textbox54.Text:gsub("^%s+", ""):gsub("%s+$", "")
+	if #key == 0 then
+		Title53.Text = "ENTER A KEY FIRST"
+		task.delay(1.2, function()
+			if Title53.Text == "ENTER A KEY FIRST" then
+				Title53.Text = "ENTER KEY HERE"
+			end
+		end)
+		return
+	end
+
+	isRedeeming = true
+	Title53.Text = "CHECKING..."
+
+	task.spawn(function()
+		local ok, err = executeSakuraAuth(key)
+		if ok then
+			saveKey(key)
+			UIStroke55.Color = Color3.fromRGB(80, 220, 140)
+			Title53.Text = "KEY ACCEPTED"
+			task.delay(1, function()
+				local tween = hidePanel(GET_KEY19, 0.3)
+				tween.Completed:Wait()
+				if getgenv then
+					getgenv().SakuraStudiosKeySystemLoaded = false
+				end
+				ScreenGui:Destroy()
+			end)
+		else
+			local _, msg = classifyAuthError(err)
+			UIStroke55.Color = Color3.fromRGB(220, 60, 60)
+			task.delay(0.6, function()
+				UIStroke55.Color = PINK_STROKE
+			end)
+			local shown = msg:upper()
+			Title53.Text = shown
+			task.delay(2.2, function()
+				if Title53.Text == shown then
+					Title53.Text = "ENTER KEY HERE"
+				end
+			end)
+			isRedeeming = false
+		end
+	end)
+end
+
+Submit28.Activated:Connect(redeemKey)
+Textbox54.FocusLost:Connect(function(enterPressed)
+	if enterPressed then
+		redeemKey()
+	end
+end)
+
+-- Get Key / How To Get Key: copies the Discord invite to the clipboard.
+-- Roblox executors have no reliable "open a URL in the browser" API, so
+-- copy-then-paste is the real mechanism here, same as the reference's own
+-- Discord button.
+local function copyDiscordLink(titleLabel, restoreText)
+	pcall(function()
+		setclipboard(DISCORD_URL)
+	end)
+	titleLabel.Text = "LINK COPIED!"
+	task.delay(1.5, function()
+		if titleLabel.Text == "LINK COPIED!" then
+			titleLabel.Text = restoreText
+		end
+	end)
+end
+
+Get23.Activated:Connect(function()
+	copyDiscordLink(Title27, "GET KEY")
 end)
 
 Get233.Activated:Connect(function()
-	Title37.Text = "LINK NOT SET"
-	task.delay(1.2, function()
-		Title37.Text = "HOW TO GET KEY"
-	end)
+	copyDiscordLink(Title37, "HOW TO GET KEY")
 end)
 
 Support40.Activated:Connect(function()
