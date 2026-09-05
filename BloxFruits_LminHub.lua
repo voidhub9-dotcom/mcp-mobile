@@ -56,6 +56,11 @@ local function GuiNode(...)
 	return node;
 end;
 local function GuiShown(...)
+	if game.PlaceId == 2753915549 and select('#', ...) == 1 and select(1, ...) == "Quest" then
+		local tracked = u:FindFirstChild("TrackedQuestFrame");
+		local frame = tracked and tracked:FindFirstChild("Frame");
+		if tracked and frame then return tracked.Enabled and frame.Visible; end;
+	end;
 	local node = GuiNode(...);
 	return node ~= nil and node.Visible == true;
 end;
@@ -68,6 +73,13 @@ local function SetGuiShown(value, ...)
 	return false;
 end;
 local function QuestText()
+	if game.PlaceId == 2753915549 then
+		local tracked = u:FindFirstChild("TrackedQuestFrame");
+		local frame = tracked and tracked:FindFirstChild("Frame");
+		local header = frame and frame:FindFirstChild("header");
+		local title = header and header:FindFirstChild("textLabel");
+		if title and title:IsA("TextLabel") then return title.Text; end;
+	end;
 	local node = GuiNode("Quest", "Container", "QuestTitle", "Title");
 	if node then
 		return tostring(node.Text);
@@ -109,6 +121,7 @@ local function TpNamed(name)
 end;
 do
 	local previousUI = getgenv().BloxFruitsUI;
+	if previousUI then previousUI.Stopped = true; end;
 	local previousLibrary = previousUI and previousUI.Library;
 	if previousLibrary and not previousLibrary.Unloaded and type(previousLibrary.Unload) == "function" then
 		pcall(previousLibrary.Unload, previousLibrary);
@@ -1316,15 +1329,50 @@ BFComm = function(...)
 		if not remote then
 			return nil;
 		end;
+		-- Sea 1 quest requests must not stall the farm loop indefinitely.
+		local command = select(1, ...);
+		if game.PlaceId == 2753915549 and (command == "StartQuest" or command == "AbandonQuest") then
+			local args = table.pack(...);
+			local done, success, response = false, false, nil;
+			local worker = task.spawn(function()
+				success, response = pcall(remote.InvokeServer, remote, table.unpack(args, 1, args.n));
+				done = true;
+			end);
+			local deadline = os.clock() + 5;
+			while not done and os.clock() < deadline do task.wait(.1); end;
+			if not done then
+				pcall(task.cancel, worker);
+				UI.AutoFarmLastError = command .. " timed out";
+				warn("[LminHub] " .. UI.AutoFarmLastError);
+				return nil;
+			end;
+			if not success then
+				UI.AutoFarmLastError = command .. ": " .. tostring(response);
+				warn("[LminHub] " .. UI.AutoFarmLastError);
+				return nil;
+			end;
+			UI.AutoFarmLastError = nil;
+			return response;
+		end;
 		local ok, result = pcall(remote.InvokeServer, remote, ...);
 		if ok then
 			return result;
 		end;
 		return nil;
 	end;
--- Accepts a quest via the new BonusMomentsGuide remote (CommF_ "StartQuest" hangs in updated BF).
--- Fires the wrapper InvokeServer in a background thread, then polls CheckHasQuest for up to 6s.
+-- Sea 1 uses CommF_ StartQuest, verified responsive in place version 4615.
+-- Other seas retain their existing acceptance path. Success requires the quest UI.
 BFAcceptQuest = function(questName, questTier, npcName)
+		if game.PlaceId == 2753915549 then
+			if CheckHasQuest(npcName) then return true end;
+			BFComm("StartQuest", questName, questTier);
+			local deadline = os.clock() + 3;
+			repeat
+				if CheckHasQuest(npcName) then return true end;
+				task.wait(.25);
+			until os.clock() >= deadline or not _G.Level;
+			return CheckHasQuest(npcName);
+		end;
 		local RS = game:GetService("ReplicatedStorage");
 		task.spawn(function()
 			local net = RS:FindFirstChild("Modules");
@@ -2565,7 +2613,7 @@ function CheckQuest()
 		elseif MyLevel >= 190 and MyLevel <= 209 then
 			Mon = "Prisoner";
 			LevelQuest = 1;
-			NameQuest = "PrisonerQuest";
+			NameQuest = "ImpelQuest";
 			NameMon = "Prisoner";
 			CFrameQuest = CFrame.new(5308.93115, 1.65517521, 475.120514, -0.0894274712, -5.00292918e-09, -0.995993316, 1.60817859e-09, 1, -5.16744869e-09, .995993316, -2.06384709e-09, -0.0894274712);
 			CFrameMon = CFrame.new(5098.9736328125, -0.3204058110714, 474.23733520508);
@@ -2589,7 +2637,7 @@ function CheckQuest()
 			NameQuest = "ColosseumQuest";
 			NameMon = "Gladiator";
 			CFrameQuest = CFrame.new(-1342.2555, 11.1514, -2928.5808, -0.7431, 0, -0.6691, 0, 1, 0, 0.6691, 0, -0.7431);
-			CFrameMon = CFrame.new(-1850, 10, -3255);
+			CFrameMon = CFrame.new(-1175.3693, 14.6226, -3213.7014);
 		elseif MyLevel >= 300 and MyLevel <= 324 then
 			Mon = "Military Soldier";
 			LevelQuest = 1;
@@ -3688,6 +3736,38 @@ function UI.SetAutoFarmStatus(status)
 		UI.AutoFarmStatusLabel:SetText("Level farm: " .. status:gsub("%-", " "));
 	end;
 end;
+-- Sea 1 spawn positions can change with map updates; use replicated spawn markers.
+UI.GetLevelFarmSpawn = function(targetName, fallback)
+	if game.PlaceId ~= 2753915549 then return fallback; end;
+	local origin = workspace:FindFirstChild("_WorldOrigin");
+	local spawns = origin and origin:FindFirstChild("EnemySpawns");
+	local character = d.Character;
+	local root = character and character:FindFirstChild("HumanoidRootPart");
+	if not spawns or not root then return fallback; end;
+	local now = os.clock();
+	local current = UI.LevelFarmSpawn;
+	if UI.LevelFarmSpawnName == targetName and current and current.Parent and now < (UI.LevelFarmSpawnUntil or 0) then
+		CFrameMon = current.CFrame * CFrame.new(0, 3, 0);
+		return CFrameMon;
+	end;
+	local best, distance;
+	for _, spawn in ipairs(spawns:GetChildren()) do
+		local name = spawn.Name:gsub("%s*%[Lv%..-%]", "");
+		if spawn:IsA("BasePart") and name:lower() == tostring(targetName):lower() then
+			local candidateDistance = (spawn.Position - root.Position).Magnitude;
+			if spawn ~= current and (not distance or candidateDistance < distance) then
+				best, distance = spawn, candidateDistance;
+			end;
+		end;
+	end;
+	best = best or (current and current.Parent and current);
+	if not best then return fallback; end;
+	UI.LevelFarmSpawn = best;
+	UI.LevelFarmSpawnName = targetName;
+	UI.LevelFarmSpawnUntil = now + 10;
+	CFrameMon = best.CFrame * CFrame.new(0, 3, 0);
+	return CFrameMon;
+end;
 UI.AutoFarmStep = function()
 	if not _G.Level then
 		UI.AutoFarmTarget = nil;
@@ -3765,10 +3845,10 @@ UI.AutoFarmStep = function()
 			BFAcceptQuest(NameQuest, LevelQuest, NameMon);
 		end;
 		if CheckHasQuest(NameMon) then
-			BFMoveNear(CFrameMon, 40);
+			BFMoveNear(UI.GetLevelFarmSpawn(NameMon, CFrameMon), 40);
 			return "quest-started";
 		end;
-		return "starting-quest";
+		return UI.AutoFarmLastError and "quest-request-failed" or "waiting-for-quest-confirmation";
 	end;
 	UI.AutoFarmNextQuestAt = 0;
 	local enemy = BFFindLiveEnemyLike(Mon);
@@ -3777,7 +3857,7 @@ UI.AutoFarmStep = function()
 		f.Kill(enemy, _G.Level);
 		return "combat";
 	end;
-	if BFMoveNear(CFrameMon, 40) then
+	if BFMoveNear(UI.GetLevelFarmSpawn(NameMon, CFrameMon), 40) then
 		return "waiting-for-enemy";
 	end;
 	return "moving-to-enemy";
@@ -13682,6 +13762,37 @@ task.spawn(function()
 	end;
 	UI.ReleaseManagedOwner("CraftVM");
 end);
+sF:AddToggle("BF_Toggle_Auto_Magnet_Event_Scraps", {
+	Text = "Auto Collect Magnet Scraps",
+	Tooltip = "Teleport to MagnetFruitScraps that drop from enemies during the Magnet Event (🧲 servers)",
+	Default = false,
+	Callback = function(Y)
+		_G.MagnetEventFarm = Y;
+	end,
+});
+task.spawn(function()
+	while not UI.Stopped do
+		task.wait(0.4);
+		if not _G.MagnetEventFarm then continue; end;
+		pcall(function()
+			local char = d.Character;
+			local hrp = char and char:FindFirstChild("HumanoidRootPart");
+			if not hrp then return; end;
+			local scraps = workspace:FindFirstChild("MagnetFruitScraps");
+			if not scraps then return; end;
+			for _, scrap in ipairs(scraps:GetChildren()) do
+				local part = scrap:FindFirstChildOfClass("BasePart") or (scrap:IsA("BasePart") and scrap);
+				if part then
+					local dist = (part.Position - hrp.Position).Magnitude;
+					if dist < 3000 then
+						_tp(part.CFrame);
+						task.wait(0.1);
+					end;
+				end;
+			end;
+		end);
+	end;
+end);
 local xF = UI.Sections["Prehistoric Island"];
 local JF = xF:AddLabel({ DoesWrap = true, Text = " Prehistoric Island Status " });
 task.spawn(function()
@@ -14400,26 +14511,75 @@ task.spawn(function()
 	end;
 	UI.ReleaseManagedOwner("RaidComplete");
 end);
+UI.KillAura = { Radius = 60, Active = false, Count = 0, Status = "off", LastError = nil };
+UI.KillAuraLabel = Qq:AddLabel({ DoesWrap = true, Text = "Kill aura: off" });
+UI.SetKillAuraStatus = function(status)
+	if UI.KillAura.Status ~= status then
+		UI.KillAura.Status = status;
+		UI.KillAuraLabel:SetText("Kill aura: " .. status);
+	end;
+end;
 Qq:AddToggle("BF_Toggle_Kill_Aura", {
 	Text = "Kill Aura",
-	Tooltip = "Attack every live enemy within combat range",
+	Tooltip = "Attack nearby NPC enemies with your selected weapon",
 	Default = false,
-	Callback = function(Y)
-		_G.KillH = Y;
-		if not Y then
-			BFAttackUntil = 0;
-		end;
+	Callback = function(value)
+		_G.KillH = value;
+		UI.KillAura.Active = false;
+		UI.KillAura.Count = 0;
+		UI.KillAura.LastError = nil;
+		UI.SetKillAuraStatus(value and "finding enemies" or "off");
 	end,
 });
-task.spawn(function()
-	while IdleWait(_G.KillH, .1) do
-		if _G.KillH then
-			pcall(function()
-				EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
-				BFTouchAttack();
-			end);
+Qq:AddSlider("BF_Slider_Kill_Aura_Range", {
+	Text = "Kill Aura Range", Default = 60, Min = 10, Max = 80, Rounding = 0,
+	Callback = function(value)
+		UI.KillAura.Radius = math.clamp(tonumber(value) or 60, 10, 80);
+		UI.KillAura.Active = false;
+	end,
+});
+UI.KillAuraStep = function()
+	local state = UI.KillAura;
+	state.Active = false;
+	state.Count = 0;
+	if not _G.KillH then return "off"; end;
+	local character = d.Character;
+	local root = character and character:FindFirstChild("HumanoidRootPart");
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid");
+	if not root or not humanoid or humanoid.Health <= 0 then return "waiting for respawn"; end;
+	local enemies = workspace:FindFirstChild("Enemies");
+	for _, enemy in ipairs(enemies and enemies:GetChildren() or {}) do
+		local enemyRoot = enemy:FindFirstChild("HumanoidRootPart");
+		local health = enemy:FindFirstChildOfClass("Humanoid");
+		if enemyRoot and health and health.Health > 0 and not enemy:GetAttribute("IsBoat") and (enemyRoot.Position - root.Position).Magnitude <= state.Radius then
+			state.Count = state.Count + 1;
 		end;
 	end;
+	if state.Count == 0 then return "no enemies in range"; end;
+	local selected = _G.BFCombatWeapon or EnsureWeapon();
+	local tool = character:FindFirstChildOfClass("Tool");
+	if selected and (not tool or tool.Name ~= selected) then EquipWeapon(selected); end;
+	tool = character:FindFirstChildOfClass("Tool");
+	if not tool then return "waiting for weapon"; end;
+	state.Active = true;
+	return "attacking " .. state.Count .. (state.Count == 1 and " enemy" or " enemies");
+end;
+task.spawn(function()
+	while IdleWait(_G.KillH, .2) do
+		if _G.KillH then
+			local ok, status = pcall(UI.KillAuraStep);
+			if not ok then
+				UI.KillAura.Active = false;
+				UI.KillAura.LastError = tostring(status);
+				UI.SetKillAuraStatus("error: " .. tostring(status));
+			elseif UI.KillAura.LastError then
+				UI.SetKillAuraStatus("attack error: " .. UI.KillAura.LastError);
+			else
+				UI.SetKillAuraStatus(status);
+			end;
+		end;
+	end;
+	UI.KillAura.Active = false;
 end);
 Qq:AddToggle("BF_Toggle_Auto_Next_Island", {
 	Text = "Auto Next Island",
@@ -16569,7 +16729,7 @@ local function ResolveAttackSender()
 	end;
 	return nil;
 end;
-function AttackNoCoolDown(includePlayers)
+function AttackNoCoolDown(includePlayers, radiusOverride)
 	local character = d.Character;
 	if not character then
 		return;
@@ -16579,6 +16739,7 @@ function AttackNoCoolDown(includePlayers)
 		return;
 	end;
 	local hitRadius = getgenv().BFMultiHit ~= false and math.clamp(tonumber(getgenv().BFMultiHitRadius) or 80, 30, 150) or 60;
+	if radiusOverride then hitRadius = math.clamp(radiusOverride, 10, 80); end;
 	local targets = kq(character, hitRadius, includePlayers);
 	if #targets == 0 then
 		return;
@@ -16668,7 +16829,9 @@ UI.Library:GiveSignal(W.Heartbeat:Connect(function()
 	end;
 	pcall(function()
 		local now = os.clock();
-		if not _G.Seriality and not _G.Level and now >= BFAttackUntil then
+		local auraActive = _G.KillH and UI.KillAura.Active;
+		local otherAttackActive = _G.Seriality or _G.Level or now < BFAttackUntil;
+		if not otherAttackActive and not auraActive then
 			return;
 		end;
 		if now < UI.NextAttackAt then
@@ -16676,7 +16839,8 @@ UI.Library:GiveSignal(W.Heartbeat:Connect(function()
 		end;
 		UI.NextAttackAt = now + UI.AttackInterval;
 		local includePlayers = _G.Defeating == true or _G.AutoEvoRace == true or _G.Complete_Trials == true;
-		AttackNoCoolDown(includePlayers);
+		local attackOk, attackError = pcall(AttackNoCoolDown, includePlayers, not otherAttackActive and UI.KillAura.Radius or nil);
+		if auraActive then UI.KillAura.LastError = not attackOk and tostring(attackError) or nil; end;
 		local character = d.Character;
 		local tool = character and character:FindFirstChildOfClass("Tool");
 		if not tool then
@@ -19845,7 +20009,7 @@ do
 
 	function M.TrackEarnings()
 		local now  = os.clock();
-		local beli = BeliNow();
+		local beli = (tonumber(BFDataValue("Beli")) or 0);
 		local dt   = now - M.LastEarnAt;
 		local gain = beli - M.LastEarnBeli;
 		M.LastEarnAt   = now;
@@ -19867,7 +20031,7 @@ do
 			slot.Time = 0;
 		end;
 		M.ActiveSource = nil;
-		M.LastEarnBeli = BeliNow();
+		M.LastEarnBeli = (tonumber(BFDataValue("Beli")) or 0);
 		M.LastEarnAt   = os.clock();
 	end;
 
