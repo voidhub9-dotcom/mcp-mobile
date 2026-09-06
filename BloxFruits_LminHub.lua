@@ -1329,9 +1329,9 @@ BFComm = function(...)
 		if not remote then
 			return nil;
 		end;
-		-- Sea 1 quest requests must not stall the farm loop indefinitely.
+		-- Sea 1 and Sea 2 quest requests must not stall the farm loop indefinitely.
 		local command = select(1, ...);
-		if game.PlaceId == 2753915549 and (command == "StartQuest" or command == "AbandonQuest") then
+		if (game.PlaceId == 2753915549 or game.PlaceId == 4442272183 or game.PlaceId == 79091703265657) and (command == "StartQuest" or command == "AbandonQuest") then
 			local args = table.pack(...);
 			local done, success, response = false, false, nil;
 			local worker = task.spawn(function()
@@ -1360,10 +1360,10 @@ BFComm = function(...)
 		end;
 		return nil;
 	end;
--- Sea 1 uses CommF_ StartQuest, verified responsive in place version 4615.
--- Other seas retain their existing acceptance path. Success requires the quest UI.
+-- Sea 1 and Sea 2 use CommF_ StartQuest with timeout guard (5s).
+-- Sea 3 retains BonusMomentsGuide background path. Success requires the quest UI.
 BFAcceptQuest = function(questName, questTier, npcName)
-		if game.PlaceId == 2753915549 then
+		if game.PlaceId == 2753915549 or game.PlaceId == 4442272183 or game.PlaceId == 79091703265657 then
 			if CheckHasQuest(npcName) then return true end;
 			BFComm("StartQuest", questName, questTier);
 			local deadline = os.clock() + 3;
@@ -2613,14 +2613,14 @@ function CheckQuest()
 		elseif MyLevel >= 190 and MyLevel <= 209 then
 			Mon = "Prisoner";
 			LevelQuest = 1;
-			NameQuest = "ImpelQuest";
+			NameQuest = "PrisonerQuest";
 			NameMon = "Prisoner";
 			CFrameQuest = CFrame.new(5308.93115, 1.65517521, 475.120514, -0.0894274712, -5.00292918e-09, -0.995993316, 1.60817859e-09, 1, -5.16744869e-09, .995993316, -2.06384709e-09, -0.0894274712);
 			CFrameMon = CFrame.new(5098.9736328125, -0.3204058110714, 474.23733520508);
 		elseif MyLevel >= 210 and MyLevel <= 249 then
 			Mon = "Dangerous Prisoner";
 			LevelQuest = 2;
-			NameQuest = "ImpelQuest";
+			NameQuest = "PrisonerQuest";
 			NameMon = "Dangerous Prisoner";
 			CFrameQuest = CFrame.new(5308.93115, 1.65517521, 475.120514, -0.0894274712, -5.00292918e-09, -0.995993316, 1.60817859e-09, 1, -5.16744869e-09, .995993316, -2.06384709e-09, -0.0894274712);
 			CFrameMon = CFrame.new(5654.5634765625, 15.633401870728, 866.29919433594);
@@ -13761,37 +13761,6 @@ task.spawn(function()
 		UI.ReleaseManagedOwner("CraftVM");
 	end;
 	UI.ReleaseManagedOwner("CraftVM");
-end);
-sF:AddToggle("BF_Toggle_Auto_Magnet_Event_Scraps", {
-	Text = "Auto Collect Magnet Scraps",
-	Tooltip = "Teleport to MagnetFruitScraps that drop from enemies during the Magnet Event (🧲 servers)",
-	Default = false,
-	Callback = function(Y)
-		_G.MagnetEventFarm = Y;
-	end,
-});
-task.spawn(function()
-	while not UI.Stopped do
-		task.wait(0.4);
-		if not _G.MagnetEventFarm then continue; end;
-		pcall(function()
-			local char = d.Character;
-			local hrp = char and char:FindFirstChild("HumanoidRootPart");
-			if not hrp then return; end;
-			local scraps = workspace:FindFirstChild("MagnetFruitScraps");
-			if not scraps then return; end;
-			for _, scrap in ipairs(scraps:GetChildren()) do
-				local part = scrap:FindFirstChildOfClass("BasePart") or (scrap:IsA("BasePart") and scrap);
-				if part then
-					local dist = (part.Position - hrp.Position).Magnitude;
-					if dist < 3000 then
-						_tp(part.CFrame);
-						task.wait(0.1);
-					end;
-				end;
-			end;
-		end);
-	end;
 end);
 local xF = UI.Sections["Prehistoric Island"];
 local JF = xF:AddLabel({ DoesWrap = true, Text = " Prehistoric Island Status " });
