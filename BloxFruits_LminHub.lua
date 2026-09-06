@@ -2270,6 +2270,14 @@ function UI.ReassertCharacterCollisions()
 	if next(UI.CharacterCollisionOwners) == nil then
 		return;
 	end;
+	local character = d.Character;
+	if not character then return end;
+	-- Re-scan if character reference changed (respawn) — forces SetCharacterCollisionOwner
+	-- to walk descendants again and rebuild the parts list.
+	if UI.CharacterCollisionApplied ~= character then
+		UI.CharacterCollisionApplied = nil;
+		UI.SetCharacterCollisionOwner(next(UI.CharacterCollisionOwners), true);
+	end;
 	local parts = UI.CharacterCollisionParts;
 	if type(parts) ~= "table" then
 		return;
@@ -16886,6 +16894,7 @@ UI.Safe("Player Mods", function()
 			},
 		});
 		local noclip = false;
+		local noclipConn = nil;
 		tab:AddToggle("BF_Noclip", {
 			Text = "Noclip",
 			Default = false,
@@ -16893,24 +16902,26 @@ UI.Safe("Player Mods", function()
 			Callback = function(state)
 				noclip = state;
 				UI.SetCharacterCollisionOwner("Noclip", state);
+				if state then
+					if not noclipConn then
+						-- Stepped fires before physics simulation each frame so
+						-- CanCollide=false wins before the engine resolves contacts.
+						noclipConn = W.Stepped:Connect(function()
+							UI.ReassertCharacterCollisions();
+						end);
+					end;
+				else
+					if noclipConn then
+						noclipConn:Disconnect();
+						noclipConn = nil;
+					end;
+				end;
 			end,
 		});
 		task.spawn(function()
-			while IdleWait(noclip, .1) do
-				if noclip then
-					UI.SetCharacterCollisionOwner("Noclip", true);
-					UI.ReassertCharacterCollisions();
-				end;
-			end;
+			while not UI.Stopped do task.wait(1) end;
+			if noclipConn then noclipConn:Disconnect(); noclipConn = nil; end;
 			UI.SetCharacterCollisionOwner("Noclip", false);
-		end);
-		task.spawn(function()
-			while not UI.Stopped do
-				task.wait(.05);
-				if noclip then
-					UI.ReassertCharacterCollisions();
-				end;
-			end;
 		end);
 		local infiniteJump = false;
 		tab:AddToggle("BF_InfiniteJump", {
