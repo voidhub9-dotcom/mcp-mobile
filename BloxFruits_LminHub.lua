@@ -505,14 +505,16 @@ f.Kill = function(Y, d)
 			PosMon = (Y:GetAttribute("Locked")).Position;
 			BringEnemy();
 			EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
-			-- Hover at a fixed point above the enemy's LOCKED (immutable) origin.
-			-- Using the live HRP position causes feedback jitter because BringEnemy
-			-- forces the enemy CFrame every 0.05s, creating a constant micro-bounce.
-			-- Drift threshold of 4 studs stops re-teleporting when already stable.
-			local hoverY = math.max(PosMon.Y + 15, 20);
-			local hover = CFrame.new(PosMon.X, hoverY, PosMon.Z);
+			-- Track the enemy's live position so we hover above where they actually are.
+			-- PosMon is only valid when BringEnemy is active; since _B=false always in
+			-- normal autofarm enemies wander freely, so live HRP is the correct source.
+			local hrp = Y:FindFirstChild("HumanoidRootPart");
+			if not hrp then return end;
+			local livePos = hrp.Position;
+			local hoverY = math.max(livePos.Y + 20, 20);
+			local hover = CFrame.new(livePos.X, hoverY, livePos.Z);
 			local root = i and i:FindFirstChild("HumanoidRootPart");
-			if not root or (root.Position - hover.Position).Magnitude > 4 then
+			if not root or (root.Position - hover.Position).Magnitude > 3 then
 				_tp(hover);
 			end;
 		end;
@@ -16898,6 +16900,7 @@ UI.Safe("Player Mods", function()
 		});
 		local noclip = false;
 		local noclipConn = nil;
+		local noclipConnHB = nil;
 		tab:AddToggle("BF_Noclip", {
 			Text = "Noclip",
 			Default = false,
@@ -16907,9 +16910,15 @@ UI.Safe("Player Mods", function()
 				UI.SetCharacterCollisionOwner("Noclip", state);
 				if state then
 					if not noclipConn then
-						-- Stepped fires before physics simulation each frame so
-						-- CanCollide=false wins before the engine resolves contacts.
+						-- Stepped fires before physics resolves contacts (pre-physics).
 						noclipConn = W.Stepped:Connect(function()
+							UI.ReassertCharacterCollisions();
+						end);
+					end;
+					if not noclipConnHB then
+						-- Heartbeat fires after physics — catches any CanCollide the
+						-- engine re-enables during its solve step.
+						noclipConnHB = game:GetService("RunService").Heartbeat:Connect(function()
 							UI.ReassertCharacterCollisions();
 						end);
 					end;
@@ -16918,12 +16927,17 @@ UI.Safe("Player Mods", function()
 						noclipConn:Disconnect();
 						noclipConn = nil;
 					end;
+					if noclipConnHB then
+						noclipConnHB:Disconnect();
+						noclipConnHB = nil;
+					end;
 				end;
 			end,
 		});
 		task.spawn(function()
 			while not UI.Stopped do task.wait(1) end;
 			if noclipConn then noclipConn:Disconnect(); noclipConn = nil; end;
+			if noclipConnHB then noclipConnHB:Disconnect(); noclipConnHB = nil; end;
 			UI.SetCharacterCollisionOwner("Noclip", false);
 		end);
 		local infiniteJump = false;
