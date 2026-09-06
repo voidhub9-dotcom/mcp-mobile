@@ -8723,7 +8723,7 @@ do
 					task.wait(2);
 				end;
 
-				-- Kill aura: continuously kill nearest enemy within 80 studs.
+				-- Kill aura: teleport next to enemy at ground level (no hover), attack, repeat.
 				EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
 				while _G.AutoIslandSecret do
 					root = BFCharacterPart();
@@ -8745,13 +8745,19 @@ do
 						end;
 					end;
 					if nearest then
-						statusLabel:SetText("Status: aura – " .. nearest.Name .. " (" .. math.round(nearestDist) .. "st)");
-						f.Kill(nearest, _G.AutoIslandSecret);
+						local eHRP = nearest:FindFirstChild("HumanoidRootPart");
+						if eHRP then
+							statusLabel:SetText("Status: aura – " .. nearest.Name .. " (" .. math.round(nearestDist) .. "st)");
+							-- Move to ground level next to enemy, NOT above. Bypasses f.Kill hover.
+							local ep = eHRP.Position;
+							_tp(CFrame.new(ep.X, ep.Y + 3, ep.Z));
+							BFTouchAttack();
+							task.wait(0.08);
+						end;
 					else
 						statusLabel:SetText("Status: aura on – waiting for skeletons");
 						task.wait(0.4);
 					end;
-					task.wait(0.08);
 				end;
 			end,
 		},
