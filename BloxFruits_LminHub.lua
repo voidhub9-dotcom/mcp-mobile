@@ -8712,52 +8712,24 @@ do
 			IslandKey = "Desert",
 			SpawnCF = CFrame.new(1299, 25, 4448),
 			Run = function(statusLabel, active)
-				-- Capture live player position at the moment the secret starts.
 				local root = BFCharacterPart();
 				if not root then return end;
-				local livePos = root.Position;
-				local targetCF = CFrame.new(livePos.X, livePos.Y + 5, livePos.Z);
 
-				-- Tween to recorded live position.
-				if (root.Position - livePos).Magnitude > 15 then
-					statusLabel:SetText("Status: tweening to your position");
-					_tp(targetCF, true);
-					task.wait(1.5);
+				-- Tween to the Rescue Hasan coffin area.
+				local hasanCF = CFrame.new(1299, 30, 4448);
+				if (root.Position - hasanCF.Position).Magnitude > 25 then
+					statusLabel:SetText("Status: tweening to Rescue Hasan");
+					_tp(hasanCF, true);
+					task.wait(2);
 				end;
 
-				root = BFCharacterPart();
-				if not root then return end;
-
-				-- Touch all coffin BaseParts to trigger skeleton spawns.
-				statusLabel:SetText("Status: opening coffins");
-				local desert = workspace.Map and workspace.Map:FindFirstChild("Desert");
-				local rh = desert and desert:FindFirstChild("Rescue Hasan");
-				if rh then
-					for _, part in ipairs(rh:GetDescendants()) do
-						if not _G.AutoIslandSecret then break end;
-						if part:IsA("BasePart") then
-							root = BFCharacterPart();
-							if root then touchPart(root, part) end;
-						end;
-					end;
-				else
-					-- Fallback: walk to each hardcoded coffin position.
-					for _, pos in ipairs(HASAN_COFFIN_POS) do
-						if not _G.AutoIslandSecret then break end;
-						_tp(CFrame.new(pos.X, pos.Y + 5, pos.Z), true);
-						task.wait(0.8);
-					end;
-				end;
-
-				-- Kill aura: every 0.1s kill the nearest enemy within 80 studs of player.
+				-- Kill aura: continuously kill nearest enemy within 80 studs.
 				EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
-				for _ = 1, 300 do
-					if not _G.AutoIslandSecret then break end;
+				while _G.AutoIslandSecret do
 					root = BFCharacterPart();
 					if not root then task.wait(0.5); continue end;
 					local nearest, nearestDist = nil, math.huge;
-					local containers = { workspace:FindFirstChild("Characters"), workspace:FindFirstChild("Enemies") };
-					for _, container in ipairs(containers) do
+					for _, container in ipairs({ workspace:FindFirstChild("Characters"), workspace:FindFirstChild("Enemies") }) do
 						if container then
 							for _, model in ipairs(container:GetChildren()) do
 								local hrp = model:FindFirstChild("HumanoidRootPart");
@@ -8773,15 +8745,14 @@ do
 						end;
 					end;
 					if nearest then
-						statusLabel:SetText("Status: kill aura – " .. nearest.Name .. " (" .. math.round(nearestDist) .. " studs)");
+						statusLabel:SetText("Status: aura – " .. nearest.Name .. " (" .. math.round(nearestDist) .. "st)");
 						f.Kill(nearest, _G.AutoIslandSecret);
 					else
-						statusLabel:SetText("Status: aura active – no nearby enemies");
-						task.wait(0.5);
+						statusLabel:SetText("Status: aura on – waiting for skeletons");
+						task.wait(0.4);
 					end;
-					task.wait(0.1);
+					task.wait(0.08);
 				end;
-				statusLabel:SetText("Status: Rescue Hasan done – check star!");
 			end,
 		},
 		{
