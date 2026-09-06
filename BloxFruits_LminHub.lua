@@ -5261,7 +5261,11 @@ task.spawn(function()
 				end;
 				local castleCenter = CFrame.new(-5539.3115234375, 313.80053710938, -2972.3723144531);
 				local raidTarget = CFrame.new(-5496.17432, 313.768921, -2841.53027, .924894512, 7.37058015e-09, .380223751, 3.5881019e-08, 1, -1.06665446e-07, -0.380223751, 1.12297109e-07, .924894512);
-				if (castleCenter.Position - root.Position).Magnitude <= 500 then
+				-- Inside an instanced raid the player is thousands of studs from the castle exterior.
+				-- IslandRaiding=true means we're in a chip raid instance — skip the proximity gate.
+				local insideRaidInstance = game.Players.LocalPlayer:GetAttribute("IslandRaiding") == true;
+				local nearCastle = (castleCenter.Position - root.Position).Magnitude <= 500;
+				if nearCastle or insideRaidInstance then
 					for _, enemy in pairs(workspace.Enemies:GetChildren()) do
 						local enemyRoot = enemy:FindFirstChild("HumanoidRootPart");
 						root = BFCharacterPart();
@@ -5270,6 +5274,22 @@ task.spawn(function()
 								task.wait();
 								f.Kill(enemy, _G.AutoRaidCastle);
 							until not _G.AutoRaidCastle or not enemy.Parent or not f.Alive(enemy) or not workspace.Enemies:FindFirstChild(enemy.Name);
+						end;
+					end;
+					-- When inside a chip raid and no enemies are up, return to the island spawner.
+					if insideRaidInstance and #workspace.Enemies:GetChildren() == 0 then
+						local raidMap = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("RaidMap");
+						if raidMap then
+							for _, island in pairs(raidMap:GetChildren()) do
+								local spawner = island:FindFirstChild("PlayerSpawner", true);
+								if spawner and spawner:IsA("BasePart") then
+									local myRoot = BFCharacterPart();
+									if myRoot and (myRoot.Position - spawner.Position).Magnitude > 50 then
+										_tp(spawner.CFrame * CFrame.new(0, 10, 0), true);
+									end;
+									break;
+								end;
+							end;
 						end;
 					end;
 				else
@@ -14479,6 +14499,21 @@ function UI.RaidCompleteStep(active)
 		f.Kill(enemy, active);
 		return "combat";
 	end;
+	-- No enemies: make sure we're on the island so the next wave can spawn.
+	-- workspace.Map.RaidMap holds the active raid island (RaidIsland1 etc.) with a PlayerSpawner.
+	local raidMap = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("RaidMap");
+	if raidMap then
+		for _, island in pairs(raidMap:GetChildren()) do
+			local spawner = island:FindFirstChild("PlayerSpawner", true);
+			if spawner and spawner:IsA("BasePart") then
+				if (root.Position - spawner.Position).Magnitude > 60 then
+					_tp(spawner.CFrame * CFrame.new(0, 10, 0), true);
+					return "returning-to-island";
+				end;
+				break;
+			end;
+		end;
+	end;
 	UI.DriveManagedFlag("RaidComplete", "NextIs");
 	return "moving-to-next-island";
 end;
@@ -14577,11 +14612,27 @@ task.spawn(function()
 	while IdleWait(NextIs, T) do
 		if NextIs then
 			if GuiShown("TopHUDList", "RaidTimer") then
-				for _, name in ipairs(BFRaidIslandNames) do
-					local island = BFWorldLocation(name);
-					if island and island:IsA("BasePart") then
-						_tp(island.CFrame * CFrame.new(0, 50, 100));
-						break;
+				-- Raid islands live in workspace.Map.RaidMap as RaidIsland1/2/... (streamed one at a time).
+				-- _WorldOrigin.Locations does not contain them so BFWorldLocation returns nil.
+				local raidMap = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("RaidMap");
+				local tped = false;
+				if raidMap then
+					for _, island in pairs(raidMap:GetChildren()) do
+						local spawner = island:FindFirstChild("PlayerSpawner", true);
+						if spawner and spawner:IsA("BasePart") then
+							_tp(spawner.CFrame * CFrame.new(0, 10, 0), true);
+							tped = true;
+							break;
+						end;
+					end;
+				end;
+				if not tped then
+					for _, name in ipairs(BFRaidIslandNames) do
+						local island = BFWorldLocation(name);
+						if island and island:IsA("BasePart") then
+							_tp(island.CFrame * CFrame.new(0, 50, 100));
+							break;
+						end;
 					end;
 				end;
 			end;
