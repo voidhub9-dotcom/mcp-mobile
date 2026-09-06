@@ -56,7 +56,8 @@ local function GuiNode(...)
 	return node;
 end;
 local function GuiShown(...)
-	if game.PlaceId == 2753915549 and select('#', ...) == 1 and select(1, ...) == "Quest" then
+	-- TrackedQuestFrame is the active quest UI across all seas now, not just Sea 1.
+	if select('#', ...) == 1 and select(1, ...) == "Quest" then
 		local tracked = u:FindFirstChild("TrackedQuestFrame");
 		local frame = tracked and tracked:FindFirstChild("Frame");
 		if tracked and frame then return tracked.Enabled and frame.Visible; end;
@@ -73,10 +74,11 @@ local function SetGuiShown(value, ...)
 	return false;
 end;
 local function QuestText()
-	if game.PlaceId == 2753915549 then
-		local tracked = u:FindFirstChild("TrackedQuestFrame");
-		local frame = tracked and tracked:FindFirstChild("Frame");
-		local header = frame and frame:FindFirstChild("header");
+	-- Try TrackedQuestFrame first (active UI for all seas).
+	local tracked = u:FindFirstChild("TrackedQuestFrame");
+	local frame = tracked and tracked:FindFirstChild("Frame");
+	if frame and frame.Visible then
+		local header = frame:FindFirstChild("header");
 		local title = header and header:FindFirstChild("textLabel");
 		if title and title:IsA("TextLabel") then return title.Text; end;
 	end;
