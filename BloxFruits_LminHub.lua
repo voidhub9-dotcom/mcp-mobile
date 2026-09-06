@@ -8715,12 +8715,10 @@ do
 				local root = BFCharacterPart();
 				if not root then return end;
 
-				-- Tween directly to Hasan NPC.
-				local hasanNPC = workspace:FindFirstChild("NPCs") and workspace.NPCs:FindFirstChild("Hasan");
-				local hasanPos = hasanNPC and hasanNPC:FindFirstChild("HumanoidRootPart") and hasanNPC.HumanoidRootPart.Position or Vector3.new(1308, 23, 4493);
-				local targetCF = CFrame.new(hasanPos.X + 4, hasanPos.Y + 2, hasanPos.Z);
-				if (root.Position - hasanPos).Magnitude > 20 then
-					statusLabel:SetText("Status: tweening to Hasan");
+				-- Tween to the exact live-probed position where the secret triggers.
+				local targetCF = CFrame.new(1299.86, 22, 4453.59);
+				if (root.Position - targetCF.Position).Magnitude > 20 then
+					statusLabel:SetText("Status: tweening to Rescue Hasan");
 					_tp(targetCF, true);
 					task.wait(2);
 				end;
@@ -8737,6 +8735,7 @@ do
 				-- Kill aura: teleport to ground level next to each enemy and BFTouchAttack. No hover.
 				statusLabel:SetText("Status: aura active – killing skeletons");
 				EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
+				local myChar = d.Character;
 				while _G.AutoIslandSecret do
 					root = BFCharacterPart();
 					if not root then task.wait(0.5); continue end;
@@ -8744,6 +8743,7 @@ do
 					for _, container in ipairs({ workspace:FindFirstChild("Characters"), workspace:FindFirstChild("Enemies") }) do
 						if container then
 							for _, model in ipairs(container:GetChildren()) do
+								if model == myChar then continue end; -- skip self
 								local eHRP = model:FindFirstChild("HumanoidRootPart");
 								local h = model:FindFirstChildOfClass("Humanoid");
 								if eHRP and h and h.Health > 0 then
