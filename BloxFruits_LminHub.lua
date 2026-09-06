@@ -8710,46 +8710,74 @@ do
 		{
 			Name = "Desert – Rescue Hasan",
 			IslandKey = "Desert",
-			SpawnCF = CFrame.new(1340, 40, 4420),
+			SpawnCF = CFrame.new(1299, 25, 4448),
 			Run = function(statusLabel, active)
+				-- Capture live player position at the moment the secret starts.
 				local root = BFCharacterPart();
 				if not root then return end;
-				-- Teleport to coffin area.
-				if (root.Position - Vector3.new(1340, 40, 4420)).Magnitude > 30 then
-					statusLabel:SetText("Status: travelling to Desert");
-					_tp(CFrame.new(1340, 40, 4420), true);
-					task.wait(2);
+				local livePos = root.Position;
+				local targetCF = CFrame.new(livePos.X, livePos.Y + 5, livePos.Z);
+
+				-- Tween to recorded live position.
+				if (root.Position - livePos).Magnitude > 15 then
+					statusLabel:SetText("Status: tweening to your position");
+					_tp(targetCF, true);
+					task.wait(1.5);
 				end;
+
 				root = BFCharacterPart();
 				if not root then return end;
-				-- Touch all coffin parts to spawn skeletons.
+
+				-- Touch all coffin BaseParts to trigger skeleton spawns.
 				statusLabel:SetText("Status: opening coffins");
 				local desert = workspace.Map and workspace.Map:FindFirstChild("Desert");
 				local rh = desert and desert:FindFirstChild("Rescue Hasan");
 				if rh then
 					for _, part in ipairs(rh:GetDescendants()) do
-						if part:IsA("BasePart") and not active[1] == false then
-							touchPart(root, part);
+						if not _G.AutoIslandSecret then break end;
+						if part:IsA("BasePart") then
+							root = BFCharacterPart();
+							if root then touchPart(root, part) end;
 						end;
 					end;
 				else
-					-- Fallback: move to each coffin position.
+					-- Fallback: walk to each hardcoded coffin position.
 					for _, pos in ipairs(HASAN_COFFIN_POS) do
 						if not _G.AutoIslandSecret then break end;
 						_tp(CFrame.new(pos.X, pos.Y + 5, pos.Z), true);
-						task.wait(1);
+						task.wait(0.8);
 					end;
 				end;
-				-- Kill enemies in the area.
-				for _ = 1, 60 do
+
+				-- Kill aura: every 0.1s kill the nearest enemy within 80 studs of player.
+				EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
+				for _ = 1, 300 do
 					if not _G.AutoIslandSecret then break end;
-					local enemy = findNearestInRadius(ISLAND_POS.Desert, 150, nil);
-					if enemy then
-						statusLabel:SetText("Status: killing " .. enemy.Name);
-						f.Kill(enemy, _G.AutoIslandSecret);
+					root = BFCharacterPart();
+					if not root then task.wait(0.5); continue end;
+					local nearest, nearestDist = nil, math.huge;
+					local containers = { workspace:FindFirstChild("Characters"), workspace:FindFirstChild("Enemies") };
+					for _, container in ipairs(containers) do
+						if container then
+							for _, model in ipairs(container:GetChildren()) do
+								local hrp = model:FindFirstChild("HumanoidRootPart");
+								local h = model:FindFirstChildOfClass("Humanoid");
+								if hrp and h and h.Health > 0 then
+									local dist = (hrp.Position - root.Position).Magnitude;
+									if dist < 80 and dist < nearestDist then
+										nearest = model;
+										nearestDist = dist;
+									end;
+								end;
+							end;
+						end;
+					end;
+					if nearest then
+						statusLabel:SetText("Status: kill aura – " .. nearest.Name .. " (" .. math.round(nearestDist) .. " studs)");
+						f.Kill(nearest, _G.AutoIslandSecret);
 					else
-						statusLabel:SetText("Status: waiting for skeletons");
-						task.wait(1);
+						statusLabel:SetText("Status: aura active – no nearby enemies");
+						task.wait(0.5);
 					end;
 					task.wait(0.1);
 				end;
