@@ -8561,13 +8561,25 @@ do
 	local sec = UI.Sections["Magnet Tokens"];
 	UI.RegisterManagedFlag("AutoMagnetTokens", false);
 
-	sec:AddLabel({ DoesWrap = true, Text = "Kills all nearby NPCs in workspace.Enemies every 0.1s using your combat weapon. Magnet Storm event: just enable and leave it running." });
+	-- Magnet Storm event enemy names confirmed from live probe.
+	local MagnetEnemyNames = {
+		["Posessed Mummy"] = true,
+		["Possessed Mummy"] = true,
+		["Forest Pirate"] = true,
+		["Demonic Soul"] = true,
+		["Living Zombie"] = true,
+	};
+
+	-- Spawn point at Castle on the Sea — where Magnet Storm enemies appear.
+	local MagnetStormSpawn = CFrame.new(-5539, 320, -2972);
+
+	sec:AddLabel({ DoesWrap = true, Text = "Farms Magnet Storm event NPCs (Possessed Mummy, Forest Pirate, Demonic Soul, Living Zombie) at Castle on the Sea. Teleports to spawn if no enemies are up." });
 
 	local statusLabel = sec:AddLabel({ DoesWrap = true, Text = "Status: idle" });
 
 	sec:AddToggle("BF_Toggle_Auto_Magnet_Tokens", {
 		Text = "AutoFarm Magnet Tokens",
-		Tooltip = "Kill NPCs to collect Magnet Storm event tokens",
+		Tooltip = "Kill Magnet Storm event NPCs at Castle on the Sea",
 		Default = false,
 		Callback = function(Y)
 			UI.SetManagedUserFlag("AutoMagnetTokens", Y);
@@ -8597,25 +8609,32 @@ do
 						return;
 					end;
 
+					-- Only target confirmed Magnet Storm event NPCs.
 					local nearest = nil;
 					local nearestDist = math.huge;
 					for _, enemy in pairs(enemies:GetChildren()) do
-						local h = enemy:FindFirstChildOfClass("Humanoid");
-						local er = enemy:FindFirstChild("HumanoidRootPart");
-						if h and er and h.Health > 0 then
-							local dist = (er.Position - root.Position).Magnitude;
-							if dist < nearestDist then
-								nearest = enemy;
-								nearestDist = dist;
+						if MagnetEnemyNames[enemy.Name] then
+							local h = enemy:FindFirstChildOfClass("Humanoid");
+							local er = enemy:FindFirstChild("HumanoidRootPart");
+							if h and er and h.Health > 0 then
+								local dist = (er.Position - root.Position).Magnitude;
+								if dist < nearestDist then
+									nearest = enemy;
+									nearestDist = dist;
+								end;
 							end;
 						end;
 					end;
 
 					if nearest then
-						statusLabel:SetText("Status: farming " .. nearest.Name);
+						statusLabel:SetText("Status: killing " .. nearest.Name);
 						f.Kill(nearest, _G.AutoMagnetTokens);
 					else
-						statusLabel:SetText("Status: no enemies nearby");
+						-- No event enemies up — move to the spawn area and wait.
+						statusLabel:SetText("Status: waiting for enemies at spawn");
+						if (root.Position - MagnetStormSpawn.Position).Magnitude > 120 then
+							_tp(MagnetStormSpawn, true);
+						end;
 					end;
 				end);
 				if not ok then
