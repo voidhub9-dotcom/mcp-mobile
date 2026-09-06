@@ -457,24 +457,19 @@ f.Alive = function(Y)
 		return d and d.Health > 0;
 	end;
 UI.CombatOffsets = {
-	CFrame.new(0, 30, 25),
-	CFrame.new(25, 30, 0),
-	CFrame.new(-25, 30, 0),
-	CFrame.new(0, 30, -25),
-	CFrame.new(-25, 30, 0),
+	CFrame.new(0, 15, 0),
 };
 function UI.RunCombatOffsets(target)
-	for _, offset in ipairs(UI.CombatOffsets) do
-		task.wait(.12);
-		local targetRoot = target and target.Parent and target:FindFirstChild("HumanoidRootPart");
-		if not targetRoot or not f.Alive(target) then
-			break;
-		end;
-		local position = targetRoot.Position;
-		if position.Y < 10 then
-			position = Vector3.new(position.X, 50, position.Z);
-		end;
-		_tp(CFrame.new(position) * offset);
+	-- Single stable hover — cycling multiple offsets every 0.12s was the main
+	-- source of visible character jitter during autofarm combat.
+	local targetRoot = target and target.Parent and target:FindFirstChild("HumanoidRootPart");
+	if not targetRoot or not f.Alive(target) then return end;
+	local lockedCF = target:GetAttribute("Locked");
+	local pos = lockedCF and lockedCF.Position or targetRoot.Position;
+	local hoverY = math.max(pos.Y + 15, 20);
+	local root = i and i:FindFirstChild("HumanoidRootPart");
+	if root and (root.Position - Vector3.new(pos.X, hoverY, pos.Z)).Magnitude > 4 then
+		_tp(CFrame.new(pos.X, hoverY, pos.Z));
 	end;
 end;
 f.Pos = function(Y, distance)
@@ -510,14 +505,15 @@ f.Kill = function(Y, d)
 			PosMon = (Y:GetAttribute("Locked")).Position;
 			BringEnemy();
 			EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
-			local R = EquippedToolTip();
-			if R == "Blox Fruit" then
-				_tp((Y.HumanoidRootPart.CFrame * CFrame.new(0, 10, 0)) * CFrame.Angles(0, math.rad(90), 0));
-			else
-				_tp((Y.HumanoidRootPart.CFrame * CFrame.new(0, 30, 0)) * CFrame.Angles(0, math.rad(180), 0));
-			end;
-			if getgenv().BFRandomCFrame then
-				UI.RunCombatOffsets(Y);
+			-- Hover at a fixed point above the enemy's LOCKED (immutable) origin.
+			-- Using the live HRP position causes feedback jitter because BringEnemy
+			-- forces the enemy CFrame every 0.05s, creating a constant micro-bounce.
+			-- Drift threshold of 4 studs stops re-teleporting when already stable.
+			local hoverY = math.max(PosMon.Y + 15, 20);
+			local hover = CFrame.new(PosMon.X, hoverY, PosMon.Z);
+			local root = i and i:FindFirstChild("HumanoidRootPart");
+			if not root or (root.Position - hover.Position).Magnitude > 4 then
+				_tp(hover);
 			end;
 		end;
 	end;
