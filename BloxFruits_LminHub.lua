@@ -8568,11 +8568,11 @@ do
 	-- Stay put and kill anything that appears there. No name filter needed.
 
 	local statusLabel = sec:AddLabel({ DoesWrap = true, Text = "Status: idle" });
-	sec:AddLabel({ DoesWrap = true, Text = "Kills all NPCs in workspace.SeaEvents (Magnet Storm works all seas). Stay near the event spawn and toggle on." });
+	sec:AddLabel({ DoesWrap = true, Text = "Scans entire workspace for NPCs with \"(magnetised)\" in name. Works all seas — no need to stand near any specific container." });
 
 	sec:AddToggle("BF_Toggle_Auto_Magnet_Tokens", {
 		Text = "AutoFarm Magnet Tokens",
-		Tooltip = "Kill Magnet Storm event NPCs from workspace.SeaEvents",
+		Tooltip = "Kill all NPCs with \"(magnetised)\" in name — scans full workspace, works every sea",
 		Default = false,
 		Callback = function(Y)
 			UI.SetManagedUserFlag("AutoMagnetTokens", Y);
@@ -8594,27 +8594,17 @@ do
 
 					EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
 
-					-- Primary: workspace.SeaEvents (Magnet Storm, all seas).
-					-- Fallback: workspace.Enemies if SeaEvents empty.
+					-- Scan entire workspace for any Model with "(magnetised)" in name.
+					-- Magnet Storm tags event NPCs this way across all seas and containers.
 					local nearest, nearestDist = nil, math.huge;
-					local seaEvents = workspace:FindFirstChild("SeaEvents");
-					local containers = {};
-					if seaEvents and #seaEvents:GetChildren() > 0 then
-						table.insert(containers, seaEvents);
-					else
-						local e = workspace:FindFirstChild("Enemies");
-						if e then table.insert(containers, e) end;
-					end;
-
-					for _, container in ipairs(containers) do
-						for _, enemy in ipairs(container:GetChildren()) do
-							if enemy == character then continue end;
-							local h = enemy:FindFirstChildOfClass("Humanoid");
-							local er = enemy:FindFirstChild("HumanoidRootPart");
+					for _, obj in ipairs(workspace:GetDescendants()) do
+						if obj:IsA("Model") and obj.Name:lower():find("%(magnetised%)") and obj ~= character then
+							local h = obj:FindFirstChildOfClass("Humanoid");
+							local er = obj:FindFirstChild("HumanoidRootPart");
 							if h and er and h.Health > 0 then
 								local dist = (er.Position - root.Position).Magnitude;
 								if dist < nearestDist then
-									nearest = enemy;
+									nearest = obj;
 									nearestDist = dist;
 								end;
 							end;
