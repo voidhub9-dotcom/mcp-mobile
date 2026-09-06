@@ -8564,31 +8564,19 @@ do
 	local sec = UI.Sections["Magnet Tokens"];
 	UI.RegisterManagedFlag("AutoMagnetTokens", false);
 
-	-- Magnet Storm event enemy names confirmed from live probe.
-	local MagnetEnemyNames = {
-		["Posessed Mummy"] = true,
-		["Possessed Mummy"] = true,
-		["Forest Pirate"] = true,
-		["Demonic Soul"] = true,
-		["Living Zombie"] = true,
-	};
-
-	-- Spawn point at Castle on the Sea — where Magnet Storm enemies appear.
-	local MagnetStormSpawn = CFrame.new(-5539, 320, -2972);
-
-	sec:AddLabel({ DoesWrap = true, Text = "Farms Magnet Storm event NPCs (Possessed Mummy, Forest Pirate, Demonic Soul, Living Zombie) at Castle on the Sea. Teleports to spawn if no enemies are up." });
+	-- Event spawns into workspace.SeaEvents — works all seas.
+	-- Stay put and kill anything that appears there. No name filter needed.
 
 	local statusLabel = sec:AddLabel({ DoesWrap = true, Text = "Status: idle" });
+	sec:AddLabel({ DoesWrap = true, Text = "Kills all NPCs in workspace.SeaEvents (Magnet Storm works all seas). Stay near the event spawn and toggle on." });
 
 	sec:AddToggle("BF_Toggle_Auto_Magnet_Tokens", {
 		Text = "AutoFarm Magnet Tokens",
-		Tooltip = "Kill Magnet Storm event NPCs at Castle on the Sea",
+		Tooltip = "Kill Magnet Storm event NPCs from workspace.SeaEvents",
 		Default = false,
 		Callback = function(Y)
 			UI.SetManagedUserFlag("AutoMagnetTokens", Y);
-			if not Y then
-				statusLabel:SetText("Status: idle");
-			end;
+			if not Y then statusLabel:SetText("Status: idle") end;
 		end,
 	});
 
@@ -8606,17 +8594,21 @@ do
 
 					EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
 
-					local enemies = workspace:FindFirstChild("Enemies");
-					if not enemies then
-						statusLabel:SetText("Status: no enemies folder");
-						return;
+					-- Primary: workspace.SeaEvents (Magnet Storm, all seas).
+					-- Fallback: workspace.Enemies if SeaEvents empty.
+					local nearest, nearestDist = nil, math.huge;
+					local seaEvents = workspace:FindFirstChild("SeaEvents");
+					local containers = {};
+					if seaEvents and #seaEvents:GetChildren() > 0 then
+						table.insert(containers, seaEvents);
+					else
+						local e = workspace:FindFirstChild("Enemies");
+						if e then table.insert(containers, e) end;
 					end;
 
-					-- Only target confirmed Magnet Storm event NPCs.
-					local nearest = nil;
-					local nearestDist = math.huge;
-					for _, enemy in pairs(enemies:GetChildren()) do
-						if MagnetEnemyNames[enemy.Name] then
+					for _, container in ipairs(containers) do
+						for _, enemy in ipairs(container:GetChildren()) do
+							if enemy == character then continue end;
 							local h = enemy:FindFirstChildOfClass("Humanoid");
 							local er = enemy:FindFirstChild("HumanoidRootPart");
 							if h and er and h.Health > 0 then
@@ -8632,23 +8624,16 @@ do
 					if nearest then
 						local er = nearest:FindFirstChild("HumanoidRootPart");
 						if er then
-							statusLabel:SetText("Status: killing " .. nearest.Name);
-							-- Ground-level kill — no hover. _tp to Y+3, BFTouchAttack.
+							statusLabel:SetText("Status: killing " .. nearest.Name .. " (" .. math.round(nearestDist) .. "st)");
 							local ep = er.Position;
 							_tp(CFrame.new(ep.X, ep.Y + 3, ep.Z));
 							BFTouchAttack();
 						end;
 					else
-						-- No event enemies up — move to spawn area and wait.
-						statusLabel:SetText("Status: waiting for enemies at spawn");
-						if (root.Position - MagnetStormSpawn.Position).Magnitude > 120 then
-							_tp(MagnetStormSpawn, true);
-						end;
+						statusLabel:SetText("Status: waiting – no event enemies yet");
 					end;
 				end);
-				if not ok then
-					statusLabel:SetText("Status: error");
-				end;
+				if not ok then statusLabel:SetText("Status: error") end;
 			end;
 		end;
 		statusLabel:SetText("Status: idle");
