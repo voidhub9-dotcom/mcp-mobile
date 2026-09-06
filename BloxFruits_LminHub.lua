@@ -3333,6 +3333,9 @@ UI.Groups = {
 		{ Key = "Unlocked Dungeon", Name = "Dungeon", Icon = "castle", Tip = "Dungeon unlock" },
 		{ Key = "Dark Dagger + Valkyrie", Name = "Dagger", Icon = "shield-alert", Tip = "Dark dagger and Valkyrie" },
 	} },
+	{ Root = "Farm", Title = "Magnet Event", Side = "Right", Icon = "magnet", Sections = {
+		{ Key = "Magnet Tokens", Name = "Magnet Tokens", Icon = "zap-off", Tip = "AutoFarm Magnet Storm event tokens" },
+	} },
 	{ Root = "Items", Title = "Fighting Styles", Side = "Left", Icon = "dumbbell", Sections = {
 		{ Key = "Fighting Melee Styles", Name = "Melee", Icon = "hand", Tip = "Melee styles" },
 		{ Key = "Fighting - Style", Name = "Purchase", Icon = "coins", Tip = "Buy fighting styles" },
@@ -8553,6 +8556,78 @@ task.spawn(function()
 		end;
 	end;
 end);
+-- ── Magnet Tokens ─────────────────────────────────────────────────────────────
+do
+	local sec = UI.Sections["Magnet Tokens"];
+	UI.RegisterManagedFlag("AutoMagnetTokens", false);
+
+	sec:AddLabel({ DoesWrap = true, Text = "Kills all nearby NPCs in workspace.Enemies every 0.1s using your combat weapon. Magnet Storm event: just enable and leave it running." });
+
+	local statusLabel = sec:AddLabel({ DoesWrap = true, Text = "Status: idle" });
+
+	sec:AddToggle("BF_Toggle_Auto_Magnet_Tokens", {
+		Text = "AutoFarm Magnet Tokens",
+		Tooltip = "Kill NPCs to collect Magnet Storm event tokens",
+		Default = false,
+		Callback = function(Y)
+			UI.SetManagedUserFlag("AutoMagnetTokens", Y);
+			if not Y then
+				statusLabel:SetText("Status: idle");
+			end;
+		end,
+	});
+
+	task.spawn(function()
+		while IdleWait(_G.AutoMagnetTokens, .1) do
+			if _G.AutoMagnetTokens then
+				local ok, err = pcall(function()
+					local character = d.Character;
+					local humanoid = character and character:FindFirstChildOfClass("Humanoid");
+					local root = character and character:FindFirstChild("HumanoidRootPart");
+					if not root or not humanoid or humanoid.Health <= 0 then
+						statusLabel:SetText("Status: waiting-for-respawn");
+						return;
+					end;
+
+					EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
+
+					local enemies = workspace:FindFirstChild("Enemies");
+					if not enemies then
+						statusLabel:SetText("Status: no enemies folder");
+						return;
+					end;
+
+					local nearest = nil;
+					local nearestDist = math.huge;
+					for _, enemy in pairs(enemies:GetChildren()) do
+						local h = enemy:FindFirstChildOfClass("Humanoid");
+						local er = enemy:FindFirstChild("HumanoidRootPart");
+						if h and er and h.Health > 0 then
+							local dist = (er.Position - root.Position).Magnitude;
+							if dist < nearestDist then
+								nearest = enemy;
+								nearestDist = dist;
+							end;
+						end;
+					end;
+
+					if nearest then
+						statusLabel:SetText("Status: farming " .. nearest.Name);
+						f.Kill(nearest, _G.AutoMagnetTokens);
+					else
+						statusLabel:SetText("Status: no enemies nearby");
+					end;
+				end);
+				if not ok then
+					statusLabel:SetText("Status: error");
+				end;
+			end;
+		end;
+		statusLabel:SetText("Status: idle");
+	end);
+end;
+-- ──────────────────────────────────────────────────────────────────────────────
+
 local mF = UI.Sections["Fighting Melee Styles"];
 UI.StyleStatus = {};
 UI.StyleStatusLabels = {};
@@ -14617,10 +14692,23 @@ task.spawn(function()
 				local raidMap = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("RaidMap");
 				local tped = false;
 				if raidMap then
+					-- Collect all islands with a valid (non-zero) PlayerSpawner.
+					local myRoot = BFCharacterPart();
+					local myPos = myRoot and myRoot.Position or Vector3.zero;
+					local candidates = {};
 					for _, island in pairs(raidMap:GetChildren()) do
 						local spawner = island:FindFirstChild("PlayerSpawner", true);
-						if spawner and spawner:IsA("BasePart") then
-							_tp(spawner.CFrame * CFrame.new(0, 10, 0), true);
+						if spawner and spawner:IsA("BasePart") and spawner.Position.Magnitude > 1 then
+							local dist = (spawner.Position - myPos).Magnitude;
+							table.insert(candidates, { spawner = spawner, dist = dist });
+						end;
+					end;
+					-- Sort farthest-first so we skip the island we're already standing on.
+					table.sort(candidates, function(a, b) return a.dist > b.dist end);
+					for _, entry in ipairs(candidates) do
+						-- Only teleport if meaningfully farther than current position.
+						if entry.dist > 80 then
+							_tp(entry.spawner.CFrame * CFrame.new(0, 10, 0), true);
 							tped = true;
 							break;
 						end;
