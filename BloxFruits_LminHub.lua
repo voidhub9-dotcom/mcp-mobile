@@ -3336,6 +3336,9 @@ UI.Groups = {
 	{ Root = "Farm", Title = "Magnet Event", Side = "Right", Icon = "magnet", Sections = {
 		{ Key = "Magnet Tokens", Name = "Magnet Tokens", Icon = "zap-off", Tip = "AutoFarm Magnet Storm event tokens" },
 	} },
+	{ Root = "Farm", Title = "Island Secrets", Side = "Right", Icon = "star", Sections = {
+		{ Key = "Island Secrets", Name = "Sea 1 Secrets", Icon = "map-pin", Tip = "Automate Sea 1 island secrets to earn stars and push past level 2800" },
+	} },
 	{ Root = "Items", Title = "Fighting Styles", Side = "Left", Icon = "dumbbell", Sections = {
 		{ Key = "Fighting Melee Styles", Name = "Melee", Icon = "hand", Tip = "Melee styles" },
 		{ Key = "Fighting - Style", Name = "Purchase", Icon = "coins", Tip = "Buy fighting styles" },
@@ -8639,6 +8642,427 @@ do
 				end);
 				if not ok then
 					statusLabel:SetText("Status: error");
+				end;
+			end;
+		end;
+		statusLabel:SetText("Status: idle");
+	end);
+end;
+-- ── Island Secrets ────────────────────────────────────────────────────────────
+do
+	local sec = UI.Sections["Island Secrets"];
+	UI.RegisterManagedFlag("AutoIslandSecret", false);
+
+	-- Island center positions from _WorldOrigin.Locations (live-probed).
+	local ISLAND_POS = {
+		Desert        = Vector3.new(1194, 20, 4430),
+		PirateVillage = Vector3.new(-1133, 20, 4199),
+		Colosseum     = Vector3.new(-1666, 20, -3242),
+		MagmaVillage  = Vector3.new(-5528, 20, 8691),
+		Prison        = Vector3.new(5278, 20, 743),
+		FrozenVillage = Vector3.new(1277, 20, -1473),
+		Jungle        = Vector3.new(-1516, 20, -130),
+	};
+
+	-- Desert Rescue Hasan coffin positions (live-probed from workspace.Map.Desert.Rescue Hasan).
+	local HASAN_COFFIN_POS = {
+		Vector3.new(1354, 27, 4416),
+		Vector3.new(1377, 27, 4467),
+		Vector3.new(1319, 27, 4404),
+		Vector3.new(1269, 27, 4428),
+	};
+
+	local function touchPart(hrp, part)
+		pcall(firetouchinterest, hrp, part, 0);
+		task.wait(0.15);
+		pcall(firetouchinterest, hrp, part, 1);
+	end;
+
+	-- Find nearest alive enemy (workspace.Characters or workspace.Enemies) within radius of a Vector3 center.
+	local function findNearestInRadius(center, radius, nameFilter)
+		local nearest, nearestDist = nil, math.huge;
+		local containers = { workspace:FindFirstChild("Characters"), workspace:FindFirstChild("Enemies") };
+		for _, container in ipairs(containers) do
+			if container then
+				for _, model in ipairs(container:GetChildren()) do
+					local hrp = model:FindFirstChild("HumanoidRootPart");
+					local h = model:FindFirstChildOfClass("Humanoid");
+					if hrp and h and h.Health > 0 then
+						local distToCenter = (hrp.Position - center).Magnitude;
+						if distToCenter <= radius then
+							if not nameFilter or nameFilter[model.Name] then
+								local distToMe = (hrp.Position - (BFCharacterPart() and BFCharacterPart().Position or Vector3.zero)).Magnitude;
+								if distToMe < nearestDist then
+									nearest = model;
+									nearestDist = distToMe;
+								end;
+							end;
+						end;
+					end;
+				end;
+			end;
+		end;
+		return nearest;
+	end;
+
+	-- Secret definitions. Each has: Name, IslandKey, SpawnCF, Run(statusLabel) coroutine body.
+	local SECRETS = {
+		{
+			Name = "Desert – Rescue Hasan",
+			IslandKey = "Desert",
+			SpawnCF = CFrame.new(1340, 40, 4420),
+			Run = function(statusLabel, active)
+				local root = BFCharacterPart();
+				if not root then return end;
+				-- Teleport to coffin area.
+				if (root.Position - Vector3.new(1340, 40, 4420)).Magnitude > 30 then
+					statusLabel:SetText("Status: travelling to Desert");
+					_tp(CFrame.new(1340, 40, 4420), true);
+					task.wait(2);
+				end;
+				root = BFCharacterPart();
+				if not root then return end;
+				-- Touch all coffin parts to spawn skeletons.
+				statusLabel:SetText("Status: opening coffins");
+				local desert = workspace.Map and workspace.Map:FindFirstChild("Desert");
+				local rh = desert and desert:FindFirstChild("Rescue Hasan");
+				if rh then
+					for _, part in ipairs(rh:GetDescendants()) do
+						if part:IsA("BasePart") and not active[1] == false then
+							touchPart(root, part);
+						end;
+					end;
+				else
+					-- Fallback: move to each coffin position.
+					for _, pos in ipairs(HASAN_COFFIN_POS) do
+						if not _G.AutoIslandSecret then break end;
+						_tp(CFrame.new(pos.X, pos.Y + 5, pos.Z), true);
+						task.wait(1);
+					end;
+				end;
+				-- Kill enemies in the area.
+				for _ = 1, 60 do
+					if not _G.AutoIslandSecret then break end;
+					local enemy = findNearestInRadius(ISLAND_POS.Desert, 150, nil);
+					if enemy then
+						statusLabel:SetText("Status: killing " .. enemy.Name);
+						f.Kill(enemy, _G.AutoIslandSecret);
+					else
+						statusLabel:SetText("Status: waiting for skeletons");
+						task.wait(1);
+					end;
+					task.wait(0.1);
+				end;
+				statusLabel:SetText("Status: Rescue Hasan done – check star!");
+			end,
+		},
+		{
+			Name = "Desert – Stone Circle",
+			IslandKey = "Desert",
+			SpawnCF = CFrame.new(1050, 20, 4350),
+			Run = function(statusLabel, active)
+				local root = BFCharacterPart();
+				if not root then return end;
+				if (root.Position - Vector3.new(1050, 20, 4350)).Magnitude > 30 then
+					statusLabel:SetText("Status: travelling to Desert stone circle");
+					_tp(CFrame.new(1050, 20, 4350), true);
+					task.wait(2);
+				end;
+				-- Touch all stone parts around the pyramid area.
+				statusLabel:SetText("Status: hitting stones");
+				local desert = workspace.Map and workspace.Map:FindFirstChild("Desert");
+				if desert then
+					for _, part in ipairs(desert:GetDescendants()) do
+						if not _G.AutoIslandSecret then break end;
+						if part:IsA("BasePart") and (part.Name:lower():find("stone") or part.Name:lower():find("rock") or part.Name:lower():find("obelisk")) then
+							local dist = (part.Position - Vector3.new(1050, 20, 4350)).Magnitude;
+							if dist < 100 then
+								root = BFCharacterPart();
+								if root then touchPart(root, part) end;
+							end;
+						end;
+					end;
+				end;
+				statusLabel:SetText("Status: Stone Circle done – check star!");
+			end,
+		},
+		{
+			Name = "Pirate Village – Windmill",
+			IslandKey = "PirateVillage",
+			SpawnCF = CFrame.new(-1133, 30, 4199),
+			Run = function(statusLabel, active)
+				local root = BFCharacterPart();
+				if not root then return end;
+				if (root.Position - ISLAND_POS.PirateVillage).Magnitude > 50 then
+					statusLabel:SetText("Status: travelling to Pirate Village");
+					_tp(CFrame.new(ISLAND_POS.PirateVillage.X, ISLAND_POS.PirateVillage.Y + 15, ISLAND_POS.PirateVillage.Z), true);
+					task.wait(2);
+				end;
+				-- Equip sword and touch rope parts.
+				EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
+				statusLabel:SetText("Status: cutting windmill ropes");
+				local map = workspace.Map;
+				if map then
+					for _, child in ipairs(map:GetChildren()) do
+						if child.Name:lower():find("pirate") then
+							for _, part in ipairs(child:GetDescendants()) do
+								if not _G.AutoIslandSecret then break end;
+								if part:IsA("BasePart") and (part.Name:lower():find("rope") or part.Name:lower():find("wind") or part.Name:lower():find("mill")) then
+									root = BFCharacterPart();
+									if root then
+										_tp(CFrame.new(part.Position.X, part.Position.Y + 3, part.Position.Z), true);
+										task.wait(0.3);
+										touchPart(root, part);
+									end;
+								end;
+							end;
+						end;
+					end;
+				end;
+				statusLabel:SetText("Status: Windmill done – check star!");
+			end,
+		},
+		{
+			Name = "Pirate Village – Tavern",
+			IslandKey = "PirateVillage",
+			SpawnCF = CFrame.new(-1133, 20, 4199),
+			Run = function(statusLabel, active)
+				local root = BFCharacterPart();
+				if not root then return end;
+				if (root.Position - ISLAND_POS.PirateVillage).Magnitude > 50 then
+					statusLabel:SetText("Status: travelling to Pirate Village tavern");
+					_tp(CFrame.new(ISLAND_POS.PirateVillage.X, ISLAND_POS.PirateVillage.Y + 15, ISLAND_POS.PirateVillage.Z), true);
+					task.wait(2);
+				end;
+				-- Kill Tavern Pirates in the tavern area.
+				local tavernCenter = ISLAND_POS.PirateVillage;
+				local killed = 0;
+				for _ = 1, 120 do
+					if not _G.AutoIslandSecret then break end;
+					local enemy = findNearestInRadius(tavernCenter, 120, { ["Tavern Pirate"] = true, ["Pirate"] = true });
+					if enemy then
+						statusLabel:SetText("Status: killing " .. enemy.Name .. " (" .. killed .. " done)");
+						f.Kill(enemy, _G.AutoIslandSecret);
+						killed = killed + 1;
+						if killed >= 3 then break end;
+					else
+						task.wait(0.5);
+					end;
+					task.wait(0.1);
+				end;
+				statusLabel:SetText("Status: Tavern done – check star! (" .. killed .. " Pirates killed)");
+			end,
+		},
+		{
+			Name = "Colosseum – Emperor's Challenge",
+			IslandKey = "Colosseum",
+			SpawnCF = CFrame.new(-1666, 20, -3242),
+			Run = function(statusLabel, active)
+				local root = BFCharacterPart();
+				if not root then return end;
+				if (root.Position - ISLAND_POS.Colosseum).Magnitude > 50 then
+					statusLabel:SetText("Status: travelling to Colosseum");
+					_tp(CFrame.new(ISLAND_POS.Colosseum.X, ISLAND_POS.Colosseum.Y + 20, ISLAND_POS.Colosseum.Z), true);
+					task.wait(2);
+				end;
+				-- Touch Emperor trigger near balcony area.
+				statusLabel:SetText("Status: triggering Emperor's Challenge");
+				local map = workspace.Map;
+				if map then
+					for _, child in ipairs(map:GetChildren()) do
+						if child.Name:lower():find("col") then
+							for _, part in ipairs(child:GetDescendants()) do
+								if part:IsA("BasePart") and (part.Name:lower():find("emperor") or part.Name:lower():find("trigger") or part.Name:lower():find("balcony")) then
+									root = BFCharacterPart();
+									if root then touchPart(root, part) end;
+								end;
+							end;
+						end;
+					end;
+				end;
+				-- Kill gladiator waves.
+				local killed = 0;
+				for _ = 1, 200 do
+					if not _G.AutoIslandSecret then break end;
+					local enemy = findNearestInRadius(ISLAND_POS.Colosseum, 200, nil);
+					if enemy then
+						statusLabel:SetText("Status: killing " .. enemy.Name .. " (wave kills: " .. killed .. ")");
+						f.Kill(enemy, _G.AutoIslandSecret);
+						killed = killed + 1;
+					else
+						task.wait(0.5);
+					end;
+					task.wait(0.1);
+				end;
+				statusLabel:SetText("Status: Colosseum done – check star! (" .. killed .. " kills)");
+			end,
+		},
+		{
+			Name = "Magma – Lava Elemental",
+			IslandKey = "MagmaVillage",
+			SpawnCF = CFrame.new(-5528, 30, 8691),
+			Run = function(statusLabel, active)
+				local root = BFCharacterPart();
+				if not root then return end;
+				if (root.Position - ISLAND_POS.MagmaVillage).Magnitude > 60 then
+					statusLabel:SetText("Status: travelling to Magma Village");
+					_tp(CFrame.new(ISLAND_POS.MagmaVillage.X, ISLAND_POS.MagmaVillage.Y + 20, ISLAND_POS.MagmaVillage.Z), true);
+					task.wait(2);
+				end;
+				-- Hit the lava crater to spawn the Lava Elemental.
+				statusLabel:SetText("Status: triggering lava crater");
+				local map = workspace.Map;
+				if map then
+					for _, child in ipairs(map:GetChildren()) do
+						if child.Name:lower():find("magma") or child.Name:lower():find("lava") then
+							for _, part in ipairs(child:GetDescendants()) do
+								if part:IsA("BasePart") and (part.Name:lower():find("crater") or part.Name:lower():find("elemental") or part.Name:lower():find("lava")) then
+									root = BFCharacterPart();
+									if root then
+										_tp(CFrame.new(part.Position.X, part.Position.Y + 5, part.Position.Z), true);
+										task.wait(0.2);
+										touchPart(root, part);
+									end;
+								end;
+							end;
+						end;
+					end;
+				end;
+				-- Kill Lava Elemental and mini-versions.
+				for _ = 1, 150 do
+					if not _G.AutoIslandSecret then break end;
+					local enemy = findNearestInRadius(ISLAND_POS.MagmaVillage, 200, { ["Lava Elemental"] = true, ["Mini Elemental"] = true, ["Lava"] = true });
+					if enemy then
+						statusLabel:SetText("Status: killing " .. enemy.Name);
+						f.Kill(enemy, _G.AutoIslandSecret);
+					else
+						-- Also kill any enemy in Magma area.
+						local fallback = findNearestInRadius(ISLAND_POS.MagmaVillage, 150, nil);
+						if fallback then
+							statusLabel:SetText("Status: killing nearby " .. fallback.Name);
+							f.Kill(fallback, _G.AutoIslandSecret);
+						else
+							task.wait(0.5);
+						end;
+					end;
+					task.wait(0.1);
+				end;
+				statusLabel:SetText("Status: Lava Elemental done – check star!");
+			end,
+		},
+		{
+			Name = "Prison – Escape Prevention",
+			IslandKey = "Prison",
+			SpawnCF = CFrame.new(5278, 20, 743),
+			Run = function(statusLabel, active)
+				local root = BFCharacterPart();
+				if not root then return end;
+				if (root.Position - ISLAND_POS.Prison).Magnitude > 60 then
+					statusLabel:SetText("Status: travelling to Prison");
+					_tp(CFrame.new(ISLAND_POS.Prison.X, ISLAND_POS.Prison.Y + 20, ISLAND_POS.Prison.Z), true);
+					task.wait(2);
+				end;
+				local killed = 0;
+				for _ = 1, 150 do
+					if not _G.AutoIslandSecret then break end;
+					local enemy = findNearestInRadius(ISLAND_POS.Prison, 200, { ["Prisoner"] = true, ["Escapee"] = true, ["Prison Escapee"] = true, ["Wall Breaker"] = true, ["Raft Builder"] = true, ["Tunnel Digger"] = true });
+					if enemy then
+						statusLabel:SetText("Status: stopping " .. enemy.Name .. " (" .. killed .. "/3)");
+						f.Kill(enemy, _G.AutoIslandSecret);
+						killed = killed + 1;
+						if killed >= 3 then break end;
+					else
+						task.wait(0.5);
+					end;
+					task.wait(0.1);
+				end;
+				statusLabel:SetText("Status: Prison done – check star! (" .. killed .. " escapees stopped)");
+			end,
+		},
+		{
+			Name = "Frozen Village – Break Ice Block",
+			IslandKey = "FrozenVillage",
+			SpawnCF = CFrame.new(1277, 20, -1473),
+			Run = function(statusLabel, active)
+				local root = BFCharacterPart();
+				if not root then return end;
+				if (root.Position - ISLAND_POS.FrozenVillage).Magnitude > 60 then
+					statusLabel:SetText("Status: travelling to Frozen Village");
+					_tp(CFrame.new(ISLAND_POS.FrozenVillage.X, ISLAND_POS.FrozenVillage.Y + 20, ISLAND_POS.FrozenVillage.Z), true);
+					task.wait(2);
+				end;
+				-- Hit the ice block. Melee weapon.
+				EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
+				statusLabel:SetText("Status: breaking ice block");
+				local map = workspace.Map;
+				if map then
+					for _, child in ipairs(map:GetChildren()) do
+						if child.Name:lower():find("frozen") or child.Name:lower():find("ice") then
+							for _, part in ipairs(child:GetDescendants()) do
+								if not _G.AutoIslandSecret then break end;
+								if part:IsA("BasePart") and (part.Name:lower():find("ice") or part.Name:lower():find("block") or part.Name:lower():find("crystal")) then
+									local dist = (part.Position - ISLAND_POS.FrozenVillage).Magnitude;
+									if dist < 200 then
+										root = BFCharacterPart();
+										if root then
+											_tp(CFrame.new(part.Position.X, part.Position.Y + 4, part.Position.Z), true);
+											task.wait(0.3);
+											touchPart(root, part);
+										end;
+									end;
+								end;
+							end;
+						end;
+					end;
+				end;
+				statusLabel:SetText("Status: Ice Block done – check star!");
+			end,
+		},
+	};
+
+	-- Build dropdown options.
+	local secretNames = {};
+	local secretMap = {};
+	for _, s in ipairs(SECRETS) do
+		table.insert(secretNames, s.Name);
+		secretMap[s.Name] = s;
+	end;
+
+	local selectedSecret = SECRETS[1];
+	local statusLabel = sec:AddLabel({ DoesWrap = true, Text = "Status: idle" });
+
+	sec:AddDropdown("BF_IslandSecret_Select", {
+		Values = secretNames,
+		Default = secretNames[1],
+		Text = "Select Secret",
+		Tooltip = "Choose which Sea 1 island secret to automate",
+		Callback = function(val)
+			selectedSecret = secretMap[val] or SECRETS[1];
+			statusLabel:SetText("Selected: " .. selectedSecret.Name);
+		end,
+	});
+
+	sec:AddLabel({ DoesWrap = true, Text = "Teleports to the island, triggers the secret, kills required enemies. Watch the star counter on your world map." });
+
+	sec:AddToggle("BF_Toggle_Auto_Island_Secret", {
+		Text = "Run Selected Secret",
+		Tooltip = "Automate the currently selected island secret",
+		Default = false,
+		Callback = function(Y)
+			UI.SetManagedUserFlag("AutoIslandSecret", Y);
+			if not Y then statusLabel:SetText("Status: idle") end;
+		end,
+	});
+
+	task.spawn(function()
+		while IdleWait(_G.AutoIslandSecret, .1) do
+			if _G.AutoIslandSecret and selectedSecret then
+				local ok, err = pcall(selectedSecret.Run, statusLabel, _G.AutoIslandSecret);
+				if not ok then
+					statusLabel:SetText("Status: error – " .. tostring(err):sub(1, 80));
+				end;
+				if _G.AutoIslandSecret then
+					task.wait(3);
 				end;
 			end;
 		end;
