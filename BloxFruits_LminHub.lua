@@ -8715,15 +8715,27 @@ do
 				local root = BFCharacterPart();
 				if not root then return end;
 
-				-- Tween to the Rescue Hasan coffin area.
-				local hasanCF = CFrame.new(1299, 30, 4448);
-				if (root.Position - hasanCF.Position).Magnitude > 25 then
-					statusLabel:SetText("Status: tweening to Rescue Hasan");
-					_tp(hasanCF, true);
+				-- Tween directly to Hasan NPC.
+				local hasanNPC = workspace:FindFirstChild("NPCs") and workspace.NPCs:FindFirstChild("Hasan");
+				local hasanPos = hasanNPC and hasanNPC:FindFirstChild("HumanoidRootPart") and hasanNPC.HumanoidRootPart.Position or Vector3.new(1308, 23, 4493);
+				local targetCF = CFrame.new(hasanPos.X + 4, hasanPos.Y + 2, hasanPos.Z);
+				if (root.Position - hasanPos).Magnitude > 20 then
+					statusLabel:SetText("Status: tweening to Hasan");
+					_tp(targetCF, true);
 					task.wait(2);
 				end;
 
-				-- Kill aura: teleport next to enemy at ground level (no hover), attack, repeat.
+				-- Fire the exact remote that "Help Hasan" button fires in-game.
+				-- Captured live: BonusMomentsRemoteEvent:FireServer("Rescue Hasan", "StartWaves")
+				statusLabel:SetText("Status: pressing Help Hasan");
+				local bmRE = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes") and game:GetService("ReplicatedStorage").Remotes:FindFirstChild("BonusMomentsRemoteEvent");
+				if bmRE then
+					pcall(function() bmRE:FireServer("Rescue Hasan", "StartWaves") end);
+				end;
+				task.wait(1.5);
+
+				-- Kill aura: teleport to ground level next to each enemy and BFTouchAttack. No hover.
+				statusLabel:SetText("Status: aura active – killing skeletons");
 				EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
 				while _G.AutoIslandSecret do
 					root = BFCharacterPart();
@@ -8732,11 +8744,11 @@ do
 					for _, container in ipairs({ workspace:FindFirstChild("Characters"), workspace:FindFirstChild("Enemies") }) do
 						if container then
 							for _, model in ipairs(container:GetChildren()) do
-								local hrp = model:FindFirstChild("HumanoidRootPart");
+								local eHRP = model:FindFirstChild("HumanoidRootPart");
 								local h = model:FindFirstChildOfClass("Humanoid");
-								if hrp and h and h.Health > 0 then
-									local dist = (hrp.Position - root.Position).Magnitude;
-									if dist < 80 and dist < nearestDist then
+								if eHRP and h and h.Health > 0 then
+									local dist = (eHRP.Position - root.Position).Magnitude;
+									if dist < 100 and dist < nearestDist then
 										nearest = model;
 										nearestDist = dist;
 									end;
@@ -8748,16 +8760,15 @@ do
 						local eHRP = nearest:FindFirstChild("HumanoidRootPart");
 						if eHRP then
 							statusLabel:SetText("Status: aura – " .. nearest.Name .. " (" .. math.round(nearestDist) .. "st)");
-							-- Move to ground level next to enemy, NOT above. Bypasses f.Kill hover.
 							local ep = eHRP.Position;
 							_tp(CFrame.new(ep.X, ep.Y + 3, ep.Z));
 							BFTouchAttack();
-							task.wait(0.08);
 						end;
 					else
-						statusLabel:SetText("Status: aura on – waiting for skeletons");
+						statusLabel:SetText("Status: aura – waiting for skeletons");
 						task.wait(0.4);
 					end;
+					task.wait(0.08);
 				end;
 			end,
 		},
