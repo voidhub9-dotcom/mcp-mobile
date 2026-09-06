@@ -8630,10 +8630,16 @@ do
 					end;
 
 					if nearest then
-						statusLabel:SetText("Status: killing " .. nearest.Name);
-						f.Kill(nearest, _G.AutoMagnetTokens);
+						local er = nearest:FindFirstChild("HumanoidRootPart");
+						if er then
+							statusLabel:SetText("Status: killing " .. nearest.Name);
+							-- Ground-level kill — no hover. _tp to Y+3, BFTouchAttack.
+							local ep = er.Position;
+							_tp(CFrame.new(ep.X, ep.Y + 3, ep.Z));
+							BFTouchAttack();
+						end;
 					else
-						-- No event enemies up — move to the spawn area and wait.
+						-- No event enemies up — move to spawn area and wait.
 						statusLabel:SetText("Status: waiting for enemies at spawn");
 						if (root.Position - MagnetStormSpawn.Position).Magnitude > 120 then
 							_tp(MagnetStormSpawn, true);
