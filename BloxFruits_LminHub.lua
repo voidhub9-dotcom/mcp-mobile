@@ -457,19 +457,24 @@ f.Alive = function(Y)
 		return d and d.Health > 0;
 	end;
 UI.CombatOffsets = {
-	CFrame.new(0, 15, 0),
+	CFrame.new(0, 30, 25),
+	CFrame.new(25, 30, 0),
+	CFrame.new(-25, 30, 0),
+	CFrame.new(0, 30, -25),
+	CFrame.new(-25, 30, 0),
 };
 function UI.RunCombatOffsets(target)
-	-- Single stable hover — cycling multiple offsets every 0.12s was the main
-	-- source of visible character jitter during autofarm combat.
-	local targetRoot = target and target.Parent and target:FindFirstChild("HumanoidRootPart");
-	if not targetRoot or not f.Alive(target) then return end;
-	local lockedCF = target:GetAttribute("Locked");
-	local pos = lockedCF and lockedCF.Position or targetRoot.Position;
-	local hoverY = math.max(pos.Y + 15, 20);
-	local root = i and i:FindFirstChild("HumanoidRootPart");
-	if root and (root.Position - Vector3.new(pos.X, hoverY, pos.Z)).Magnitude > 4 then
-		_tp(CFrame.new(pos.X, hoverY, pos.Z));
+	for _, offset in ipairs(UI.CombatOffsets) do
+		task.wait(.12);
+		local targetRoot = target and target.Parent and target:FindFirstChild("HumanoidRootPart");
+		if not targetRoot or not f.Alive(target) then
+			break;
+		end;
+		local position = targetRoot.Position;
+		if position.Y < 10 then
+			position = Vector3.new(position.X, 50, position.Z);
+		end;
+		_tp(CFrame.new(position) * offset);
 	end;
 end;
 f.Pos = function(Y, distance)
@@ -505,17 +510,14 @@ f.Kill = function(Y, d)
 			PosMon = (Y:GetAttribute("Locked")).Position;
 			BringEnemy();
 			EquipWeapon(_G.BFCombatWeapon or EnsureWeapon());
-			-- Track the enemy's live position so we hover above where they actually are.
-			-- PosMon is only valid when BringEnemy is active; since _B=false always in
-			-- normal autofarm enemies wander freely, so live HRP is the correct source.
-			local hrp = Y:FindFirstChild("HumanoidRootPart");
-			if not hrp then return end;
-			local livePos = hrp.Position;
-			local hoverY = math.max(livePos.Y + 20, 20);
-			local hover = CFrame.new(livePos.X, hoverY, livePos.Z);
-			local root = i and i:FindFirstChild("HumanoidRootPart");
-			if not root or (root.Position - hover.Position).Magnitude > 3 then
-				_tp(hover);
+			local R = EquippedToolTip();
+			if R == "Blox Fruit" then
+				_tp((Y.HumanoidRootPart.CFrame * CFrame.new(0, 10, 0)) * CFrame.Angles(0, math.rad(90), 0));
+			else
+				_tp((Y.HumanoidRootPart.CFrame * CFrame.new(0, 30, 0)) * CFrame.Angles(0, math.rad(180), 0));
+			end;
+			if getgenv().BFRandomCFrame then
+				UI.RunCombatOffsets(Y);
 			end;
 		end;
 	end;
@@ -15435,6 +15437,14 @@ Wq:AddToggle("BF_Toggle_Auto_Travel", {
 		end;
 	end,
 });
+if World3 then
+	Wq:AddButton({
+		Text = "Tween to Castle on the Sea",
+		Func = function()
+			_tp(CFrame.new(-5539.3115234375, 313.80053710938, -2972.3723144531), true);
+		end,
+	});
+end;
 local Nq = UI.Sections["Travel - Portal"];
 if World1 then
 	Location_Portal = { "Sky", "UnderWater" };
@@ -16900,7 +16910,6 @@ UI.Safe("Player Mods", function()
 		});
 		local noclip = false;
 		local noclipConn = nil;
-		local noclipConnHB = nil;
 		tab:AddToggle("BF_Noclip", {
 			Text = "Noclip",
 			Default = false,
@@ -16910,15 +16919,9 @@ UI.Safe("Player Mods", function()
 				UI.SetCharacterCollisionOwner("Noclip", state);
 				if state then
 					if not noclipConn then
-						-- Stepped fires before physics resolves contacts (pre-physics).
+						-- Stepped fires before physics simulation each frame so
+						-- CanCollide=false wins before the engine resolves contacts.
 						noclipConn = W.Stepped:Connect(function()
-							UI.ReassertCharacterCollisions();
-						end);
-					end;
-					if not noclipConnHB then
-						-- Heartbeat fires after physics — catches any CanCollide the
-						-- engine re-enables during its solve step.
-						noclipConnHB = game:GetService("RunService").Heartbeat:Connect(function()
 							UI.ReassertCharacterCollisions();
 						end);
 					end;
@@ -16927,17 +16930,12 @@ UI.Safe("Player Mods", function()
 						noclipConn:Disconnect();
 						noclipConn = nil;
 					end;
-					if noclipConnHB then
-						noclipConnHB:Disconnect();
-						noclipConnHB = nil;
-					end;
 				end;
 			end,
 		});
 		task.spawn(function()
 			while not UI.Stopped do task.wait(1) end;
 			if noclipConn then noclipConn:Disconnect(); noclipConn = nil; end;
-			if noclipConnHB then noclipConnHB:Disconnect(); noclipConnHB = nil; end;
 			UI.SetCharacterCollisionOwner("Noclip", false);
 		end);
 		local infiniteJump = false;
