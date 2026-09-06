@@ -3790,7 +3790,7 @@ UI.AutoFarmStep = function()
 	HRP = root;
 	local currentLevel = tonumber(BFDataValue("Level")) or 0;
 	local location = tostring(g:GetAttribute("CurrentLocation") or "");
-	if currentLevel >= 2600 and location ~= "Submerged Island" and location ~= "Sealed Cavern" then
+	if World3 and currentLevel >= 2600 and location ~= "Submerged Island" and location ~= "Sealed Cavern" then
 		UI.AutoFarmTarget = nil;
 		local submarine = CFrame.new(-16269.4121, 24.7584076, 1371.70752, -0.999348342, -0.00479344372, .0357791297, -0.00262145093, .998164296, .0605080314, -0.036003489, .0603748076, -0.997526407);
 		if BFMoveNear(submarine, 5) then
