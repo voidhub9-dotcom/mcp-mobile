@@ -1331,9 +1331,12 @@ BFComm = function(...)
 		if not remote then
 			return nil;
 		end;
-		-- Sea 1 and Sea 2 quest requests must not stall the farm loop indefinitely.
+		-- All seas: quest requests must not stall the farm loop indefinitely.
 		local command = select(1, ...);
-		if (game.PlaceId == 2753915549 or game.PlaceId == 4442272183 or game.PlaceId == 79091703265657) and (command == "StartQuest" or command == "AbandonQuest") then
+		if (game.PlaceId == 2753915549 or game.PlaceId == 85211729168715
+			or game.PlaceId == 4442272183 or game.PlaceId == 79091703265657
+			or game.PlaceId == 7449423635 or game.PlaceId == 100117331123089)
+			and (command == "StartQuest" or command == "AbandonQuest") then
 			local args = table.pack(...);
 			local done, success, response = false, false, nil;
 			local worker = task.spawn(function()
@@ -1362,10 +1365,12 @@ BFComm = function(...)
 		end;
 		return nil;
 	end;
--- Sea 1 and Sea 2 use CommF_ StartQuest with timeout guard (5s).
--- Sea 3 retains BonusMomentsGuide background path. Success requires the quest UI.
+-- All seas use CommF_ StartQuest with 5s timeout guard.
+-- BonusMomentsGuide path kept as dead fallback for unknown place IDs only.
 BFAcceptQuest = function(questName, questTier, npcName)
-		if game.PlaceId == 2753915549 or game.PlaceId == 4442272183 or game.PlaceId == 79091703265657 then
+		if game.PlaceId == 2753915549 or game.PlaceId == 85211729168715
+			or game.PlaceId == 4442272183 or game.PlaceId == 79091703265657
+			or game.PlaceId == 7449423635 or game.PlaceId == 100117331123089 then
 			if CheckHasQuest(npcName) then return true end;
 			BFComm("StartQuest", questName, questTier);
 			local deadline = os.clock() + 3;
