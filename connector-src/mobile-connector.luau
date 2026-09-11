@@ -1,38 +1,17 @@
---// ════════════════════════════════════════════════════════════════ \\\\--
---// Mobile Roblox Executor MCP Connector
---// Standalone single-file connector for mobile Roblox executors
---// (Delta, CodeX, VegaX, ArceusX, Cryptic, Ronix, etc.)
---//
---// This script auto-detects the executor's capabilities and provides
---// compatibility shims for missing APIs. It uses HTTP polling by
---// default (WebSocket optional) to communicate with the MCP server.
---//
---// Usage:
---//   getgenv().BridgeURL = "YOUR_PC_IP:16384"
---//   loadstring(game:HttpGet("http://YOUR_PC_IP:16384/mobile-connector.luau"))()
---//
---// Or with auto-detection:
---//   loadstring(game:HttpGet("http://YOUR_PC_IP:16384/mobile-connector.luau"))("YOUR_PC_IP:16384")
---// ════════════════════════════════════════════════════════════════ \\\\--
 
 if getgenv().MCP_Loaded == true then
     return
 end
 getgenv().MCP_Loaded = true
 
---// Parse bridge URL from argument or getgenv \\\\
 local BridgeURL = (select(1, ...)) or getgenv().BridgeURL or getgenv().bridgeurl or "localhost:16384"
 getgenv().BridgeURL = BridgeURL
 getgenv().bridgeurl = BridgeURL
 
---// Wait for game to load \\\\
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
---// ─── Anti-AFK ──────────────────────────────────────────────────── \\\\--
--- Synthetic anti-AFK input is disabled by default because some games and mobile
--- executors react poorly to it. Opt in explicitly with MCP_EnableAntiAFK = true.
 if getgenv().MCP_EnableAntiAFK == true and getgenv().MCP_DisableAntiAFK ~= true then
     local VirtualUser = game:GetService("VirtualUser")
     local localPlayer_afk = game:GetService("Players").LocalPlayer
@@ -46,7 +25,6 @@ if getgenv().MCP_EnableAntiAFK == true and getgenv().MCP_DisableAntiAFK ~= true 
     end
 end
 
---// ─── Services ───────────────────────────────────────────────────── \\\\
 local cloneref = cloneref or function(x) return x end
 
 local HttpService = cloneref(game:GetService("HttpService"))
@@ -54,8 +32,6 @@ local LogService = cloneref(game:GetService("LogService"))
 local Players = cloneref(game:GetService("Players"))
 local MarketplaceService = cloneref(game:GetService("MarketplaceService"))
 local UserInputService = cloneref(game:GetService("UserInputService"))
-
---// ─── Capability Detection ──────────────────────────────────────── \\\\--
 
 local Capabilities = {}
 local ExecutorName = "Unknown"
@@ -86,7 +62,6 @@ local function DetectExecutor()
 end
 
 local function DetectPlatform()
-    -- Try UserInputService touch detection
     pcall(function()
         if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
             Platform = "Mobile"
@@ -94,7 +69,6 @@ local function DetectPlatform()
             Platform = "Desktop"
         end
     end)
-    -- Try OS env detection
     pcall(function()
         if type(getgenv().OS) == "string" then
             Platform = getgenv().OS
@@ -108,37 +82,30 @@ local function CheckCap(name, fn)
     Capabilities[name] = ok and result == true
 end
 
--- Core execution
 CheckCap("loadstring", function() return type(loadstring) == "function" end)
 CheckCap("getgenv", function() return type(getgenv) == "function" end)
 CheckCap("setthreadidentity", function() return type(setthreadidentity) == "function" end)
 CheckCap("setidentity", function() return type(setidentity) == "function" end)
 
--- HTTP
 CheckCap("request", function() return type(request) == "function" end)
 CheckCap("http_request", function() return type(http_request) == "function" end)
--- Executors expose Synapse-style requests in either form; support both.
 CheckCap("syn_request", function() return type(syn_request) == "function" end)
 CheckCap("syn_request_method", function() return type(syn) == "table" and type(syn.request) == "function" end)
 CheckCap("http_get", function() return type(http_get) == "function" end)
 CheckCap("http_post", function() return type(http_post) == "function" end)
 
--- WebSocket
 CheckCap("WebSocket", function() return type(WebSocket) == "table" and type(WebSocket.connect) == "function" end)
 
--- Script/Decompilation
 CheckCap("getscriptbytecode", function() return type(getscriptbytecode) == "function" end)
 CheckCap("decompile", function() return type(decompile) == "function" end)
 CheckCap("getscripthash", function() return type(getscripthash) == "function" end)
 CheckCap("getscripts", function() return type(getscripts) == "function" end)
 CheckCap("getnilinstances", function() return type(getnilinstances) == "function" end)
 
--- Instance/Reflection
 CheckCap("cloneref", function() return type(cloneref) == "function" end)
 CheckCap("getinstances", function() return type(getinstances) == "function" end)
 CheckCap("firesignal", function() return type(firesignal) == "function" end)
 
--- Input
 CheckCap("VirtualInputManager", function() return Instance.new("VirtualInputManager") ~= nil end)
 CheckCap("keypress", function() return type(keypress) == "function" end)
 CheckCap("screenshot", function() return type(screenshot) == "function" end)
@@ -148,9 +115,6 @@ CheckCap("screenshot_protocol", function() return type(http_get) == "function" e
 ExecutorName = DetectExecutor()
 DetectPlatform()
 
---// ─── Compatibility Shims ───────────────────────────────────────── \\\\--
-
---// Unified HTTP request function with fallbacks \\\\
 local function NormalizedResponse(body)
     return { Body = body, StatusCode = 200, Success = true }
 end
@@ -162,8 +126,6 @@ local function HttpGetFallbackRequest(fetch, opts)
     end
 
     if method == "POST" then
-        -- Some mobile executors provide GET-only http_get alongside a compatible
-        -- POST helper. This covers local bridges that do not require auth headers.
         if opts.Headers and opts.Headers.Authorization then
             error("http_get/http_post cannot send Authorization headers. Use syn_request, syn.request, request, or http_request for authenticated cloud bridges.")
         end
@@ -196,13 +158,11 @@ elseif Capabilities.http_get then
         return HttpGetFallbackRequest(HTTPGet, opts)
     end
 else
-    -- Last resort: game:HttpGet is GET-only for the same reason as http_get.
     HTTPRequest = function(opts)
         return HttpGetFallbackRequest(HTTPGet, opts)
     end
 end
 
---// Build full URL from BridgeURL (supports http://, https://, and bare host:port) \\
 local function BridgeBase()
     local url = BridgeURL:gsub("/$", "")
     if url:sub(1, 7) == "http://" or url:sub(1, 8) == "https://" then
@@ -211,10 +171,8 @@ local function BridgeBase()
     return "http://" .. url
 end
 
---// Auth token (set via getgenv().MCP_AUTH_TOKEN for cloud deployments) \\
 local AuthToken = getgenv().MCP_AUTH_TOKEN or getgenv().mcp_auth_token
 
---// Build auth headers for HTTP requests \\
 local function AuthHeaders(extra)
     local headers = extra or {}
     headers["Content-Type"] = headers["Content-Type"] or "application/json"
@@ -224,17 +182,14 @@ local function AuthHeaders(extra)
     return headers
 end
 
---// Unified setthreadidentity with fallback \\\\
 local function SetThreadIdentity(level)
     if Capabilities.setthreadidentity then
         setthreadidentity(level)
     elseif Capabilities.setidentity then
         setidentity(level)
     end
-    -- If neither is available, execution runs at default identity
 end
 
---// Safe decompile with fallback \\\\
 local function SafeDecompile(script)
     if Capabilities.decompile then
         return decompile(script)
@@ -242,7 +197,6 @@ local function SafeDecompile(script)
     return nil
 end
 
---// Safe getscriptbytecode with fallback \\\\
 local function SafeGetBytecode(script)
     if Capabilities.getscriptbytecode then
         return getscriptbytecode(script)
@@ -250,7 +204,6 @@ local function SafeGetBytecode(script)
     return nil
 end
 
---// ─── Base64 Encoder ────────────────────────────────────────────── \\\\--
 local base64_encode
 do
     local b = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
@@ -268,7 +221,6 @@ do
     end
 end
 
---// ─── JSON Encoder (fallback if LuaEncode unavailable) ──────────── \\\\--
 local function SimpleJSONEncode(value, seen)
     seen = seen or {}
     local t = type(value)
@@ -293,7 +245,6 @@ local function SimpleJSONEncode(value, seen)
     if seen[value] then return '"<cyclic>"' end
     seen[value] = true
 
-    -- Detect array vs object
     local isArray = true
     local count = 0
     for k, _ in pairs(value) do
@@ -318,7 +269,6 @@ local function SimpleJSONEncode(value, seen)
     end
 end
 
--- Try to load LuaEncode from GitHub, fall back to simple encoder
 local LuaEncode
 do
     local ok, encoded = pcall(function()
@@ -333,7 +283,6 @@ do
     end
 end
 
---// ─── Output Sanitizer ──────────────────────────────────────────── \\\\--
 local SANITIZE_MAX_DEPTH = 8
 local SANITIZE_MAX_ENTRIES = 60
 local SANITIZE_MAX_STRING = 500
@@ -384,16 +333,12 @@ local function SanitizeForOutput(value, depth, seen)
     return result
 end
 
---// ─── Session ID Generation ─────────────────────────────────────── \\\\--
 local function GenerateSessionGuid()
     local ok, guid = pcall(function() return HttpService:GenerateGUID(false) end)
     if ok and type(guid) == "string" and guid ~= "" then return guid end
     return tostring(os.clock()) .. "-" .. tostring(math.random(1, 1000000000))
 end
 
--- This identifier deliberately survives a place or JobId change while the
--- executor session remains alive. The bridge can then report that movement as
--- a session alert instead of registering an unrelated new client.
 local function GetStableClientSessionId()
     if type(getgenv().MCP_ClientSessionId) ~= "string" or getgenv().MCP_ClientSessionId == "" then
         getgenv().MCP_ClientSessionId = GenerateSessionGuid()
@@ -401,7 +346,6 @@ local function GetStableClientSessionId()
     return getgenv().MCP_ClientSessionId
 end
 
---// ─── Registration Info ─────────────────────────────────────────── \\\\--
 local function GetRegistrationInfo()
     local player = Players.LocalPlayer
     local placeName = "Unknown"
@@ -417,7 +361,6 @@ local function GetRegistrationInfo()
         jobId = game.JobId,
         placeName = placeName,
         sessionId = GetStableClientSessionId(),
-        -- Mobile-specific fields
         mobile = true,
         executor = ExecutorName,
         platform = Platform,
@@ -425,7 +368,6 @@ local function GetRegistrationInfo()
     }
 end
 
---// ─── Bridge: Message Handlers ──────────────────────────────────── \\\\--
 local Callbacks = {}
 local RawCallbacks = {}
 
@@ -455,9 +397,6 @@ local function HandleMessage(data)
     return nil
 end
 
---// ─── Register Tool Handlers ────────────────────────────────────── \\\\--
-
--- Core: execute code
 Callbacks["execute"] = function(data)
     task.defer(function()
         SetThreadIdentity(8)
@@ -465,13 +404,11 @@ Callbacks["execute"] = function(data)
     end)
 end
 
--- Core: get data by code
 Callbacks["get-data-by-code"] = function(data)
     SetThreadIdentity(8)
     return table.pack(loadstring(data.source)())
 end
 
--- Core: get console output
 RawCallbacks["get-console-output"] = true
 Callbacks["get-console-output"] = function(data)
     local limit = math.max(1, math.min(tonumber(data.limit) or 20, 200))
@@ -535,7 +472,6 @@ Callbacks["get-console-output"] = function(data)
     return table.concat(lines, "\n")
 end
 
--- Instance: get game info
 Callbacks["get-game-info"] = function(data)
     local productInfo = MarketplaceService:GetProductInfo(game.PlaceId)
     local info = {
@@ -547,12 +483,10 @@ Callbacks["get-game-info"] = function(data)
         CreatorType = tostring(productInfo.Creator.CreatorType),
         CreatorId = productInfo.Creator.CreatorTargetId,
         JobId = game.JobId,
-        -- Mobile-specific info
         Mobile = true,
         Executor = ExecutorName,
         Platform = Platform,
     }
-    -- ServerType requires RobloxReplicatedStorage access which may not be available on mobile
     pcall(function()
         local RobloxReplicatedStorage = cloneref(game:GetService("RobloxReplicatedStorage"))
         info.ServerType = RobloxReplicatedStorage.GetServerType:InvokeServer()
@@ -563,7 +497,6 @@ Callbacks["get-game-info"] = function(data)
     return info
 end
 
--- Instance: search instances
 Callbacks["search-instances"] = function(data)
     local rootInstance = loadstring("return " .. data.root)()
     local instances = rootInstance:QueryDescendants(data.selector)
@@ -583,7 +516,6 @@ Callbacks["search-instances"] = function(data)
     return { count = #instances, limited = #instances > limit, results = results }
 end
 
--- Instance: get descendants tree
 Callbacks["get-descendants-tree"] = function(data)
     local rootInstance = loadstring("return " .. data.root)()
     assert(typeof(rootInstance) == "Instance", "Root path did not resolve to a valid Instance.")
@@ -665,7 +597,6 @@ Callbacks["get-descendants-tree"] = function(data)
     return tree
 end
 
--- GUI: type text box (with mobile compatibility)
 Callbacks["type-text-box"] = function(data)
     local path = data.path
     local text = data.string or data.text
@@ -706,7 +637,6 @@ Callbacks["type-text-box"] = function(data)
     return { status = "success", message = "Successfully typed into TextBox." }
 end
 
--- GUI: click button (with mobile compatibility)
 Callbacks["click-button"] = function(data)
     local path = data.path
     local action = data.Action or data.action
@@ -722,7 +652,6 @@ Callbacks["click-button"] = function(data)
     assert(button:IsA("GuiButton"), "Resolved Instance is not a GuiButton.")
 
     if not Capabilities.firesignal then
-        -- Fallback: try VirtualInputManager for touch simulation
         if Capabilities.VirtualInputManager then
             local VirtualInputManager = Instance.new("VirtualInputManager")
             pcall(function()
@@ -747,7 +676,6 @@ Callbacks["click-button"] = function(data)
     return { status = "success", message = "Successfully fired click signals on Button." }
 end
 
--- Script: get script content (with mobile fallback)
 Callbacks["get-script-content"] = function(data)
     local script
     if typeof(data.script) == "string" then
@@ -758,11 +686,9 @@ Callbacks["get-script-content"] = function(data)
     assert(typeof(script) == "Instance" and script:IsA("LuaSourceContainer"),
         "Path did not resolve to a LuaSourceContainer.")
 
-    -- Try decompile first
     local source = SafeDecompile(script)
     if source then return source end
 
-    -- Try getscriptbytecode + external decompiler (may not be available on mobile)
     local bytecode = SafeGetBytecode(script)
     if bytecode then
         return "-- Bytecode retrieved but decompiler not available on this executor.\n-- Bytecode length: " .. #bytecode .. " bytes"
@@ -771,7 +697,6 @@ Callbacks["get-script-content"] = function(data)
     error("Neither decompile() nor getscriptbytecode() is available on this executor. Script inspection is limited.")
 end
 
--- Script: script grep (limited on mobile)
 Callbacks["script-grep"] = function(data)
     if not Capabilities.getscripts then
         error("getscripts() is not available on this executor. Script grep is unavailable.")
@@ -803,10 +728,6 @@ Callbacks["script-grep"] = function(data)
     return { count = #results, results = results }
 end
 
---// ─── Screenshot Handler ────────────────────────────────────────── \\\\--
-
--- Base64 image data must bypass SanitizeForOutput, which is designed for
--- ordinary diagnostic text and limits long strings.
 RawCallbacks["client-screenshot"] = true
 Callbacks["client-screenshot"] = function(data)
     local maxWidth = tonumber(data.maxWidth) or 1280
@@ -817,7 +738,6 @@ Callbacks["client-screenshot"] = function(data)
     local screenshotData = nil
     local format = "png"
 
-    -- Try executor screenshot function
     if type(screenshot) == "function" then
         local ok, result = pcall(screenshot)
         if ok and type(result) == "string" and #result > 0 then
@@ -830,7 +750,6 @@ Callbacks["client-screenshot"] = function(data)
         end
     end
 
-    -- Try writefile/readfile approach
     if not screenshotData and type(writefile) == "function" and type(readfile) == "function" then
         local tempPath = "mcp_screenshot_temp.png"
         pcall(function()
@@ -849,7 +768,6 @@ Callbacks["client-screenshot"] = function(data)
         end)
     end
 
-    -- Try http_get screenshot protocol
     if not screenshotData then
         local ok, result = pcall(function()
             if Capabilities.http_get then
@@ -885,8 +803,6 @@ Callbacks["client-screenshot"] = function(data)
         source = "client"
     })
 end
-
---// ─── Anti-Cheat Scanner ────────────────────────────────────────────── \\\\--
 
 local AC_NAME_PATTERNS = {
     "anticheat", "anti_cheat", "anti-cheat", "antihack", "anti-hack",
@@ -1096,7 +1012,6 @@ Callbacks["scan-anticheat"] = function(data)
         findings.summary.scriptsScanned = scriptsScanned
     end
 
-    -- Check remotes for reporting
     pcall(function()
         for _, root in searchRoots do
             for _, descendant in root:GetDescendants() do
@@ -1130,8 +1045,6 @@ Callbacks["scan-anticheat"] = function(data)
 
     return findings
 end
-
---// ─── Game State Handlers ──────────────────────────────────────────── \\\\--
 
 local SYSTEM_KEYWORDS = {
     quest = {"quest", "mission", "objective", "task", "daily", "challenge"},
@@ -1481,9 +1394,6 @@ Callbacks["find-game-systems"] = function(data)
     return { totalFound = #found, systems = found, byType = byType }
 end
 
--- AI scripting context: a compact, read-only evidence package for planning code.
--- It intentionally observes the current game without invoking remotes, moving the
--- player, clicking UI, or changing any game state.
 Callbacks["get-ai-script-context"] = function(data)
     data = type(data) == "table" and data or {}
     local goal = type(data.goal) == "string" and string.sub(data.goal, 1, 500) or ""
@@ -1559,8 +1469,6 @@ Callbacks["decrypt-remote"] = function(data)
     return info
 end
 
---// ─── HTTP Polling Bridge ───────────────────────────────────────── \\\", --
-
 local function IsAlive()
     local success, result = pcall(function()
         local response
@@ -1582,14 +1490,12 @@ local function IsAlive()
     return success and result or false
 end
 
---// Main connection loop \\\\
 local function Connect()
     local retryDelay = 0.5
     local maxRetryDelay = 5
     local maxAttempts = 10
     local attempts = 0
 
-    -- Wait for server to be alive
     while not IsAlive() do
         attempts = attempts + 1
         if attempts >= maxAttempts then
@@ -1600,7 +1506,6 @@ local function Connect()
         retryDelay = math.min(retryDelay * 1.5, maxRetryDelay)
     end
 
-    -- Register with server
     local clientId = nil
     pcall(function()
         local regResponse = HTTPRequest({
@@ -1623,12 +1528,7 @@ local function Connect()
     print("[Mobile MCP] Connected! Client ID: " .. clientId)
     print("[Mobile MCP] Executor: " .. ExecutorName .. " | Platform: " .. Platform)
 
-    -- Polling loop
     local connected = true
-    -- The server long-poll ends normally with HTTP 204. Mobile executors and
-    -- carrier networks can also end one request early; do not treat that as a
-    -- session-ending disconnect. Retry the same registered client with bounded
-    -- backoff and only re-register when the server explicitly no longer knows it.
     local configuredPollInterval = tonumber(getgenv().MCP_PollInterval)
     local pollInterval = math.clamp(configuredPollInterval or 0.35, 0.25, 10)
     local consecutiveFailures = 0
@@ -1650,9 +1550,6 @@ local function Connect()
 
             local statusCode = tonumber(response and response.StatusCode) or 0
             if statusCode ~= 204 and statusCode ~= 200 then
-                -- A missing client means the server restarted or expired the old
-                -- record, so leave this loop once to register again. Other HTTP
-                -- failures keep the same client session and retry in place.
                 if statusCode == 404 then
                     print("[Mobile MCP] Server no longer recognizes this client; re-registering...")
                     connected = false
@@ -1712,9 +1609,6 @@ local function Connect()
     return false
 end
 
---// ─── Main Loop ─────────────────────────────────────────────────── \\\\--
--- Skip script decompilation mapping on mobile (saves resources and avoids
--- executor API incompatibilities)
 getgenv().DisableInitialScriptDecompMapping = true
 
 print("[Mobile MCP] Starting mobile connector...")
@@ -1726,8 +1620,6 @@ for name, available in pairs(Capabilities) do
     print("  " .. (available and "[OK]" or "[--]") .. " " .. name)
 end
 
--- Reconnect loop. Back off after lost connections so a network or executor
--- failure cannot create a continuous background reconnect storm.
 local reconnectDelay = 5
 while getgenv().MCP_Loaded == true do
     local completed, connected = pcall(Connect)
