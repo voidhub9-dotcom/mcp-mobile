@@ -51,21 +51,14 @@ export function WS(ws: WebSocket): void {
     ws.on("close", () => {
         const clientId = getClientIdByWs(ws);
         if (clientId) {
-            // Grace period: mark as disconnected but keep the registry entry
-            // briefly so pending tool requests can complete or fail gracefully.
-            // The Luau runtime will reconnect with the same sessionId and
-            // refresh the existing entry via registerClient().
             console.error(`[Primary] Roblox client ${clientId} disconnected (WS close). Keeping entry for reconnect grace period.`);
-            // Resolve any pending HTTP poll with empty array
             const entry = getClientById(clientId);
             if (entry) {
                 entry.pendingPollResolve?.([]);
                 entry.pendingPollResolve = null;
             }
-            // Unregister after a short grace period to allow reconnection
             setTimeout(() => {
                 const current = getClientById(clientId);
-                // Only remove if the client hasn't reconnected (different WS or refreshed)
                 if (current && current.ws === ws) {
                     unregisterClient(clientId);
                     console.error(`[Primary] Roblox client ${clientId} removed after grace period (no reconnect).`);
