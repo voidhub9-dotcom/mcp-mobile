@@ -30,8 +30,8 @@ export type SemanticSettingsInput = Partial<{
     ollamaModel: unknown;
     saveEmbeddingsToDisk: unknown;
 }>;
-export declare const SEMANTIC_CONFIG_DIR: string;
-export declare const SEMANTIC_SETTINGS_PATH: string;
+export declare const SEMANTIC_CONFIG_DIR: any;
+export declare const SEMANTIC_SETTINGS_PATH: any;
 export declare const DEFAULT_SEMANTIC_SETTINGS: SemanticSettings;
 export declare function normalizeOllamaBaseUrl(value: unknown, fallback: string): string;
 export declare function normalizeOpenAIBaseUrl(value: unknown, fallback: string): string;

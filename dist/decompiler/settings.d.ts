@@ -48,8 +48,8 @@ export type DecompilerSettingsInput = Partial<{
     providers: unknown;
     runtime: unknown;
 }>;
-export declare const DECOMPILER_CONFIG_DIR: string;
-export declare const DECOMPILER_SETTINGS_PATH: string;
+export declare const DECOMPILER_CONFIG_DIR: any;
+export declare const DECOMPILER_SETTINGS_PATH: any;
 export declare const SHINY_LOCAL_ENDPOINT = "http://localhost:3000/luau/decompile";
 export declare const SHINY_HOSTED_ENDPOINT = "https://medal.upio.dev/decompile";
 export declare const DECOMPILER_PROVIDER_INFO: DecompilerProviderInfo[];

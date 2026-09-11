@@ -15,7 +15,7 @@ export declare const BASE_URL: string | null;
 export declare const HTTP_MODE: boolean;
 export declare const MCP_HTTP_PORT_OVERRIDE: number | null;
 export declare const MCP_PORT: number;
-export declare const SERVER_NAME: string;
+export declare const SERVER_NAME: any;
 export declare const CUSTOM_AI_API_KEY: string | null;
 export declare const CUSTOM_AI_BASE_URL: string;
 export declare const CUSTOM_AI_API_VERSION: string;

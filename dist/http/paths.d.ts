@@ -1,1 +1,1 @@
-export declare const assetsDir: string;
+export declare const assetsDir: any;

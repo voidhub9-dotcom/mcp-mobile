@@ -1,4 +1,4 @@
-export declare const SEMANTIC_EMBEDDINGS_PATH: string;
+export declare const SEMANTIC_EMBEDDINGS_PATH: any;
 export declare function readPersistedEmbedding(key: string): Promise<number[] | undefined>;
 export declare function writePersistedEmbeddings(vectors: {
     key: string;

@@ -39,8 +39,8 @@ export type DashboardSettingsInput = Partial<{
     fonts: unknown;
     backgroundMedia: unknown;
 }>;
-export declare const DASHBOARD_CONFIG_DIR: string;
-export declare const DASHBOARD_SETTINGS_PATH: string;
+export declare const DASHBOARD_CONFIG_DIR: any;
+export declare const DASHBOARD_SETTINGS_PATH: any;
 export declare const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings;
 export declare function normalizeDashboardSettings(value: unknown, fallback?: DashboardSettings): DashboardSettings;
 export declare function dashboardSettingsExist(): Promise<boolean>;
