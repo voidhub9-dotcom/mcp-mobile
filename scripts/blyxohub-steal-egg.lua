@@ -156,7 +156,7 @@ BlyxoSplash = { step = function() end, discord = function() end,
             Position = UDim2.fromOffset(72, 43), Size = UDim2.new(1, -94, 0, 15),
             BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 12,
             TextColor3 = GREY, TextTransparency = 1,
-            TextXAlignment = Enum.TextXAlignment.Left, Text = "Steal An Egg  ·  V3.1",
+            TextXAlignment = Enum.TextXAlignment.Left, Text = "Steal An Egg  ·  V1",
         }, card)
 
         local status = mk("TextLabel", {
@@ -531,7 +531,7 @@ end)
 
 local Window = Rayfield:CreateWindow({
     name = "BlyxoHub",
-    subtitle = "Steal An Egg",
+    subtitle = "Steal An Egg  ·  V1",
     icon = 95108798243406,
     showName = "BlyxoHub",
     sidebarLayout = true,
@@ -7427,7 +7427,7 @@ X = {}
 X.el = {}
 
 pcall(function()
-    Window:CreateTag({ title = "V3.1", color = Color3.fromRGB(206, 206, 212) })
+    Window:CreateTag({ title = "V1", color = Color3.fromRGB(206, 206, 212) })
 end)
 
 task.spawn(function()
@@ -7475,7 +7475,7 @@ HomeTab:CreateSection({ name = "Updates" })
 
 HomeTab:CreateText({
     name = "Latest",
-    text = "V3.1\n"
+    text = "V1\n"
         .. "- Stats overlay: session time, FPS and ping (Misc)\n"
         .. "- New loading screen with the Discord built in\n"
         .. "- Cleaner menu: no white outlines, no tab icons\n"
