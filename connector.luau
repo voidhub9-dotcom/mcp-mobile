@@ -3055,7 +3055,7 @@ return function(b,c)local d=
 b.HttpService
 local e=b.base64_encode
 
-c:BindToType("client-screenshot",function(f)
+c:BindToTypeRaw("client-screenshot",function(f)
 local g=tonumber(f.maxWidth)or 1280
 g=math.max(256,math.min(g,2560))
 
@@ -3107,10 +3107,10 @@ end
 end
 
 if not i then
-return{
+return d:JSONEncode({
 error="Client-side screenshot is not supported by this executor.",
 success=false
-}
+})
 end
 
 local k
@@ -3122,13 +3122,13 @@ else
 k="data:image/"..j..";base64,"..e(i)
 end
 
-return{
+return d:JSONEncode({
 imageBase64=k,
 mimeType="image/"..j,
 success=true,
 width=g,
 source="client"
-}
+})
 end)
 end end function a.s():typeof(__modImpl())local b=a.cache.s if not b then b={c=__modImpl()}a.cache.s=b end return b.c end end do local function __modImpl()
 

@@ -1,20 +1,7 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { sendAndWait, clientStampPrefix } from "../../factory.js";
+import { sendAndWait } from "../../factory.js";
 import { maxOutputCharsSchema } from "../../schemas.js";
-
-interface ImageContent {
-    type: "image";
-    data: string;
-    mimeType: string;
-}
-interface TextContent {
-    type: "text";
-    text: string;
-}
-type ToolContent = ImageContent | TextContent;
-
-function parseImageFromText(text: string): { data: string; mimeType: string } | null {
+function parseImageFromText(text) {
     const patterns = [
         /data:image\/([a-z]+);base64,([A-Za-z0-9+/=]+)/,
         /"imageBase64":\s*"data:image\/([a-z]+);base64,([A-Za-z0-9+/=]+)/,
@@ -33,20 +20,19 @@ function parseImageFromText(text: string): { data: string; mimeType: string } | 
     }
     return null;
 }
-
-function parseCaptureError(text: string): string | null {
+function parseCaptureError(text) {
     try {
-        const payload = JSON.parse(text) as { error?: unknown; success?: unknown };
+        const payload = JSON.parse(text);
         if (payload.success === false || typeof payload.error === "string") {
             return typeof payload.error === "string" ? payload.error : "Client screenshot capture failed.";
         }
-    } catch {
+    }
+    catch {
         // Older connectors return text rather than a JSON payload.
     }
     return null;
 }
-
-export default function register(server: McpServer): void {
+export default function register(server) {
     server.registerTool("client-screenshot", {
         title: "Take a screenshot from the Roblox client (cross-platform)",
         description: "Capture a screenshot from the connected Roblox client using in-game viewport capture. Works on any platform (Windows, Mac, mobile). The AI receives the actual image and can visually analyze the game screen. The client executor must support a screenshot function or the http_get screenshot:// protocol.",
@@ -71,25 +57,21 @@ export default function register(server: McpServer): void {
             stampClient: true,
             failureMessage: () => "Failed to capture client screenshot. The connected executor may not support in-game screenshot capture.",
         });
-
         if (result.isError) {
             return result;
         }
-
-        const text = (result.content as TextContent[])
+        const text = result.content
             ?.filter((c) => c.type === "text")
             .map((c) => c.text)
             .join("");
-
         const image = text ? parseImageFromText(text) : null;
         if (image) {
-            const content: ToolContent[] = [
+            const content = [
                 { type: "text", text: "In-game screenshot captured." },
                 { type: "image", data: image.data, mimeType: image.mimeType },
             ];
             return { content };
         }
-
         const captureError = text ? parseCaptureError(text) : null;
         if (captureError) {
             return {
@@ -97,7 +79,6 @@ export default function register(server: McpServer): void {
                 isError: true,
             };
         }
-
         return result;
     });
 }

@@ -2,7 +2,9 @@ return function(context, Bridge)
 local HttpService = context.HttpService
 local base64_encode = context.base64_encode
 
-Bridge:BindToType("client-screenshot", function(data)
+-- Image payloads bypass the normal sanitizer, which intentionally truncates
+-- long strings and would otherwise corrupt the base64 data.
+Bridge:BindToTypeRaw("client-screenshot", function(data)
     local maxWidth = tonumber(data.maxWidth) or 1280
     maxWidth = math.max(256, math.min(maxWidth, 2560))
 
@@ -54,10 +56,10 @@ Bridge:BindToType("client-screenshot", function(data)
     end
 
     if not screenshotData then
-        return {
+        return HttpService:JSONEncode({
             error = "Client-side screenshot is not supported by this executor.",
             success = false
-        }
+        })
     end
 
     local base64Data
@@ -69,12 +71,12 @@ Bridge:BindToType("client-screenshot", function(data)
         base64Data = "data:image/" .. format .. ";base64," .. base64_encode(screenshotData)
     end
 
-    return {
+    return HttpService:JSONEncode({
         imageBase64 = base64Data,
         mimeType = "image/" .. format,
         success = true,
         width = maxWidth,
         source = "client"
-    }
+    })
 end)
 end

@@ -141,6 +141,9 @@ CheckCap("firesignal", function() return type(firesignal) == "function" end)
 -- Input
 CheckCap("VirtualInputManager", function() return Instance.new("VirtualInputManager") ~= nil end)
 CheckCap("keypress", function() return type(keypress) == "function" end)
+CheckCap("screenshot", function() return type(screenshot) == "function" end)
+CheckCap("takescreenshot", function() return type(takescreenshot) == "function" end)
+CheckCap("screenshot_protocol", function() return type(http_get) == "function" end)
 
 ExecutorName = DetectExecutor()
 DetectPlatform()
@@ -802,6 +805,9 @@ end
 
 --// ─── Screenshot Handler ────────────────────────────────────────── \\\\--
 
+-- Base64 image data must bypass SanitizeForOutput, which is designed for
+-- ordinary diagnostic text and limits long strings.
+RawCallbacks["client-screenshot"] = true
 Callbacks["client-screenshot"] = function(data)
     local maxWidth = tonumber(data.maxWidth) or 1280
     maxWidth = math.max(256, math.min(maxWidth, 2560))
@@ -856,10 +862,10 @@ Callbacks["client-screenshot"] = function(data)
     end
 
     if not screenshotData then
-        return {
+        return HttpService:JSONEncode({
             error = "Client-side screenshot is not supported by this executor.",
             success = false
-        }
+        })
     end
 
     local base64Data
@@ -871,13 +877,13 @@ Callbacks["client-screenshot"] = function(data)
         base64Data = "data:image/" .. format .. ";base64," .. base64_encode(screenshotData)
     end
 
-    return {
+    return HttpService:JSONEncode({
         imageBase64 = base64Data,
         mimeType = "image/" .. format,
         success = true,
         width = maxWidth,
         source = "client"
-    }
+    })
 end
 
 --// ─── Anti-Cheat Scanner ────────────────────────────────────────────── \\\\--

@@ -496,6 +496,7 @@ function selectClient(clientId) {
     setSidebarMode('client');
     showView('overview');
     updateOverview();
+    window.dispatchEvent(new CustomEvent('dashboard:client-selected', { detail: { clientId } }));
 }
 
 /* ── Update overview ─────────────────────────────────────── */

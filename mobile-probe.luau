@@ -143,6 +143,10 @@ local function ProbeCapabilities()
         return Instance.new("VirtualInputManager") ~= nil
     end)
 
+    CheckCapability("screenshot", function() return type(screenshot) == "function" end)
+    CheckCapability("takescreenshot", function() return type(takescreenshot) == "function" end)
+    CheckCapability("screenshot_protocol", function() return type(http_get) == "function" end)
+
     --// Console/Log APIs \\\\
     CheckCapability("LogService", function()
         return game:GetService("LogService") ~= nil
