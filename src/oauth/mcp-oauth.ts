@@ -199,7 +199,6 @@ function validRedirectUri(value: string): boolean {
             return true;
         if (url.protocol === "http:")
             return url.hostname === "127.0.0.1" || url.hostname === "::1" || url.hostname === "localhost";
-        // Native apps can use claimed custom URI schemes, but never executable or file schemes.
         return !["javascript:", "data:", "file:"].includes(url.protocol);
     }
     catch {
