@@ -1,6 +1,3 @@
--- Source entrypoint for connector.luau. Build the standalone artifact with
--- `npm run build:connector`; edit connector-src modules, not the generated file.
---// Variables \\--
 if getgenv().MCP_Loaded == true then
     return
 end
@@ -11,14 +8,10 @@ local BridgeURL = getgenv().BridgeURL or getgenv().bridgeurl or ... or "localhos
 getgenv().BridgeURL = BridgeURL
 getgenv().bridgeurl = BridgeURL
 
---// Wait for game to load \\--
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
---// Anti-AFK \\--
--- Prevents accidental idle disconnections by responding to the
--- Player.Idled event. Disabled when getgenv().MCP_DisableAntiAFK = true.
 if getgenv().MCP_DisableAntiAFK ~= true then
     local VirtualUser = game:GetService("VirtualUser")
     local Players_antiAFK = game:GetService("Players")
@@ -33,7 +26,6 @@ if getgenv().MCP_DisableAntiAFK ~= true then
     end
 end
 
---// Services \\--
 local cloneref = cloneref or function(x) return x end
 
 local RobloxReplicatedStorage: RobloxReplicatedStorage = cloneref(game:GetService("RobloxReplicatedStorage"))
@@ -46,17 +38,13 @@ local HttpService: HttpService = cloneref(game:GetService("HttpService"))
 local LogService: LogService = cloneref(game:GetService("LogService"))
 local Players: Players = cloneref(game:GetService("Players"))
 
---// Libraries \\--
-
 local base64_encode
 do
     -- Lua 5.1+ base64 v3.0 (c) 2009 by Alex Kloss <alexthkloss@web.de>
     -- licensed under the terms of the LGPL2
     
-    -- character table string
     local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
     
-    -- encoding
     base64_encode = base64encode or function(data)
         return ((data:gsub('.', function(x) 
             local r,b='',x:byte()
@@ -71,16 +59,12 @@ do
     end
 end
 
---// Functions \\--
 local getscriptbytecode = getscriptbytecode or function(_) error("Unable to get script bytecode.") end
 local GetScriptHash = type(getscripthash) == "function" and getscripthash or nil
 local BuiltInDecompile = type(decompile) == "function" and decompile or nil
 
 local LuaEncode = loadstring(game:HttpGet("https://raw.githubusercontent.com/chadhyatt/LuaEncode/refs/heads/master/src/LuaEncode.lua"))()
 
---// Bounded serialization: cap depth / entries / string length and render
---// Instances as their path so structured tool responses can't flood the
---// model context with raw dumps before the server-side char limit applies. \\--
 local SANITIZE_MAX_DEPTH = 8
 local SANITIZE_MAX_ENTRIES = 60
 local SANITIZE_MAX_STRING = 500
@@ -95,13 +79,12 @@ local function SanitizeForOutput(value, depth, seen)
     elseif valueType == "string" then
         if #value > SANITIZE_MAX_STRING then
             return string.sub(value, 1, SANITIZE_MAX_STRING)
-                .. "…(+" .. (#value - SANITIZE_MAX_STRING) .. " chars omitted)"
+                .. "â¦(+" .. (#value - SANITIZE_MAX_STRING) .. " chars omitted)"
         end
         return value
     elseif valueType == "number" or valueType == "boolean" or valueType == "nil" then
         return value
     elseif valueType ~= "table" then
-        -- functions, userdata, threads, Vector3, CFrame, etc.
         return tostring(value)
     end
 
@@ -138,8 +121,6 @@ local function SanitizeForOutput(value, depth, seen)
     return result
 end
 
---// Strip the decompiler banner line (e.g. "-- Decompiled with lua.expert")
---// so it doesn't repeat as noise across every script read/grep/search. \\--
 local function StripDecompilerBanner(source)
     if typeof(source) ~= "string" then return source end
     return (string.gsub(source, "^%s*%-%-[^\n]*[Dd]ecompiled[^\n]*\n", "", 1))
@@ -147,13 +128,11 @@ end
 
 local getnilinstances = getnilinstances or function() return {} end
 
---// Compatibility Check \\--
 local WebSocketAvailable = (
     typeof(WebSocket) ~= "nil" and
     typeof(WebSocket.connect) == "function"
 ) and (getgenv().DisableWebSocket ~= true)
 
---// Registration Info \\--
 local function GenerateSessionGuid()
     local success, guid = pcall(function()
         return HttpService:GenerateGUID(false)
@@ -200,7 +179,6 @@ local function GetRegistrationInfo()
     }
 end
 
---// Bridge client \\--
 local BridgeClient = require("./bridge/client")({
     HttpService = HttpService,
     BridgeURL = BridgeURL,
@@ -211,7 +189,6 @@ local BridgeClient = require("./bridge/client")({
 })
 local CreateBridge = BridgeClient.CreateBridge
 
---// Script source mapping modules \\--
 local WorkerPool = require("./utils/worker")
 local ScriptMappingState = require("./mapping/state")
 local UploadSession = require("./mapping/upload-session")
