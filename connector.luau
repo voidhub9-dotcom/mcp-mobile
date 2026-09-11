@@ -6,7 +6,6 @@ local f=b.GetRegistrationInfo
 local g=b.SanitizeForOutput
 local h=b.LuaEncode
 
-
 local i={};do
 i.__index=i
 
@@ -101,7 +100,6 @@ task.cancel(l)
 return false
 end
 
-
 if k.StatusCode==426 or k.StatusCode==200 then
 return true
 end
@@ -117,13 +115,11 @@ return l
 end
 end
 
-
 local j=setmetatable({},{__index=i});do
 j.__index=j
 
 function j.new()
 local k=setmetatable({},j)
-
 
 local l=0.5
 local m=5
@@ -138,7 +134,6 @@ end
 task.wait(l)
 l=math.min(l*1.5,m)
 end
-
 
 local p
 local q=task.spawn(function()
@@ -163,7 +158,6 @@ k.Connected=true
 k.Callbacks={}
 k.ClientId=nil
 
-
 k.WebSocket:Send(c:JSONEncode(f()))
 
 k.AliveThread=task.spawn(function()
@@ -173,17 +167,11 @@ if not k.Connected then
 continue
 end
 
-
-
-
-
 if k.WebSocket then
-
 
 s=0
 continue
 end
-
 
 if k:IsAlive()then
 s=0
@@ -204,10 +192,8 @@ k.WebSocket:Close()
 end)
 end)
 
-
 k.WebSocket.OnMessage:Connect(function(s)
 local t=c:JSONDecode(s)
-
 
 if t.type=="registered"then
 k.ClientId=t.clientId
@@ -220,12 +206,10 @@ k.WebSocket:Send(c:JSONEncode(u))
 end
 end)
 
-
 k.WebSocket.OnClose:Connect(function()
 k.Connected=false
 
 end)
-
 
 if k.WebSocket.OnError then
 k.WebSocket.OnError:Connect(function()
@@ -243,13 +227,11 @@ end
 end
 end
 
-
 local k=setmetatable({},{__index=i});do
 k.__index=k
 
 function k.new()
 local l=setmetatable({},k)
-
 
 local m=0.5
 local n=5
@@ -270,7 +252,6 @@ l.Callbacks={}
 l.PollInterval=0.1
 l.ClientId=nil
 
-
 pcall(function()
 local q=request{
 Url="http://"..d.."/register",
@@ -283,7 +264,6 @@ local r=c:JSONDecode(q.Body)
 l.ClientId=r.clientId
 end
 end)
-
 
 l.PollThread=task.spawn(function()
 local q=0
@@ -300,7 +280,6 @@ Url=s,
 Method="GET"
 }
 
-
 if t.StatusCode~=204 and t.StatusCode~=200 then
 q+=1
 if q>=3 then
@@ -311,7 +290,6 @@ return
 end
 
 q=0
-
 
 if t.Body and t.Body~=""then
 local u=c:JSONDecode(t.Body)
@@ -327,7 +305,6 @@ r=true
 task.spawn(function()
 local y=l:HandleMessage(x)
 if y==nil then return end
-
 
 request{
 Url="http://"..d.."/respond",
@@ -364,7 +341,6 @@ task.wait(0.1)
 end
 end
 end
-
 
 local function CreateBridge()
 if e then
@@ -451,8 +427,6 @@ else
 g=nil
 end
 end
-
-
 
 c.ActiveWorkers=math.max(0,c.ActiveWorkers-1)
 c:DrainQueue()
@@ -2040,7 +2014,6 @@ if c.initialScanRunning or c.initialScanFinished then return end
 c.initialScanRunning=true
 local E=c.generation
 
-
 task.spawn(function()
 local F={}
 local G=false local
@@ -2287,7 +2260,6 @@ c:BindToTypeRaw("get-script-content",function(h)
 local i
 local j
 
-
 if h.debugId then
 j=e(h.debugId)
 assert(j,"No live script instance found for ScriptProxy with DebugId: "..tostring(h.debugId))
@@ -2338,7 +2310,6 @@ d.generation,
 m
 )
 end
-
 
 local o={}
 local p=1
@@ -2518,7 +2489,6 @@ end
 
 if k and not w:IsA(j)then
 
-
 if q<h then
 local x=buildTree(w,q+1)
 if x and x.Children and#x.Children>0 then
@@ -2618,7 +2588,6 @@ scanRemotes(m,k+1)
 end
 end
 
-
 local j={"ReplicatedStorage","Workspace","Players"}
 for k,l in j do
 pcall(function()
@@ -2626,7 +2595,6 @@ local m=game:GetService(l)
 scanRemotes(m,0)
 end)
 end
-
 
 if#i>g then
 local k={}
@@ -2659,9 +2627,6 @@ message="Read-only Remote Monitor has no stored call payloads to clear."
 end
 error("Remote Monitor is not initialised. Call ensure-remote-spy first.")
 end)
-
-
-
 
 c:BindToType("remote-spy",function(d)
 c.Callbacks["ensure-remote-spy"]{}
@@ -4019,7 +3984,6 @@ l=math.min(l*1.5,m)
 continue
 end
 
-
 l=1
 
 local p=d(o)
@@ -4069,9 +4033,6 @@ l=math.min(l*1.5,m)
 end
 end end function a.v():typeof(__modImpl())local b=a.cache.v if not b then b={c=__modImpl()}a.cache.v=b end return b.c end end end
 
-
-
-
 if getgenv().MCP_Loaded==true then
 return
 end
@@ -4082,13 +4043,9 @@ local b=getgenv().BridgeURL or getgenv().bridgeurl or...or"localhost:16384"
 getgenv().BridgeURL=b
 getgenv().bridgeurl=b
 
-
 if not game:IsLoaded()then
 game.Loaded:Wait()
 end
-
-
-
 
 if getgenv().MCP_DisableAntiAFK~=true then
 local c=game:GetService"VirtualUser"
@@ -4104,7 +4061,6 @@ end)
 end
 end
 
-
 local c=cloneref or function(c)return c end
 
 local d:RobloxReplicatedStorage=c(game:GetService"RobloxReplicatedStorage")
@@ -4117,16 +4073,10 @@ local j:HttpService=c(game:GetService"HttpService")
 local k:LogService=c(game:GetService"LogService")
 local l:Players=c(game:GetService"Players")
 
-
-
 local m
 do
 
-
-
-
 local n='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-
 
 m=base64encode or function(o)
 return((o:gsub('.',function(p)
@@ -4142,15 +4092,10 @@ end)..({'','==','='})[#o%3+1])
 end
 end
 
-
-
 local n=type(getscripthash)=="function"and getscripthash or nil
 local o=type(decompile)=="function"and decompile or nil
 
 local p=loadstring(game:HttpGet"https://raw.githubusercontent.com/chadhyatt/LuaEncode/refs/heads/master/src/LuaEncode.lua")()
-
-
-
 
 local q=8
 local r=60
@@ -4209,8 +4154,6 @@ v[t]=nil
 return x
 end
 
-
-
 local function StripDecompilerBanner(t)
 if typeof(t)~="string"then return t end
 return(string.gsub(t,"^%s*%-%-[^\n]*[Dd]ecompiled[^\n]*\n","",1))
@@ -4218,12 +4161,10 @@ end
 
 local t=getnilinstances or function()return{}end
 
-
 local u=(
 typeof(WebSocket)~="nil"and
 typeof(WebSocket.connect)=="function"
 )and(getgenv().DisableWebSocket~=true)
-
 
 local function GenerateSessionGuid()
 local v,w=pcall(function()
@@ -4271,7 +4212,6 @@ sessionId=GetStableClientSessionId(),
 }
 end
 
-
 local v=a.a(){
 HttpService=j,
 BridgeURL=b,
@@ -4281,7 +4221,6 @@ SanitizeForOutput=SanitizeForOutput,
 LuaEncode=p,
 }
 local w=v.CreateBridge
-
 
 local x=a.b()
 local y=a.c()
