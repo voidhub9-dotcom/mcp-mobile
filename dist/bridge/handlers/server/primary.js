@@ -27,7 +27,6 @@ function hasLegacyAuth(req) {
     const adminToken = req.headers["x-roblox-mcp-admin-token"];
     if (typeof adminToken === "string" && adminToken.length > 0)
         return true;
-    // Preserve the existing URL-token connection method for previously configured clients.
     const url = new URL(req.url || "", "http://localhost");
     const queryToken = url.searchParams.get("token");
     return typeof queryToken === "string" && staticTokenMatches(queryToken);
@@ -78,7 +77,7 @@ export async function startAsPrimary() {
                     }
                     else {
                         res.writeHead(404, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Session not found. The Mcp-Session-Id is a temporary runtime header — do not hardcode it in your config. Remove the header and send a new initialize request." }, id: null }));
+                        res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Session not found. The Mcp-Session-Id is a temporary runtime header â do not hardcode it in your config. Remove the header and send a new initialize request." }, id: null }));
                     }
                     return;
                 }
@@ -89,7 +88,7 @@ export async function startAsPrimary() {
                     }
                     else {
                         res.writeHead(404, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Session not found. The Mcp-Session-Id is a temporary runtime header returned by the server after initialize — do not hardcode it in your config. Remove the Mcp-Session-Id header and send a new initialize request to get a fresh session." }, id: null }));
+                        res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Session not found. The Mcp-Session-Id is a temporary runtime header returned by the server after initialize â do not hardcode it in your config. Remove the Mcp-Session-Id header and send a new initialize request to get a fresh session." }, id: null }));
                     }
                     return;
                 }
@@ -114,7 +113,6 @@ export async function startAsPrimary() {
             console.error(`[Primary] MCP Bridge listening on port ${WS_PORT} (WebSocket + HTTP)`);
             const wss = new WebSocketServer({ server: httpServer });
             wss.on("connection", (ws, req) => dispatchWs(ws, req));
-            // Periodic ping to keep WS connections alive and detect dead connections
             const pingInterval = setInterval(() => {
                 for (const client of wss.clients) {
                     if (client.readyState === WebSocket.OPEN) {
@@ -122,7 +120,6 @@ export async function startAsPrimary() {
                             client.ping();
                         }
                         catch {
-                            // ignore ping failures
                         }
                     }
                 }
