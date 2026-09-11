@@ -28,7 +28,6 @@ function parseCaptureError(text) {
         }
     }
     catch {
-        // Older connectors return text rather than a JSON payload.
     }
     return null;
 }
