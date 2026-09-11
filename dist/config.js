@@ -2,18 +2,12 @@ export const serverStartTime = Date.now();
 export const WS_PORT = parseInt(process.env.PORT || "16384", 10);
 export const MCP_HTTP_PORT = 3001;
 const configuredHttpPollTimeout = parseInt(process.env.HTTP_POLL_TIMEOUT_MS || "6000", 10);
-// Keep long-polls below common mobile executor and reverse-proxy request limits.
 export const HTTP_POLL_TIMEOUT = Number.isFinite(configuredHttpPollTimeout)
     ? Math.min(Math.max(configuredHttpPollTimeout, 3000), 30000)
     : 6000;
 export const PROMOTION_JITTER_MAX = 300;
 export const TOOL_RESPONSE_TIMEOUT = 15000;
 export const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN || null;
-/**
- * Optional public-origin override for reverse proxies that do not forward the original Host
- * and X-Forwarded-Proto headers. Ordinary Railway, Render, tunnel, and cloned deployments
- * derive their OAuth origin from each incoming request and do not need this setting.
- */
 export const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || null;
 const args = process.argv.slice(2);
 const baseUrlIdx = args.indexOf("--baseurl");
