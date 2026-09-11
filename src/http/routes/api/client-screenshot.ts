@@ -19,10 +19,6 @@ function send(res: ServerResponse, status: number, payload: unknown): void {
     res.end(JSON.stringify(payload));
 }
 
-/**
- * Dashboard-only image route. Generic /api/tool output is deliberately
- * truncated; screenshots must preserve the full base64 payload.
- */
 export async function POST(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
         const body = await readJsonBody<ScreenshotRequest>(req);
