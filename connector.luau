@@ -2217,7 +2217,7 @@ local function formatLogMessage(p)
 local q=tostring(p or"")
 if#q>o then
 q=string.sub(q,1,o)
-.."…(+"..(#q-o).." chars omitted)"
+.."â¦(+"..(#q-o).." chars omitted)"
 end
 return q
 end
@@ -2567,39 +2567,25 @@ end end function a.o():typeof(__modImpl())local b=a.cache.o if not b then b={c=_
 
 return function(b,c)
 c:BindToType("ensure-remote-spy",function(d)
-if getgenv().Cobalt then
+local e=getgenv().MCP_RemoteMonitor
+if e then
 return{
-status="already_loaded",
-message="Cobalt remote spy is already running."
+status="ready",
+message="Remote Monitor is ready."
 }
 end local
 
-e=pcall(function()
-loadstring(game:HttpGet"https://github.com/notpoiu/cobalt/releases/latest/download/Cobalt.luau")()
-end)
-
-if e then
-local f=os.clock()
-while not getgenv().Cobalt and os.clock()-f<10 do
-task.wait(0.1)
-end
-
-if getgenv().Cobalt then
-return{status="loaded",message="Cobalt remote spy loaded successfully."}
-end
-end
-
-getgenv().MCP_BasicRemoteSpy=true
+getgenv().MCP_RemoteMonitor={startedAt=os.time(),scans=0,lastScanAt=nil}
 return{
-status="basic_mode",
-message="Cobalt not available. Using basic remote inventory mode."
+status="ready",
+message="Read-only Remote Monitor is ready."
 }
 end)
 
 c:BindToType("get-remote-spy-logs",function(d)
-local e=getgenv().Cobalt
+local e=getgenv().MCP_RemoteMonitor
 
-if not e and getgenv().MCP_BasicRemoteSpy then
+if e then
 local f=d.remoteNameFilter or""
 local g=math.max(1,math.min(tonumber(d.limit)or 10,100))
 local h=f~=""
@@ -2650,214 +2636,28 @@ end
 i=k
 end
 
+e.scans+=1
+e.lastScanAt=os.time()
 return{
 count=#i,
 results=i,
-mode="basic",
-message="Running in basic remote inventory mode."
+mode="inventory",
+message="Read-only remote inventory. Call telemetry is unavailable on this executor."
 }
 end
-
-assert(e and e.shared and e.shared.Logs,"Cobalt remote spy is not loaded. Call ensure-remote-spy first.")
-
-local f=d.direction or"Both"
-local g=d.remoteNameFilter or""
-local h=math.max(1,math.min(tonumber(d.limit)or 10,100))
-local i=math.max(0,math.min(tonumber(d.maxCallsPerRemote)or 2,20))
-local j=d.summaryOnly==true
-local k=g~=""
-
-local function ProcessLogs(l,m)
-local n={}
-
-for o,p in l do
-if typeof(o)~="Instance"then continue end
-if#n>=h then break end
-
-local q=""
-local r=""
-pcall(function()
-q=o.Name
-r=o.ClassName
-end)
-
-
-if k and not string.find(string.lower(q),string.lower(g),1,true)then
-continue
-end
-
-
-local s={}
-local t=#p.Calls
-local u=math.max(1,t-i+1)
-
-if not j then
-for v=u,t do
-local w=p.Calls[v]
-if not w then continue end
-
-table.insert(s,{
-Index=v,
-Arguments=w.Arguments,
-Origin=w.Origin,
-IsExecutor=w.IsExecutor or false,
-IsActor=w.IsActor or false,
-Line=w.Line,
-})
-end
-end
-
-table.insert(n,{
-RemoteName=q,
-RemoteClass=r,
-Direction=m,
-Method=p.Method,
-TotalCalls=t,
-Ignored=p.Ignored,
-Blocked=p.Blocked,
-RecentCalls=if j then nil else s,
-})
-end
-
-return n
-end
-
-local l={}
-
-if f=="Outgoing"or f=="Both"then
-local m=ProcessLogs(e.shared.Logs.Outgoing,"Outgoing")
-for n,o in m do
-table.insert(l,o)
-end
-end
-
-if f=="Incoming"or f=="Both"then
-local m=ProcessLogs(e.shared.Logs.Incoming,"Incoming")
-for n,o in m do
-table.insert(l,o)
-end
-end
-
-
-table.sort(l,function(m,n)
-return m.TotalCalls>n.TotalCalls
-end)
-
-
-if#l>h then
-local m={}
-for n=1,h do
-m[n]=l[n]
-end
-l=m
-end
-
-return{
-count=#l,
-results=l
-}
+error("Remote Monitor is not initialised. Call ensure-remote-spy first.")
 end)
 end end function a.p():typeof(__modImpl())local b=a.cache.p if not b then b={c=__modImpl()}a.cache.p=b end return b.c end end do local function __modImpl()
 
 return function(b,c)
 c:BindToType("clear-remote-spy-logs",function(d)
-local e=getgenv().Cobalt
-if not e and getgenv().MCP_BasicRemoteSpy then
+if getgenv().MCP_RemoteMonitor then
 return{
 status="no_op",
-message="Running in basic remote inventory mode. No call logs to clear."
+message="Read-only Remote Monitor has no stored call payloads to clear."
 }
 end
-assert(e and e.shared and e.shared.ClearLogs,"Cobalt remote spy is not loaded. Call ensure-remote-spy first.")
-
-e.shared.ClearLogs()
-
-return{
-status="cleared",
-message="All remote spy logs have been cleared."
-}
-end)
-
-c:BindToType("block-remote",function(d)
-local e=getgenv().Cobalt
-if not e and getgenv().MCP_BasicRemoteSpy then
-return{
-status="unsupported",
-message="Not available in basic mode."
-}
-end
-assert(e and e.shared and e.shared.Logs,"Cobalt remote spy is not loaded. Call ensure-remote-spy first.")
-
-local f=d.remoteName
-local g=d.direction
-local h=d.shouldBlock
-
-local i=e.shared.Logs[g]
-assert(i,"Invalid direction: "..tostring(g))
-
-for j,k in i do
-if typeof(j)~="Instance"then continue end
-
-local l=""
-pcall(function()l=j.Name end)
-
-if l==f then
-if h and not k.Blocked then
-k:Block()
-elseif not h and k.Blocked then
-k:Block()
-end
-
-return{
-status="success",
-message=(h and"Blocked"or"Unblocked").." remote: "..f,
-blocked=k.Blocked
-}
-end
-end
-
-error("Remote not found: "..f.." in "..g.." logs. Make sure the remote has been logged at least once.")
-end)
-
-c:BindToType("ignore-remote",function(d)
-local e=getgenv().Cobalt
-if not e and getgenv().MCP_BasicRemoteSpy then
-return{
-status="unsupported",
-message="Not available in basic mode."
-}
-end
-assert(e and e.shared and e.shared.Logs,"Cobalt remote spy is not loaded. Call ensure-remote-spy first.")
-
-local f=d.remoteName
-local g=d.direction
-local h=d.shouldIgnore
-
-local i=e.shared.Logs[g]
-assert(i,"Invalid direction: "..tostring(g))
-
-for j,k in i do
-if typeof(j)~="Instance"then continue end
-
-local l=""
-pcall(function()l=j.Name end)
-
-if l==f then
-if h and not k.Ignored then
-k:Ignore()
-elseif not h and k.Ignored then
-k:Ignore()
-end
-
-return{
-status="success",
-message=(h and"Ignoring"or"Unignored").." remote: "..f,
-ignored=k.Ignored
-}
-end
-end
-
-error("Remote not found: "..f.." in "..g.." logs. Make sure the remote has been logged at least once.")
+error("Remote Monitor is not initialised. Call ensure-remote-spy first.")
 end)
 
 
@@ -2868,20 +2668,13 @@ c.Callbacks["ensure-remote-spy"]{}
 
 local e=d.operation
 if e=="status"then
-local f=getgenv().Cobalt
-local function CountLogs(g)
-local h=0
-if typeof(g)~="table"then return h end
-for i in g do
-h+=1
-end
-return h
-end
-
+local f=getgenv().MCP_RemoteMonitor
 return{
-status="loaded",
-outgoingRemotes=CountLogs(f.shared and f.shared.Logs and f.shared.Logs.Outgoing),
-incomingRemotes=CountLogs(f.shared and f.shared.Logs and f.shared.Logs.Incoming),
+status=if f then"ready"else"unavailable",
+mode="read_only_inventory",
+scans=if f then f.scans else 0,
+lastScanAt=if f then f.lastScanAt else nil,
+message="Remote Monitor lists public Remote instances without intercepting or changing game traffic.",
 }
 elseif e=="list"then
 return c.Callbacks["get-remote-spy-logs"]{
@@ -2893,18 +2686,6 @@ summaryOnly=d.summaryOnly,
 }
 elseif e=="clear"then
 return c.Callbacks["clear-remote-spy-logs"]{}
-elseif e=="block"or e=="unblock"then
-return c.Callbacks["block-remote"]{
-remoteName=d.remoteName,
-direction=d.direction,
-shouldBlock=e=="block",
-}
-elseif e=="ignore"or e=="unignore"then
-return c.Callbacks["ignore-remote"]{
-remoteName=d.remoteName,
-direction=d.direction,
-shouldIgnore=e=="ignore",
-}
 end
 
 error("Invalid remote-spy operation: "..tostring(e))
@@ -4385,7 +4166,7 @@ return x and y or tostring(t)
 elseif w=="string"then
 if#t>s then
 return string.sub(t,1,s)
-.."…(+"..(#t-s).." chars omitted)"
+.."â¦(+"..(#t-s).." chars omitted)"
 end
 return t
 elseif w=="number"or w=="boolean"or w=="nil"then
