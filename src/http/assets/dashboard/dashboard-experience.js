@@ -30,7 +30,7 @@ function capabilityState(client) {
 
 function selectedIdFromOverview() {
     const value = $('overviewClientId')?.textContent?.trim();
-    return value && value !== '—' ? value : null;
+    return value && value !== 'â' ? value : null;
 }
 
 function formatClock(value = Date.now()) {
@@ -59,12 +59,12 @@ function renderOperations() {
         ['WebSocket', !!caps.WebSocket], ['Script access', !!(caps.decompile || caps.getscriptbytecode)],
         ['Input', !!(caps.firesignal || caps.VirtualInputManager)], ['Console', client ? true : false],
     ];
-    const matrix = capabilityList.map(([name, ready]) => `<span class="ops-capability ${ready ? 'is-ready' : 'is-blocked'}">${ready ? '✓' : '–'} ${name}</span>`).join('');
-    const commands = commandHistory.slice(0, 6).map((item) => `<li><b>${item.type}</b><span>${item.ok ? 'OK' : 'ERR'} · ${item.duration}ms · ${item.at}</span></li>`).join('') || '<li class="ops-empty">No dashboard tool calls yet.</li>';
+    const matrix = capabilityList.map(([name, ready]) => `<span class="ops-capability ${ready ? 'is-ready' : 'is-blocked'}">${ready ? 'â' : 'â'} ${name}</span>`).join('');
+    const commands = commandHistory.slice(0, 6).map((item) => `<li><b>${item.type}</b><span>${item.ok ? 'OK' : 'ERR'} Â· ${item.duration}ms Â· ${item.at}</span></li>`).join('') || '<li class="ops-empty">No dashboard tool calls yet.</li>';
     const captures = screenshotHistory.map((item, index) => `<button type="button" class="ops-shot" data-screenshot-index="${index}"><img src="${item.imageData}" alt="Screenshot captured ${item.at}"><span>${item.at}</span></button>`).join('') || '<span class="ops-empty">No captures this session.</span>';
     const root = $('dashboardOperations');
     if (!root) return;
-    root.innerHTML = `<div class="ops-heading"><div><span class="monitor-eyebrow">POWER TOOLS</span><h3>Client operations</h3><p>${client ? `${client.username} · ${client.transport?.toUpperCase() || 'unknown transport'} · ${client.executor || 'unknown executor'}` : 'Select a connected client to inspect its tools.'}</p></div><div class="ops-actions"><button type="button" data-action="export-snapshot">Export snapshot</button><button type="button" data-action="clear-history">Clear history</button></div></div><div class="ops-metrics"><article><span>Clients</span><strong>${lastStatus?.clientCount || 0}</strong></article><article><span>Reconnects</span><strong>${health.reconnects || 0}</strong></article><article><span>Server changes</span><strong>${health.sessionChanges || 0}</strong></article><article><span>Screenshot</span><strong>${state.label}</strong></article></div><div class="ops-grid"><section><h4>Capability matrix</h4><div class="ops-capabilities">${matrix}</div><p class="ops-note">${state.note}</p></section><section><h4>Recent commands</h4><ul class="ops-history">${commands}</ul></section></div><section class="ops-captures"><h4>Screenshot history</h4><div class="ops-shot-list">${captures}</div></section>`;
+    root.innerHTML = `<div class="ops-heading"><div><span class="monitor-eyebrow">POWER TOOLS</span><h3>Client operations</h3><p>${client ? `${client.username} Â· ${client.transport?.toUpperCase() || 'unknown transport'} Â· ${client.executor || 'unknown executor'}` : 'Select a connected client to inspect its tools.'}</p></div><div class="ops-actions"><button type="button" data-action="export-snapshot">Export snapshot</button><button type="button" data-action="clear-history">Clear history</button></div></div><div class="ops-metrics"><article><span>Clients</span><strong>${lastStatus?.clientCount || 0}</strong></article><article><span>Reconnects</span><strong>${health.reconnects || 0}</strong></article><article><span>Server changes</span><strong>${health.sessionChanges || 0}</strong></article><article><span>Screenshot</span><strong>${state.label}</strong></article></div><div class="ops-grid"><section><h4>Capability matrix</h4><div class="ops-capabilities">${matrix}</div><p class="ops-note">${state.note}</p></section><section><h4>Recent commands</h4><ul class="ops-history">${commands}</ul></section></div><section class="ops-captures"><h4>Screenshot history</h4><div class="ops-shot-list">${captures}</div></section>`;
 }
 
 function addCommand(entry) {
@@ -140,7 +140,7 @@ async function refreshScreenshotReadiness() {
 async function captureScreenshot() {
     const id = selectedClientId || selectedIdFromOverview(); const button = $('screenshotTestBtn'); const preview = $('screenshotPreview');
     if (!id || !button || !preview) return;
-    button.disabled = true; button.textContent = 'Capturing…';
+    button.disabled = true; button.textContent = 'Capturingâ¦';
     try {
         const response = await api('/api/client-screenshot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: id, maxWidth: 960, quality: 75 }) });
         const data = await response.json(); if (!response.ok || typeof data.imageData !== 'string') throw new Error(data.error || 'Screenshot capture failed.');
@@ -153,8 +153,6 @@ async function captureScreenshot() {
 window.addEventListener('dashboard:client-selected', (event) => { selectedClientId = event.detail?.clientId || null; refreshScreenshotReadiness(); });
 window.addEventListener('dashboard:command', (event) => addCommand(event.detail));
 
-// Observe dashboard calls without changing the established tool panel. The
-// history is session-only and excludes credentials and request bodies.
 const nativeFetch = window.fetch.bind(window);
 window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input?.url || '';
