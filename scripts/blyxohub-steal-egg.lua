@@ -1239,7 +1239,7 @@ local autoCalibrate = false
 -- Ceiling was 290 on the assumption that ~300 studs/s was a kill threshold.
 -- That was wrong: the reference build runs 500 without being kicked, and the
 -- real trigger was our direct egg-remote calls. Raised accordingly.
-local calibMin, calibMax = 200, 1000   -- raised ceiling to 1000 per user request
+local calibMin, calibMax = 200, 1000
 local calibUpStep, calibDownStep = 25, 50
 local calibNeeded = 3
 local calibSuccesses = 0
@@ -1462,7 +1462,7 @@ local BX = {
     -- selected egg is never silently swapped for a different one; the
     -- loop only auto-picks when you have not chosen anything.
     followBest = false,
-    stealMode = "Tween Steal",  -- "Tween Steal" or "Insta Steal"
+    stealMode = "Tween Steal",
     swapped = false,
     swapEnabled = true,    -- proven path: see BX.swapHumanoid
     probing = false,       -- guards the authority probe in diagnoseStall
@@ -10442,8 +10442,6 @@ local function stealLoop()
             end
         end
 
-        -- INSTA STEAL: pin the character on the egg and hammer the carry remote
-        -- the moment we are in range so the grab lands as fast as possible.
         if BX.stealMode == "Insta Steal" and eggGap() <= 7 then
             local pinCF = target.BoundsCFrame
             local char = getChar()
@@ -10452,7 +10450,7 @@ local function stealLoop()
                 pcall(function() char:PivotTo(pinCF) end)
                 hrp.AssemblyLinearVelocity  = Vector3.zero
                 hrp.AssemblyAngularVelocity = Vector3.zero
-                trace("insta: pinned on egg - hammering carry remote")
+                trace("insta: pinned")
             end
         end
 
@@ -10816,10 +10814,7 @@ local function stealLoop()
                         :format(os.clock() - (BX.carryConfirmedAt or os.clock())))
 
                     if BX.stealMode == "Insta Steal" then
-                        -- INSTA STEAL DELIVERY: one hard CFrame write to the
-                        -- delivery pad, then hold for 1.5s so the server
-                        -- accepts the position and registers the claim.
-                        trace("insta: instant TP to delivery CFrame")
+                        trace("insta: tp to delivery")
                         local deliverCF = CFrame.new(
                             510.137726, 70.5743103, -361.044922,
                             -0.928340316, 9.39883193e-09,  0.3717314,
@@ -11015,9 +11010,6 @@ StealTab:CreateText({
         .. " time is meant to happen - it grabs the egg again straight after.",
 })
 
--- STEAL MODE SELECTOR. Tween Steal = original arc-tween carry home.
--- Insta Steal = instant CFrame TP to the delivery pad the moment the egg
--- is grabbed. Pick before turning on Auto Steal.
 StealTab:CreateDropdown({
     name = "Steal Mode",
     options = { "Tween Steal", "Insta Steal" },
@@ -11421,10 +11413,6 @@ task.spawn(function()
     pcall(UI.refresh, true)
 end)
 
--- AUTO-REFRESH: rebuild the egg list every 3 seconds so the dropdown always
--- reflects the current field without the user having to click Refresh Eggs.
--- Only rebuilds the GUI when the egg signatures actually change (applyOptions
--- already diffs before touching any frames), so this is cheap when idle.
 task.spawn(function()
     task.wait(4)
     while true do
