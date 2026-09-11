@@ -29,6 +29,10 @@ import registerTypeTextBox from "./impl/gui/type-text-box.js";
 import registerClickButton from "./impl/gui/click-button.js";
 import registerScreenshotWindow from "./impl/windows/screenshot-window.js";
 import registerListRobloxWindows from "./impl/windows/list-roblox-windows.js";
+import registerScratchpadRead from "./impl/scratchpad/scratchpad-read.js";
+import registerScratchpadWrite from "./impl/scratchpad/scratchpad-write.js";
+import registerScratchpadList from "./impl/scratchpad/scratchpad-list.js";
+import registerScratchpadDelete from "./impl/scratchpad/scratchpad-delete.js";
 export function registerAllTools(server: McpServer): void {
     registerSetActiveClient(server);
     registerListClients(server);
@@ -60,4 +64,8 @@ export function registerAllTools(server: McpServer): void {
     registerClickButton(server);
     registerScreenshotWindow(server);
     registerListRobloxWindows(server);
+    registerScratchpadRead(server);
+    registerScratchpadWrite(server);
+    registerScratchpadList(server);
+    registerScratchpadDelete(server);
 }
