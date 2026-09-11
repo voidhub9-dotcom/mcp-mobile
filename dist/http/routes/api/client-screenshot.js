@@ -9,10 +9,6 @@ function send(res, status, payload) {
     res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify(payload));
 }
-/**
- * Dashboard-only image route. Generic /api/tool output is deliberately
- * truncated; screenshots must preserve the full base64 payload.
- */
 export async function POST(req, res) {
     try {
         const body = await readJsonBody(req);
