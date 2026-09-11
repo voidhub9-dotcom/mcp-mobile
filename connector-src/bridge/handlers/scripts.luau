@@ -8,7 +8,6 @@ local QueueMappedScriptSource = context.QueueMappedScriptSource
         local source
         local scriptInstance
 
-        --// Handle GC'd script proxies: debugId is passed directly, skip loadstring \\--
         if data.debugId then
             scriptInstance = GetScriptByDebugId(data.debugId)
             assert(scriptInstance, "No live script instance found for ScriptProxy with DebugId: " .. tostring(data.debugId))
@@ -60,7 +59,6 @@ local QueueMappedScriptSource = context.QueueMappedScriptSource
             )
         end
 
-        --// Line range support with bounded default preview \\--
         local lines = {}
         local pos = 1
         local len = #source
