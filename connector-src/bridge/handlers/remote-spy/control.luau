@@ -9,9 +9,6 @@ return function(_context, Bridge)
         error("Remote Monitor is not initialised. Call ensure-remote-spy first.")
     end)
 
-    -- Keep Cobalt's implementation details behind one public MCP operation.
-    -- The legacy callbacks above remain internal so this dispatcher can reuse
-    -- their validated filtering and state-change behavior.
     Bridge:BindToType("remote-spy", function(data)
         Bridge.Callbacks["ensure-remote-spy"]({})
 
