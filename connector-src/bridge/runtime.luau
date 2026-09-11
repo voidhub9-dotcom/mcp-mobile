@@ -8,7 +8,6 @@ local ResetScriptMappingState = context.ResetScriptMappingState
 local StartScriptMapping = context.StartScriptMapping
 local StartFailedScriptResync = context.StartFailedScriptResync
 local ResumeDeferredScriptMappings = context.ResumeDeferredScriptMappings
---// Main Loop \\--
 local reconnectDelay = 1
 local maxReconnectDelay = 30
 while true do
@@ -20,7 +19,6 @@ while true do
         continue
     end
 
-    -- Reset reconnect delay on successful connection
     reconnectDelay = 1
 
     local clientId = WaitForBridgeClientId(Bridge)
