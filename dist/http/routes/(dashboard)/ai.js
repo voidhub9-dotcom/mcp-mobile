@@ -15,21 +15,6 @@ export function GET(_req, res) {
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
-  --bg: #0f0f0f;
-  --surface: #1a1a2e;
-  --surface2: #16213e;
-  --accent: #4f46e5;
-  --accent2: #6366f1;
-  --text: #e2e8f0;
-  --text-muted: #94a3b8;
-  --user-bg: #4f46e5;
-  --ai-bg: #1e293b;
-  --tool-bg: #1c2833;
-  --think-bg: #1a1520;
-  --border: #334155;
-  --error: #ef4444;
-  --success: #10b981;
-  --thinking: #a78bfa;
 }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -348,8 +333,8 @@ Tap Settings to configure your AI endpoint, then ask me anything.</div>
 
     <label for="auth-type-select">Auth Mode</label>
     <select id="auth-type-select">
-      <option value="api-key" ${defaultAuthType === 'api-key' ? 'selected' : ''}>API Key (x-api-key header — Anthropic native)</option>
-      <option value="bearer" ${defaultAuthType === 'bearer' ? 'selected' : ''}>Bearer Token (Authorization: Bearer — OAuth/proxy compatible)</option>
+      <option value="api-key" ${defaultAuthType === 'api-key' ? 'selected' : ''}>API Key (x-api-key header â Anthropic native)</option>
+      <option value="bearer" ${defaultAuthType === 'bearer' ? 'selected' : ''}>Bearer Token (Authorization: Bearer â OAuth/proxy compatible)</option>
     </select>
     <div class="hint">Use "API Key" for direct Anthropic API access. Use "Bearer Token" for OAuth-based proxies or Claude-compatible gateways that expect Authorization: Bearer headers.</div>
 
@@ -459,7 +444,6 @@ function saveSettings() {
   if (token) localStorage.setItem('mcp_auth_token', token);
   else localStorage.removeItem('mcp_auth_token');
 
-  // Update status badge
   var badge = document.getElementById('key-status');
   if (apiKey || hasEnvKey) {
     badge.textContent = 'Configured';
@@ -552,7 +536,6 @@ function addThinkingBlock(text) {
   content.textContent = text;
   div.appendChild(label);
   div.appendChild(content);
-  // Make label toggle content visibility
   label.onclick = function() {
     if (content.style.display === 'none') {
       content.style.display = '';
@@ -610,14 +593,12 @@ async function sendMessage() {
       return;
     }
 
-    // Show thinking blocks
     if (data.thinking && data.thinking.length > 0) {
       for (var i = 0; i < data.thinking.length; i++) {
         addThinkingBlock(data.thinking[i].text);
       }
     }
 
-    // Show tool calls if any
     if (data.toolCalls && data.toolCalls.length > 0) {
       for (var i = 0; i < data.toolCalls.length; i++) {
         var tc = data.toolCalls[i];
