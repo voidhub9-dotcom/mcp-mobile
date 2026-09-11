@@ -2,8 +2,6 @@ return function(context, Bridge)
 local HttpService = context.HttpService
 local base64_encode = context.base64_encode
 
--- Image payloads bypass the normal sanitizer, which intentionally truncates
--- long strings and would otherwise corrupt the base64 data.
 Bridge:BindToTypeRaw("client-screenshot", function(data)
     local maxWidth = tonumber(data.maxWidth) or 1280
     maxWidth = math.max(256, math.min(maxWidth, 2560))
