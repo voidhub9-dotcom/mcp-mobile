@@ -141,8 +141,6 @@ local RobloxReplicatedStorage = context.RobloxReplicatedStorage
                 end
 
                 if hasFilter and not child:IsA(classFilter) then
-                    -- Even if this child doesn't match, check if any descendant might
-                    -- Only skip if we're at max depth anyway
                     if depth < maxDepth then
                         local subtree = buildTree(child, depth + 1)
                         if subtree and subtree.Children and #subtree.Children > 0 then
