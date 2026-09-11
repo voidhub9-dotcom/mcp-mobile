@@ -1,102 +1,12 @@
 return function(_context, Bridge)
     Bridge:BindToType("clear-remote-spy-logs", function(data)
-        local Cobalt = getgenv().Cobalt
-        if not Cobalt and getgenv().MCP_BasicRemoteSpy then
+        if getgenv().MCP_RemoteMonitor then
             return {
                 status = "no_op",
-                message = "Running in basic remote inventory mode. No call logs to clear."
+                message = "Read-only Remote Monitor has no stored call payloads to clear."
             }
         end
-        assert(Cobalt and Cobalt.shared and Cobalt.shared.ClearLogs, "Cobalt remote spy is not loaded. Call ensure-remote-spy first.")
-
-        Cobalt.shared.ClearLogs()
-
-        return {
-            status = "cleared",
-            message = "All remote spy logs have been cleared."
-        }
-    end)
-
-    Bridge:BindToType("block-remote", function(data)
-        local Cobalt = getgenv().Cobalt
-        if not Cobalt and getgenv().MCP_BasicRemoteSpy then
-            return {
-                status = "unsupported",
-                message = "Not available in basic mode."
-            }
-        end
-        assert(Cobalt and Cobalt.shared and Cobalt.shared.Logs, "Cobalt remote spy is not loaded. Call ensure-remote-spy first.")
-
-        local remoteName = data.remoteName
-        local direction = data.direction
-        local shouldBlock = data.shouldBlock
-
-        local logTable = Cobalt.shared.Logs[direction]
-        assert(logTable, "Invalid direction: " .. tostring(direction))
-
-        for instance, log in logTable do
-            if typeof(instance) ~= "Instance" then continue end
-
-            local name = ""
-            pcall(function() name = instance.Name end)
-
-            if name == remoteName then
-                if shouldBlock and not log.Blocked then
-                    log:Block()
-                elseif not shouldBlock and log.Blocked then
-                    log:Block() -- toggles
-                end
-
-                return {
-                    status = "success",
-                    message = (shouldBlock and "Blocked" or "Unblocked") .. " remote: " .. remoteName,
-                    blocked = log.Blocked
-                }
-            end
-        end
-
-        error("Remote not found: " .. remoteName .. " in " .. direction .. " logs. Make sure the remote has been logged at least once.")
-    end)
-
-    Bridge:BindToType("ignore-remote", function(data)
-        local Cobalt = getgenv().Cobalt
-        if not Cobalt and getgenv().MCP_BasicRemoteSpy then
-            return {
-                status = "unsupported",
-                message = "Not available in basic mode."
-            }
-        end
-        assert(Cobalt and Cobalt.shared and Cobalt.shared.Logs, "Cobalt remote spy is not loaded. Call ensure-remote-spy first.")
-
-        local remoteName = data.remoteName
-        local direction = data.direction
-        local shouldIgnore = data.shouldIgnore
-
-        local logTable = Cobalt.shared.Logs[direction]
-        assert(logTable, "Invalid direction: " .. tostring(direction))
-
-        for instance, log in logTable do
-            if typeof(instance) ~= "Instance" then continue end
-
-            local name = ""
-            pcall(function() name = instance.Name end)
-
-            if name == remoteName then
-                if shouldIgnore and not log.Ignored then
-                    log:Ignore()
-                elseif not shouldIgnore and log.Ignored then
-                    log:Ignore() -- toggles
-                end
-
-                return {
-                    status = "success",
-                    message = (shouldIgnore and "Ignoring" or "Unignored") .. " remote: " .. remoteName,
-                    ignored = log.Ignored
-                }
-            end
-        end
-
-        error("Remote not found: " .. remoteName .. " in " .. direction .. " logs. Make sure the remote has been logged at least once.")
+        error("Remote Monitor is not initialised. Call ensure-remote-spy first.")
     end)
 
     -- Keep Cobalt's implementation details behind one public MCP operation.
@@ -107,20 +17,13 @@ return function(_context, Bridge)
 
         local operation = data.operation
         if operation == "status" then
-            local Cobalt = getgenv().Cobalt
-            local function CountLogs(logTable)
-                local count = 0
-                if typeof(logTable) ~= "table" then return count end
-                for _ in logTable do
-                    count += 1
-                end
-                return count
-            end
-
+            local monitor = getgenv().MCP_RemoteMonitor
             return {
-                status = "loaded",
-                outgoingRemotes = CountLogs(Cobalt.shared and Cobalt.shared.Logs and Cobalt.shared.Logs.Outgoing),
-                incomingRemotes = CountLogs(Cobalt.shared and Cobalt.shared.Logs and Cobalt.shared.Logs.Incoming),
+                status = monitor and "ready" or "unavailable",
+                mode = "read_only_inventory",
+                scans = monitor and monitor.scans or 0,
+                lastScanAt = monitor and monitor.lastScanAt or nil,
+                message = "Remote Monitor lists public Remote instances without intercepting or changing game traffic.",
             }
         elseif operation == "list" then
             return Bridge.Callbacks["get-remote-spy-logs"]({
@@ -132,18 +35,6 @@ return function(_context, Bridge)
             })
         elseif operation == "clear" then
             return Bridge.Callbacks["clear-remote-spy-logs"]({})
-        elseif operation == "block" or operation == "unblock" then
-            return Bridge.Callbacks["block-remote"]({
-                remoteName = data.remoteName,
-                direction = data.direction,
-                shouldBlock = operation == "block",
-            })
-        elseif operation == "ignore" or operation == "unignore" then
-            return Bridge.Callbacks["ignore-remote"]({
-                remoteName = data.remoteName,
-                direction = data.direction,
-                shouldIgnore = operation == "ignore",
-            })
         end
 
         error("Invalid remote-spy operation: " .. tostring(operation))
