@@ -8,9 +8,6 @@ return function(_context, Bridge)
             }
         end
 
-        -- This monitor intentionally has no external loader and does not hook,
-        -- block, replay, or invoke remotes. It is reliable on restricted/mobile
-        -- executors because it only inventories public Remote instances.
         getgenv().MCP_RemoteMonitor = {
             startedAt = os.time(),
             scans = 0,
@@ -57,7 +54,6 @@ return function(_context, Bridge)
                 end
             end
 
-            -- Scan common service containers
             local services = {"ReplicatedStorage", "Workspace", "Players"}
             for _, serviceName in services do
                 pcall(function()
@@ -66,7 +62,6 @@ return function(_context, Bridge)
                 end)
             end
 
-            -- Trim to limit
             if #results > limit then
                 local trimmed = {}
                 for i = 1, limit do
