@@ -24,7 +24,9 @@ do
     env.__BLYXO_TOP = {}
     env.__BLYXO_GEN = (tonumber(env.__BLYXO_GEN) or 0) + 1
 end
+
 BlyxoTop = ((type(getgenv) == "function" and getgenv()) or _G).__BLYXO_TOP
+
 BlyxoLoadT = { start = os.clock() }
 
 BlyxoRealPrint = BlyxoRealPrint or print
@@ -35,6 +37,7 @@ end
 
 BlyxoSplash = { step = function() end, discord = function() end,
                 fail = function() end, done = function() end,
+
                 whenClosed = function(fn) pcall(fn) end }
 ;(function()
     local ok = pcall(function()
@@ -120,6 +123,7 @@ BlyxoSplash = { step = function() end, discord = function() end,
             Color = ColorSequence.new(Color3.fromRGB(206, 206, 212), Color3.fromRGB(41, 41, 48)),
             Rotation = 90,
         }, cardStroke)
+
         local touchUI = game:GetService("UserInputService").TouchEnabled
             and not game:GetService("UserInputService").KeyboardEnabled
         local function fitScale()
@@ -218,6 +222,7 @@ BlyxoSplash = { step = function() end, discord = function() end,
             TextColor3 = GREY, TextTransparency = 1,
             TextXAlignment = Enum.TextXAlignment.Left, Text = "",
         }, disc)
+
         local join = mk("TextButton", {
             Position = UDim2.fromOffset(0, 82), Size = UDim2.new(0.62, -4, 0, JOIN_H),
             BackgroundColor3 = WHITE, BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -227,6 +232,7 @@ BlyxoSplash = { step = function() end, discord = function() end,
         }, disc)
         mk("UICorner", { CornerRadius = UDim.new(0, 9) }, join)
         local joinScale = mk("UIScale", { Scale = 1 }, join)
+
         local cont = mk("TextButton", {
             Position = UDim2.new(0.62, 4, 0, 82), Size = UDim2.new(0.38, -4, 0, JOIN_H),
             BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -294,6 +300,7 @@ BlyxoSplash = { step = function() end, discord = function() end,
             finished = true
             task.delay(delay or 0, function()
                 setShown(false, 0.3)
+
                 task.delay(0.15, runClosed)
                 task.delay(0.35, function() pcall(function() gui:Destroy() end) end)
             end)
@@ -334,6 +341,7 @@ BlyxoSplash = { step = function() end, discord = function() end,
                 join.Text = copied and "✓  Invite copied" or "✓  Opening Discord"
                 task.wait(0.7)
             end
+
             fadeSet(discParts, false, 0.2)
             task.wait(0.15)
             tw(card, 0.4, { Size = UDim2.fromOffset(W, H) })
@@ -341,6 +349,7 @@ BlyxoSplash = { step = function() end, discord = function() end,
             disc.Visible = false
             discordOpen, inDiscord = false, false
             lastBeat = os.clock()
+
             if closeWhenDone then close(0.2) end
         end
 
@@ -351,6 +360,7 @@ BlyxoSplash = { step = function() end, discord = function() end,
             if counts then
                 dCount.Text = ("%s online  ·  %s members"):format(commas(counts.online), commas(counts.members))
             else
+
                 dCount.Text = "discord.gg/" .. INVITE_CODE
                 discParts[4][3] = 1
                 dCount.Position = UDim2.fromOffset(0, 56)
@@ -364,12 +374,14 @@ BlyxoSplash = { step = function() end, discord = function() end,
             join.MouseLeave:Connect(function() tw(join, 0.2, { BackgroundColor3 = WHITE }) end)
             join.MouseButton1Down:Connect(function() tw(joinScale, 0.1, { Scale = 0.97 }) end)
             join.MouseButton1Up:Connect(function() tw(joinScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back) end)
+
             join.Activated:Connect(function() task.spawn(accept, true) end)
             join.MouseButton1Click:Connect(function() task.spawn(accept, true) end)
             pcall(function() join.TouchTap:Connect(function() task.spawn(accept, true) end) end)
             cont.Activated:Connect(function() task.spawn(accept, false) end)
             cont.MouseButton1Click:Connect(function() task.spawn(accept, false) end)
             pcall(function() cont.TouchTap:Connect(function() task.spawn(accept, false) end) end)
+
         end
 
         setShown(true, 0.4)
@@ -388,6 +400,7 @@ BlyxoSplash = { step = function() end, discord = function() end,
         BlyxoSplash.done = function()
             if finished then return end
             step("Ready", 1)
+
             if discordOpen and not accepted then
                 closeWhenDone = true
                 task.delay(8, function()
@@ -395,6 +408,7 @@ BlyxoSplash = { step = function() end, discord = function() end,
                 end)
                 return
             end
+
             close(math.max(0.45, 1.0 - (os.clock() - shownAt)))
         end
 
@@ -405,6 +419,7 @@ BlyxoSplash = { step = function() end, discord = function() end,
             end
         end)
     end)
+
     if not ok then warn("[BLYXO] loading screen unavailable") end
 end)()
 BlyxoSplash.step("Loading interface", 0.08)
@@ -501,7 +516,9 @@ local AreaEggSlotIdentity = needModule(RS, "Shared", "Util", "AreaEggSlotIdentit
 local AssetsDirMod = needModule(RS, "Data", "Assets")
 local AssetsDir = AssetsDirMod and AssetsDirMod.Directory
 local Mutations = needModule(RS, "Shared", "Modules", "Mutations")
+
 local AssetEarnings = needModule(RS, "Shared", "Util", "AssetEarnings")
+
 local PlotState = needModule(RS, "Client", "PlotState")
 
 local objects = waitFor(Workspace, "__OBJECTS")
@@ -531,7 +548,7 @@ end)
 
 local Window = Rayfield:CreateWindow({
     name = "BlyxoHub",
-    subtitle = "Steal An Egg  ·  V1",
+    subtitle = "Steal An Egg",
     icon = 95108798243406,
     showName = "BlyxoHub",
     sidebarLayout = true,
@@ -600,7 +617,9 @@ local function trace(msg)
     traceBuf.repeats = 0
 
     local line = string.format("[%7.2fs] %s", os.clock() - traceStart, text)
+
     local important = line:find("===", 1, true) or line:find("ERR", 1, true)
+
     local debugOn = (type(getgenv) == "function" and getgenv().BlyxoDebug) or _G.BlyxoDebug
     if debugOn and (not liteMode or important) then
         local sec = math.floor(os.clock())
@@ -656,6 +675,7 @@ end
 
 task.spawn(function()
     local why
+
     if type(getgc) ~= "function" then
         why = "no getgc - travel limited to what the anticheat allows"
     else
@@ -688,6 +708,7 @@ do
             steal.pending, steal.name, steal.pick = false, nil, false
         end)
     end
+
     function BlyxoPickPrompt(msg)
         if steal.pending then steal.pick = true return end
         if os.clock() - steal.lastAt < 8 then return end
@@ -700,6 +721,7 @@ do
         key = tostring(key)
         if lastNote[key] and now - lastNote[key] < (cooldown or 60) then return end
         lastNote[key] = now
+
         for i = #queue, 1, -1 do
             if type(queue[i]) == "table" and queue[i].key == key then table.remove(queue, i) end
         end
@@ -749,13 +771,16 @@ BlyxoTop.hideKey = UserInputService.InputBegan:Connect(function(input, gpe)
 end)
 
 local TWEEN_SPEED = 1000
+
 local K = {}
 
 K.WALKSPEED_SANE_MIN = 40
 local noclipGated = true
+
 local MOVE_MODE = "Tween"
 K.HOP_DISTANCE = 100
 K.HOP_GAP = 0
+
 K.RELOCATE_COOLDOWN = 3
 
 K.RELOCATE_WINDOW = 10
@@ -777,10 +802,12 @@ K.ZIGZAG_WIDTH = 45
 K.ZIGZAG_SEGMENT = 220
 
 K.CORRIDOR_Z = -370
+
 K.WALL_SAFE_Z_MIN = -425
 K.WALL_SAFE_Z_MAX = -305
 
 K.OUTRUN_MARGIN = 4.0
+
 K.SAFE_EDGE_X = 545
 
 K.SAFE_ZONE_X_MAX = 551
@@ -801,6 +828,7 @@ K.LEGAL_JUMP = 180
 K.LEGAL_JUMP_SETTLE = 0.12
 
 K.VOID_MISSES_NEEDED = 3
+
 K.VOID_DROP_PROOF = 25
 K.VOID_BOUNDS_SLACK = 400
 K.CORRIDOR_X_MIN = 430
@@ -809,17 +837,20 @@ K.CORRIDOR_Z_MIN = -455
 K.CORRIDOR_Z_MAX = -285
 
 local autoCalibrate = false
+
 local calibMin, calibMax = 200, 1000
 local calibUpStep, calibDownStep = 25, 50
 local calibNeeded = 3
 local calibSuccesses = 0
 local calibStats = { ok = 0, fail = 0 }
 local calibLabel = nil
+
 local PROTECT_INTERVAL = 6
 local CARRY_LOCK_TIMEOUT = 3
 local GUARD_Y_OFFSET = -7
 local SAFE_ZONE = CFrame.new(157, 55, -52)
 local GROUND_OFFSET = 3
+
 local SAFE_POS_FALLBACK = Vector3.new(512, 68, -362)
 local SAFE_POS = SAFE_POS_FALLBACK
 
@@ -830,6 +861,7 @@ local carryLocked = false
 local guardManipEnabled = false
 local heldEggUid = nil
 local heldEggSlotKey = nil
+
 local stealDelay = 0.15
 local selectedEggUid = nil
 local cachedEggs = {}
@@ -838,12 +870,17 @@ local eggDropdown = nil
 local stolenUids = {}
 
 local stopProtect
+
 local BX = {
+
     unreachable = {},
+
     noclipWhileCarrying = false,
+
     avoidTraps = true,
     trapRadius = 14,
     trapHits = 0,
+
     routeOk = false,
     routeFail = nil,
     carryConn = nil,
@@ -854,31 +891,49 @@ local BX = {
     activeTweenConn = nil,
     savedWalkSpeed = nil,
     allowRemoteCarry = false,
+
     instantCarry = true,
+
     teleportMode = false,
     tpSettle = 0.35,
+
     tpStealTimeout = 3,
+
     tpOutMaxDist = math.huge,
+
     tpAnchorCF = nil,
     tpAnchorAt = 0,
+
     safeTpPlotFallback = false,
+
     rideGuardEnabled = false,
+
     ignoreGuardSpeed = false,
+
     decoyEnabled = false,
+
     takeHitOnSteal = false,
 
     primeEnabled = true,
 
     arcEnabled = true,
+
     flyEnabled = false,
     flyOutbound = false,
+
     hoverEnabled = true,
+
     wantGuardHit = false,
+
     preferCloseEggs = false,
+
     spoofCarry = true,
     spoofOutbound = true,
+
     hoverCarry = false,
+
     walkCarry = true,
+
     velCarry = false,
     eggCacheAt = 0,
     trapConn = nil,
@@ -888,6 +943,7 @@ local BX = {
     trapBlocks = 0,
     sessionId = nil,
     sessionStart = 0,
+
     followBest = false,
     stealMode = "Tween Steal",
     swapped = false,
@@ -900,6 +956,7 @@ local BX = {
     REASSERT_GAP = 2.5,
     SWAP_ATTR = "BlyxoStealHum",
 }
+
 ((type(getgenv) == "function" and getgenv()) or _G).__BLYXO_BX = BX
 local activeGuardClone = nil
 local activeGuardArea = nil
@@ -1007,6 +1064,7 @@ local function calcEggValue(rec)
     if AssetEarnings then
         local ok, rate = pcall(AssetEarnings.LiveRatePerSecond, item, nil, nil, LocalPlayer)
         if ok and type(rate) == "number" then return remember(rate) end
+
         ok, rate = pcall(AssetEarnings.MutationOnlyRatePerSecond, item)
         if ok and type(rate) == "number" then return remember(rate) end
     end
@@ -1056,6 +1114,7 @@ function BX.farmAny(set)
 end
 
 function BX.farmWanted(rec)
+
     if not BX.farmActive then return true end
 
     if BX.farmAny(BX.farmAreas) and not BX.farmAreas[tostring(rec.AreaId)] then
@@ -1076,6 +1135,7 @@ function BX.offthread(fn, timeout)
         if ok then result = r end
         done = true
     end)
+
     local startedAt = os.clock()
     timeout = timeout or 5
     while not done and (os.clock() - startedAt) < timeout do
@@ -1094,6 +1154,7 @@ function BX.snapshot(force)
     end
 
     local records = {}
+
     local data
     pcall(function()
         data = EggState and EggState.ReadFieldEggs and EggState.ReadFieldEggs()
@@ -1154,8 +1215,10 @@ local function areaEscapeVerdict(areaId, eggPos)
         escapeVerdictCache, escapeVerdictAt = {}, now
     end
     local hum = getHumanoid()
+
     if not (hum and hum.WalkSpeed and hum.WalkSpeed > K.WALKSPEED_SANE_MIN) then return "Unknown" end
     local ws = hum.WalkSpeed
+
     ws = ws * 0.8961
     local key = ("%s|%d|%d"):format(areaId, math.floor(eggPos.X), math.floor(ws))
     local hit = escapeVerdictCache[key]
@@ -1170,6 +1233,7 @@ local function areaEscapeVerdict(areaId, eggPos)
         local area = Workspace.__OBJECTS.Areas.GuardAreas[areaId]
         local bounds, guard = area.Bounds, area.Guard
         local g = Guards.Directory[AreasData.Directory[areaId].GuardId]
+
         local dir = Vector3.new(-1, 0, 0)
         local pp = Vector3.new(eggPos.X, bounds.Position.Y, eggPos.Z)
         local ed = GEP.ResolveExitDistance(bounds.CFrame, bounds.Size, pp, dir)
@@ -1190,9 +1254,11 @@ end
 
 local function canEscapeArea(areaId, eggPos)
     if not BX.skipUnwinnable then return true end
+
     if not BX.decoyEnabled and not BX.ignoreGuardSpeed and not BX.canOutrunGuard(areaId) then
         return false
     end
+
     local hum = getHumanoid()
     if hum and hum.WalkSpeed and hum.WalkSpeed > K.WALKSPEED_SANE_MIN then
         if BX.guardExitIsSafe and BX.guardExitIsSafe(areaId, eggPos, hum.WalkSpeed * 0.8961) then
@@ -1241,6 +1307,7 @@ local function evaluateEggs(force)
     local skippedByFarm = 0
     local skippedMine = 0
     for _, rec in ipairs(data.Records) do
+
         local grabbable = (rec.State == "Slot" or rec.State == "Dropped")
         local visible = grabbable or rec.State == "GuardCarried"
 
@@ -1289,6 +1356,7 @@ local function evaluateEggs(force)
                 parasite = rec.HasParasite == true,
                 mutations = rec.Mutations,
                 nestId = rec.NestId,
+
                 position = (rec.BottomCFrame and rec.BottomCFrame.Position)
                     or rec.BoundsCFrame.Position,
                 boundsPos = rec.BoundsCFrame.Position,
@@ -1309,6 +1377,7 @@ local function evaluateEggs(force)
     local homeP = nil
     pcall(function() homeP = BX.safeZonePos() end)
     if sorted then
+
     elseif BX.preferCloseEggs and typeof(homeP) == "Vector3" then
         for _, e in ipairs(eggs) do
             local d = e.position and Vector3.new(
@@ -1326,6 +1395,7 @@ local function evaluateEggs(force)
 
     BX.valueCache = BX.valueCacheNext
     BX.valueCacheNext = {}
+
     do
         local parts = {}
         for area, n in pairs(skippedByGuard) do
@@ -1353,50 +1423,62 @@ local function evaluateEggs(force)
 end
 
 local function hook_constants(sourcePath, targetConstants, hookFn)
+
     return
 end
 
 local function destroyAntiCollision()
+
     return
 end
 
 local function disconnectAllACConnections()
+
     return
 end
 
 local function blockRigSync()
+
     return
 end
 
 local function hookContentCatalog()
+
     return
 end
 
 local function hookForestStrike()
+
     return
 end
 
 local function hookAskRigWipe()
+
     return
 end
 
 local function destroyObbyAntiTP()
+
     return
 end
 
 local function disconnectDangerousSignals()
+
     return
 end
 
 local function blockGuardRemotes()
+
     return
 end
 
 local function hookFieldEggCarry()
+
     return
 end
 
 local function hookOwnerDropped()
+
     return
 end
 
@@ -1587,6 +1669,7 @@ function BX.dodgeTraps(segs)
             end
             if not closest then break end
             local flat = Vector3.new(segs[i].X - closest.X, 0, segs[i].Z - closest.Z)
+
             local dir = flat.Magnitude > 0.1 and flat.Unit or Vector3.new(1, 0, 0)
             local off = closest + dir * (radius + 4)
             segs[i] = Vector3.new(
@@ -1602,30 +1685,37 @@ function BX.dodgeTraps(segs)
 end
 
 local function setupGuardClone(guardModel)
+
     return nil, nil
 end
 
 local function hideOriginalGuard(guardModel)
+
     return
 end
 
 local function restoreOriginalGuard()
+
     return
 end
 
 local function switchGuard(areaName)
+
     return
 end
 
 local function restoreAllGuards()
+
     return
 end
 
 local function startGuardEnforce()
+
     return
 end
 
 local function stopGuardEnforce()
+
     return
 end
 
@@ -1636,6 +1726,7 @@ local function solidGroundY(pos)
     local char = getChar()
     if char then table.insert(ignore, char) end
     if activeGuardClone then table.insert(ignore, activeGuardClone) end
+
     for _, pl in ipairs(Players:GetPlayers()) do
         if pl.Character then table.insert(ignore, pl.Character) end
     end
@@ -1663,6 +1754,7 @@ local function handleAntiCollisionPushback()
 
     local currentVel = hrp.AssemblyLinearVelocity
     if currentVel.Magnitude > 50 then
+
         return true
     end
     return false
@@ -1692,6 +1784,7 @@ local noclipOriginal = {}
 
 local function enableNoclip()
     if noclipConn then return end
+
     local cached, cachedFor = nil, nil
     noclipConn = RunService.Stepped:Connect(function()
         local char = getChar()
@@ -1803,6 +1896,7 @@ local function hopMoveTo(targetPos, onComplete)
 
                 local flat = Vector3.new(diff.X, 0, diff.Z)
                 if flat.Magnitude <= 0.05 then
+
                     break
                 end
                 hrp.CFrame = CFrame.new(next, next + flat.Unit)
@@ -1874,12 +1968,14 @@ local function tweenLeg(targetPos, speed, onComplete, isFinal)
             end
             if state == Enum.PlaybackState.Completed then
                 local h = getHRP()
+
                 if h and not isFinal then
                     if onComplete then onComplete() end
                     return
                 end
                 if h then
                     h.AssemblyLinearVelocity = Vector3.zero
+
                     h.AssemblyAngularVelocity = Vector3.zero
                 end
 
@@ -1973,6 +2069,7 @@ function BX.waitForRagdollEnd(timeout)
     while os.clock() - t0 < timeout do
         task.wait(0.15)
         if not BX.ragdollActive and not isRagdolled() then
+
             task.wait(0.25)
             trace(("ragdoll: released after %.1fs"):format(os.clock() - t0))
             pcall(recoverFromRagdoll)
@@ -2025,6 +2122,7 @@ function BX.unstick(tag)
     task.wait(0.4)
 
     local before = hrp.Position
+
     pcall(function() hrp.CFrame = hrp.CFrame + Vector3.new(0, 0, -8) end)
     task.wait(0.2)
     local h = getHRP()
@@ -2032,6 +2130,7 @@ function BX.unstick(tag)
     local ok = moved > 2
     trace(("unstick[%s]: moved %.1f studs -> %s")
         :format(tostring(tag), moved, ok and "control regained" or "still pinned"))
+
     if ok and h then
         pcall(function() h.CFrame = CFrame.new(before) * h.CFrame.Rotation end)
     end
@@ -2065,6 +2164,7 @@ function cfMoveTo(targetPos, speed, onComplete)
     local route = direct and { targetPos } or buildRoute(hrp.Position, targetPos)
 
     do
+
         local useZig = (BX.zigzagThisRoute == true)
         BX.zigzagThisRoute = false
         local segLen = useZig and K.ZIGZAG_SEGMENT or K.MAX_SEGMENT
@@ -2115,6 +2215,7 @@ function cfMoveTo(targetPos, speed, onComplete)
     trace(("cfMoveTo: %d segments, mode=%s"):format(#route, MOVE_MODE))
     isMoving = true
     BX.routeActive = true
+
     BX.routeOk = false
     BX.routeFail = nil
 
@@ -2161,6 +2262,7 @@ function cfMoveTo(targetPos, speed, onComplete)
 
             local waited, lastLog = 0, 0
             local legBudget = math.max(8, (legTarget - (getHRP() and getHRP().Position or legTarget)).Magnitude / math.max(speed or TWEEN_SPEED, 1) + 5)
+
             local cancelled = false
             while not done and waited < legBudget do
                 if BX.routeGen ~= myRoute
@@ -2224,6 +2326,7 @@ function cfMoveTo(targetPos, speed, onComplete)
                 trace(("cfMoveTo: retrying seg %d (%d/%d)"):format(i, stallRetries, K.MAX_STALL_RETRIES))
                 retryThis = true
             else
+
                 if stallRetries > 0 then stallRetries = stallRetries - 1 end
             end
 
@@ -2233,6 +2336,7 @@ function cfMoveTo(targetPos, speed, onComplete)
                 break
             end
         end
+
         if BX.routeGen ~= myRoute then return end
         if noclipGated then disableNoclip() end
         BX.routeOk = not aborted
@@ -2250,6 +2354,7 @@ end
 local function stopMovement()
     moveGeneration = moveGeneration + 1
     isMoving = false
+
     BX.routeGen = (BX.routeGen or 0) + 1
     BX.routeActive = false
     BX.routeOk = false
@@ -2340,6 +2445,7 @@ function BX.armRigSync()
         local Remotes = require(RS.Shared.Remotes)
         BX.rigConn = Remotes.RigSync.Refresh.OnClientEvent:Connect(function(raw)
             local text = tostring(raw)
+
             if not text:find("SetWalkSpeed") then
                 trace("SERVER RigSync -> " .. text)
             end
@@ -2348,6 +2454,7 @@ function BX.armRigSync()
                 BX.lastRelocate = os.clock()
                 BX.relocates = (BX.relocates or 0) + 1
                 BX.relocAt = os.clock()
+
                 if not (BX.inBossArena and BX.inBossArena()) then
                     BX.stalled = true
                     pcall(stopMovement)
@@ -2457,12 +2564,14 @@ function BX.armKickLog()
                     end
                 end
             end)
+
             task.wait(60)
         end
     end)
 end
 
 function BX.restoreWalkSpeed()
+
     if BX.speedHoldConn then return end
     local char = getChar()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -2592,10 +2701,12 @@ end
 local acEnforceEnabled = false
 
 local function startACEnforce()
+
     return
 end
 
 local function stopACEnforce()
+
     return
 end
 
@@ -2618,6 +2729,7 @@ local function firePromptCarry(targetPos)
         end
         BX.promptCache, BX.promptCacheAt = list, now
     end
+
     if typeof(targetPos) == "Vector3" then
         local waitUntil = os.clock() + K.PROMPT_WAIT
         repeat
@@ -2640,6 +2752,7 @@ local function firePromptCarry(targetPos)
 
     local best, bestDist = nil, math.huge
     for _, d in ipairs(BX.promptCache) do
+
         if d.Parent and d.Enabled then
             do
                 local parent = d.Parent
@@ -2649,6 +2762,7 @@ local function firePromptCarry(targetPos)
                     elseif parent:IsA("Model") then pos = parent:GetPivot().Position end
                 end
                 if pos then
+
                     local onTarget = (typeof(targetPos) ~= "Vector3")
                         or ((pos - targetPos).Magnitude <= K.PROMPT_NEAR)
                     local dist = (hrp.Position - pos).Magnitude
@@ -2768,6 +2882,7 @@ local function carryEgg(uid, slotKey)
         local h = getHRP()
         local d = (recPos and h) and (recPos - h.Position).Magnitude or math.huge
         if BX.teleportMode and BX.tpEggCF and BX.tpUsedForThisEgg then
+
             local ch = getChar()
             local deadline = os.clock() + (BX.tpStealTimeout or 3)
             local lastMsg, tries, won = nil, 0, false
@@ -2799,6 +2914,7 @@ local function carryEgg(uid, slotKey)
                             return EggState.CarryFieldEgg(uid, slotKey)
                         end)
                         if msg ~= nil then lastMsg = tostring(msg) end
+
                         if ok and res == true and not won then
                             won = true
                             return
@@ -2820,6 +2936,7 @@ local function carryEgg(uid, slotKey)
                 trace(("carry: accepted after %d calls in %.2fs (%d threads)")
                     :format(tries, os.clock() - t0, threads))
             else
+
                 trace(("carry: gave up after %d calls in %.2fs - last: %s")
                     :format(tries, os.clock() - t0, tostring(lastMsg)))
             end
@@ -2880,6 +2997,7 @@ local function carryEgg(uid, slotKey)
                 dashed = true
                 pcall(BX.guardExitDash, BX.carryAreaId)
             end
+
             local ok, st
             local t0 = os.clock()
             repeat
@@ -3004,6 +3122,7 @@ function BX.homePos()
 
     if not pos then
         pos = SAFE_POS_FALLBACK
+
         trace("home: NOTHING resolved - falling back to a hardcoded point that"
             .. " is almost certainly not your plot. Deliveries will fail.")
     end
@@ -3029,11 +3148,13 @@ K.SAFE_ARRIVE = 18
 
 K.CARRY_SPEED_CAP = 800
 K.CARRY_SPEED_MIN = 150
+
 K.CARRY_REFERENCE = 500
 K.CARRY_STEP_DOWN = 150
 
 K.CARRY_CLIMB_STEP = 90
 K.CARRY_CONVERGE = 15
+
 BX.carryFailIsCeiling = false
 
 function BX.tuneCarrySpeed(state, used)
@@ -3047,6 +3168,7 @@ function BX.tuneCarrySpeed(state, used)
 
     if not BX.carryProbe then
         if not ok then
+
             local floor = (BX.carryFloor and BX.carryFloor()) or K.CARRY_FLOOR
             BX.carrySpeed = floor
             BX.carryNow = floor
@@ -3056,9 +3178,11 @@ function BX.tuneCarrySpeed(state, used)
     end
 
     if ok then
+
         BX.carryLow = math.max(BX.carryLow or 0, used)
         local next_
         if BX.carryHigh then
+
             if (BX.carryHigh - BX.carryLow) <= K.CARRY_CONVERGE then
                 next_ = BX.carryLow
                 trace(("carry LIMIT ~= %.0f studs/s (bracket %.0f..%.0f)")
@@ -3069,6 +3193,7 @@ function BX.tuneCarrySpeed(state, used)
                     :format(used, next_, BX.carryHigh))
             end
         else
+
             next_ = math.min(K.CARRY_SPEED_CAP, used + K.CARRY_CLIMB_STEP)
             trace(("carry probe: %.0f OK -> climb to %.0f"):format(used, next_))
         end
@@ -3105,6 +3230,7 @@ function BX.armDropWatch()
     local ok = pcall(function()
         BX.dropConn = FieldEggCarryRE.OnClientEvent:Connect(function(state)
             if typeof(state) ~= "table" then return end
+
             if state.IsCarrying == false then BX.anyCarryEndAt = os.clock() end
             if state.IsCarrying == false and heldEggUid then
                 local guard = "?"
@@ -3175,9 +3301,11 @@ function BX.armDropWatch()
                 BX.eggCacheAt = 0
 
                 trace("DROP: released carry state for " .. tostring(lost))
+
                 local droppedAt = os.clock()
                 task.delay(1.5, function()
                     if (BX.eggClaimedAt or 0) >= droppedAt then return end
+
                     if heldEggUid ~= nil then return end
                     toast("Lost the egg")
                 end)
@@ -3220,6 +3348,7 @@ function BX.armAlertWatch()
                 local v = select(i, ...)
                 if type(v) == "table" and type(v.Message) == "string" then
                     trace("SERVER ALERT -> " .. v.Message)
+
                     if v.Message:find("returned to its nest") then
                         BX.deliveryVoided = os.clock()
                         trace("carry: server VOIDED the delivery - treating this speed as a ceiling")
@@ -3322,6 +3451,7 @@ function BX.plantHeldEgg(uid)
     end
 
     local area = plot.PetArea
+
     local half = area.Size * 0.5
     local margin = 3
     local ox = (math.random() * 2 - 1) * math.max(0, half.X - margin)
@@ -3339,6 +3469,7 @@ function BX.tryPlantHeld(uid, tries)
     for _ = 1, (tries or 3) do
         planted, msg = BX.plantHeldEgg(uid)
         if planted then return true, msg end
+
         local carrying = BX.stillCarrying(uid)
         if not carrying then return false, msg or "no longer carrying" end
         task.wait(0.25)
@@ -3358,6 +3489,7 @@ function BX.walkTo(pos, timeout, reach)
         if not h then return false end
         local flat = Vector3.new(pos.X - h.Position.X, 0, pos.Z - h.Position.Z)
         if flat.Magnitude <= reach then return true end
+
         if BX.ragdollActive or isRagdolled() then BX.waitForRagdollEnd(4) end
         if isTrapped() then BX.waitForTrapEnd(9) end
         if os.clock() >= nextPing then
@@ -3407,11 +3539,13 @@ function BX.bestGuardExit(areaId, fromPos)
     local best
     for _, c in ipairs(cands) do
         local world = bounds.CFrame:PointToWorldSpace(c.p)
+
         if world.Z < K.WALL_SAFE_Z_MIN or world.Z > K.WALL_SAFE_Z_MAX
             or world.X < K.CORRIDOR_X_MIN or world.X > K.CORRIDOR_X_MAX then
             continue
         end
         local gy = solidGroundY(world)
+
         if gy and math.abs(gy - fromPos.Y) <= 8 then
             local target = Vector3.new(world.X, gy, world.Z)
             local d = (Vector3.new(target.X - fromPos.X, 0, target.Z - fromPos.Z)).Magnitude
@@ -3448,6 +3582,7 @@ function BX.ledgeGuardExit(areaId, fromPos)
         if not gy then break end
         local rise = gy - fromPos.Y
         if rise <= 8 or rise > LEDGE_MAX_RISE then break end
+
         if firstY and math.abs(gy - firstY) > 3 then break end
         firstY = firstY or gy
         valid[#valid + 1] = {
@@ -3457,6 +3592,7 @@ function BX.ledgeGuardExit(areaId, fromPos)
         }
     end
     if #valid == 0 then return nil end
+
     local best = valid[math.max(1, #valid - 1)]
     return best.d, best.target, best.rise
 end
@@ -3472,6 +3608,7 @@ function BX.planGuardExit(areaId, fromPos, carryWalkSpeed)
     end
 
     if not BX.useLedgeExit then return nil end
+
     local ld, ltarget = BX.ledgeGuardExit(areaId, fromPos)
     if ld and (ld / cap) <= budget then
         return "ledge", ld, ltarget
@@ -3485,12 +3622,14 @@ function BX.canOutrunGuard(areaId)
         return require(RS.Data.Guards).Directory[areaId]
     end)
     if not ok or type(data) ~= "table" or not data.WalkSpeed then return true end
+
     local carry = (BX.carrySpeedNow and BX.carrySpeedNow()) or K.CARRY_FLOOR
     local chase = data.WalkSpeed * K.GUARD_CHASE_MULT
     return carry > chase * (K.OUTRUN_MARGIN or 1.02)
 end
 
 function BX.guardExitIsSafe(areaId, fromPos, carryWalkSpeed)
+
     if BX.flyEnabled then return true end
     return BX.planGuardExit(areaId, fromPos, carryWalkSpeed) ~= nil
 end
@@ -3499,6 +3638,7 @@ function BX.ledgeWalkHome(spd)
     local h = getHRP()
     if not h then return end
     trace(("escape: on the ledge, walking west to x=%d then down"):format(LEDGE_DROP_X))
+
     BX.directThisRoute = true
     cfMoveTo(Vector3.new(3560, LEDGE_Y, LEDGE_WALK_Z), spd)
     waitForMove()
@@ -3518,6 +3658,7 @@ function BX.exitCorridorHome(areaId, exitPos, spd)
     local tx = westEdge - 30
     local h = getHRP()
     if not h or h.Position.X <= tx then return end
+
     BX.escapeCorridorZ = math.clamp(exitPos.Z, K.WALL_SAFE_Z_MIN, K.WALL_SAFE_Z_MAX)
     trace(("escape: clearing %s westward along z=%.0f to x=%.0f")
         :format(tostring(areaId), exitPos.Z, tx))
@@ -3553,12 +3694,14 @@ end
 function BX.guardExitDash(areaId)
     local h = getHRP()
     if not h then return end
+
     if BX.teleportMode then
         trace("escape: skipped - teleport home leaves the box instantly")
         return
     end
 
     local hum = getHumanoid()
+
     local raw = hum and hum.WalkSpeed or 0
     local ws = (raw > K.WALKSPEED_SANE_MIN) and raw
         or (BX.serverWalkSpeed and BX.serverWalkSpeed > K.WALKSPEED_SANE_MIN and BX.serverWalkSpeed)
@@ -3568,6 +3711,7 @@ function BX.guardExitDash(areaId)
 
     local kind, dist, target = BX.planGuardExit(areaId, h.Position, carry)
     if not kind then
+
         if BX.bestGuardExit(areaId, h.Position) == nil
             and BX.ledgeGuardExit(areaId, h.Position) == nil then
             return
@@ -3580,6 +3724,7 @@ function BX.guardExitDash(areaId)
     trace(("escape: %s via %s, %.0f studs @ %.0f studs/s -> %.2fs (window %.2fs, cap %.0f)")
         :format(tostring(areaId), kind, dist, spd, dist / spd, K_WAKE_WINDOW, cap))
     BX.lastRelocate = nil
+
     BX.directThisRoute = true
     cfMoveTo(target, spd)
     waitForMove()
@@ -3641,7 +3786,9 @@ K.PRIME_RETRIES = 3
 K.PRIME_RETRY_GAP = 0.4
 
 K.PRIME_TIMEOUT = 3
+
 K.PRIME_HIT_WAIT = 4.0
+
 K.PRIME_RECOVER = 1.0
 
 function BX.firstAreaId(waitFor)
@@ -3675,6 +3822,7 @@ end
 
 function BX.primeFirstArea()
     if not BX.primeEnabled then return false end
+
     local areaId = BX.firstAreaId(5)
     if not areaId then
         trace("prime: the guard areas have not loaded yet - skipping the Forest step")
@@ -3707,6 +3855,7 @@ function BX.primeFirstArea()
     local deadline = os.clock() + K.PRIME_TIMEOUT
     local rehops = 0
     while os.clock() < deadline and not got do
+
         if (BX.relocAt or 0) > movedAt and rehops < 2 then
             rehops = rehops + 1
             trace(("prime: server pulled us back - hopping straight back (%d/2)"):format(rehops))
@@ -3731,6 +3880,7 @@ function BX.primeFirstArea()
     local g = BX.findAreaGuard(areaId)
     local gpart = g and BX.guardAnchorPart(g)
     if gpart then
+
         local want = gpart.Position
         local hh = getHRP()
         if hh then
@@ -3761,6 +3911,7 @@ function BX.primeFirstArea()
             if anchorCF then pcall(function() hh.CFrame = anchorCF end) end
         end
         if (BX.lastGuardHitAt or 0) > hitBefore or BX.ragdollActive then hit = true break end
+
         local witnessed = (BX.anyCarryEndAt or 0) > hitBefore or isRagdolled()
         if not witnessed then
             local okR, r = pcall(EggState.ReadFieldEgg, rec.Uid)
@@ -3788,11 +3939,13 @@ function BX.primeFirstArea()
         trace(("prime: took the %s guard's hit after %.2fs"):format(
             tostring(areaId), K.PRIME_HIT_WAIT - (dl - os.clock())))
     else
+
         pcall(function() return EggState.DropFieldEgg("PlayerRequest") end)
         trace(("prime: no hit inside %.1fs - dropped by hand instead"):format(K.PRIME_HIT_WAIT))
     end
 
     if hit then
+
         local t0 = os.clock()
         while os.clock() - t0 < K.PRIME_RECOVER do
             pcall(BX.readyAfterRagdoll)
@@ -3807,6 +3960,7 @@ function BX.primeFirstArea()
             end
             RunService.Heartbeat:Wait()
         end
+
         BX.ragdollActive = false
         BX.ragdollEndsAt = nil
         local ch, hh = getChar(), getHRP()
@@ -3837,25 +3991,32 @@ function BX.pickDecoyEgg(areaId, avoidUid)
 end
 
 K.FLY_SPEED = 1200
+
 K.FLY_CARRY_SPEED = 1000
 
 K.ARC_CRUISE_UP = 18
 K.ARC_RAMP_FRAC = 0.12
 K.ARC_RAMP_MAX = 220
 K.ARC_RAMP_MIN = 40
+
 K.ARC_START_SPEED = 0.45
 K.ARC_SPEED_RAMP_FRAC = 0.28
 K.ARC_SLOW_RADIUS = 50
+
 K.ARC_SLOW_SPEED = 260
 K.ARC_ARRIVE = 5
 K.ARC_MAX_DT = 0.05
+
 K.RELOC_CLAMP_FOR = 6
 K.RELOC_CLAMP_RATIO = 1.04
+
 K.ARC_MAX_FRAME = 0.25
+
 K.ARC_MAX_DEBT = 2.0
 
 K.ARC_MAX_STEP = 20
 K.ARC_SPEED = 1200
+
 K.ARC_CARRY_SPEED = nil
 
 local function arcGroundY(p, fallback)
@@ -3866,7 +4027,9 @@ end
 function BX.arcTweenTo(pos, speed, tag, arrive, cancel)
     local char, h = getChar(), getHRP()
     if not char or not h or not pos then return false end
+
     local legAt, legCarrying = os.clock(), heldEggUid ~= nil
+
     if BX.inBossArena and BX.inBossArena() then
         trace("arc: refusing to move - in the boss arena")
         return false
@@ -3901,10 +4064,13 @@ function BX.arcTweenTo(pos, speed, tag, arrive, cancel)
 
         if #BX.acStates == 0 then
             spoof = false
+
             BX.noSpoofSpeed = BX.noSpoofSpeed or BX.acLegalSpeed()
             speed = math.min(speed, BX.noSpoofSpeed)
+
             BX.noSpoofLegSpeed = speed
             BX.noSpoofLegRelocs = BX.relocates or 0
+
             pcall(function()
                 local legal = BX.legalWalkSpeed and BX.legalWalkSpeed() or 200
                 if hum.WalkSpeed > legal + 1 then hum.WalkSpeed = legal end
@@ -3929,6 +4095,7 @@ function BX.arcTweenTo(pos, speed, tag, arrive, cancel)
     local deadline = t0 + math.max(flatTotal / speed, 0.3) * 3 + 6
     local ok = false
     local lastT = os.clock()
+
     local arcDebt = 0
 
     while os.clock() < deadline do
@@ -3937,6 +4104,7 @@ function BX.arcTweenTo(pos, speed, tag, arrive, cancel)
         if not hh then break end
 
         local now = os.clock()
+
         local raw = now - lastT
         lastT = now
         arcDebt = math.min((arcDebt or 0) + raw, K.ARC_MAX_DEBT)
@@ -4022,6 +4190,7 @@ function BX.arcTweenTo(pos, speed, tag, arrive, cancel)
         if arrived then ok = true break end
 
         if spoof then
+
             if hum.WalkSpeed < claimWS - 1 then hum.WalkSpeed = claimWS end
             local told = flat.Unit * math.min(want, claimWS)
             if #BX.acStates > 0 then
@@ -4044,6 +4213,7 @@ function BX.arcTweenTo(pos, speed, tag, arrive, cancel)
     end
     if spoof and hum then
         BX.spoofMoving = false
+
         local legal = BX.legalWalkSpeed()
         pcall(function() hum.WalkSpeed = math.max(legal, 16) end)
     end
@@ -4061,7 +4231,9 @@ function BX.arcTweenTo(pos, speed, tag, arrive, cancel)
         hz.AssemblyLinearVelocity = Vector3.zero
         hz.AssemblyAngularVelocity = Vector3.zero
     end
+
     if BX.noSpoofLegSpeed then
+
         local used = BX.noSpoofLegSpeed or K.ARC_SPEED_NOSPOOF
         local hadRelocs = (BX.relocates or 0) > (BX.noSpoofLegRelocs or 0)
 
@@ -4106,6 +4278,7 @@ function BX.arcDescend(tag)
     local hum = getHumanoid()
     local gy = solidGroundY(h.Position)
     if not gy then
+
         if hum then hum.PlatformStand = false end
         return false
     end
@@ -4142,10 +4315,13 @@ K.ARC_DROP_SPEED = 400
 
 K.HOVER_WALKSPEED = 300
 K.HOVER_HIP_HEIGHT = 5
+
 K.HOVER_ARRIVE = 2.5
 K.HOVER_TIMEOUT = 14
+
 K.HOVER_BRAKE_DIST = 90
 K.HOVER_BRAKE_MIN = 55
+
 K.HOVER_PRECISE_CRUISE = 250
 
 function BX.legalWalkSpeed()
@@ -4170,6 +4346,7 @@ function BX.legalWalkSpeedUncached()
         return nil
     end)
     if ok and type(v) == "number" and v > 0 then
+
         local srv = BX.serverWalkSpeed
         if type(srv) == "number" and srv > K.WALKSPEED_SANE_MIN then
             return srv
@@ -4200,6 +4377,7 @@ function BX.startSpeedHold(ws, hip)
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         if not hum then return end
         if BX.speedHoldBase == nil then BX.speedHoldBase = hum.HipHeight end
+
         if BX.hoverWS then
             if hum.WalkSpeed ~= BX.hoverWS then hum.WalkSpeed = BX.hoverWS end
         else
@@ -4222,6 +4400,7 @@ function BX.stopSpeedHold()
     if hum and BX.speedHoldBase then
         pcall(function() hum.HipHeight = BX.speedHoldBase end)
     end
+
     if hum and hum.WalkSpeed < K.WALKSPEED_SANE_MIN then
         local fix = BX.legalWalkSpeed()
         pcall(function() hum.WalkSpeed = fix end)
@@ -4240,6 +4419,7 @@ function BX.driveStop()
     if hm then
         local hp = getHRP()
         if hp then pcall(function() hm:MoveTo(hp.Position) end) end
+
         if hm.WalkSpeed < K.WALKSPEED_SANE_MIN then
             pcall(function() hm.WalkSpeed = BX.legalWalkSpeed() end)
         end
@@ -4281,15 +4461,20 @@ function BX.hoverWalkTo(pos, timeout, tag, arrive)
     local limit = timeout or K.HOVER_TIMEOUT
     local start = h.Position
     local lastPos, stuckFor = start, 0
+
     local dt = 1 / 60
+
     local cruise = BX.hoverWS or BX.legalWalkSpeed()
+
     if BX.hoverWS and BX.hoverWS < K.WALKSPEED_SANE_MIN then
         cruise = BX.targetWalkSpeed()
         BX.hoverWS = cruise
         trace(("hover: clearing a stale arrival plant, cruise -> %.0f"):format(cruise))
     end
     arrive = arrive or K.HOVER_ARRIVE
+
     local precise = arrive <= 5
+
     local holdsSpeed = (BX.hoverWS ~= nil)
     if precise and not BX.driveWalk then cruise = math.min(cruise, K.HOVER_PRECISE_CRUISE) end
     local brakeDist = math.max(K.HOVER_BRAKE_DIST, cruise * 0.22)
@@ -4320,6 +4505,7 @@ function BX.hoverWalkTo(pos, timeout, tag, arrive)
            and (hm.WalkSpeed * dt) >= left then
             local dest = Vector3.new(pos.X, hh.Position.Y, pos.Z)
             hh.CFrame = CFrame.new(dest) * hh.CFrame.Rotation
+
             hh.AssemblyLinearVelocity = Vector3.new(0, hh.AssemblyLinearVelocity.Y, 0)
             hh.AssemblyAngularVelocity = Vector3.zero
             hm:MoveTo(hh.Position)
@@ -4347,6 +4533,7 @@ function BX.hoverWalkTo(pos, timeout, tag, arrive)
             hs.AssemblyAngularVelocity = Vector3.zero
         end
         if hmS and hs then hmS:MoveTo(hs.Position) end
+
         if holdsSpeed then BX.hoverWS = 16 end
 
         BX.hoverHip = 0
@@ -4368,15 +4555,20 @@ function BX.hoverWalkTo(pos, timeout, tag, arrive)
 end
 
 K.VEL_CARRY_SPEED = 900
+
 K.FAST_CARRY_MAX_DIST = 450
+
 K.PROMPT_CACHE = 3
+
 K.PROMPT_NEAR = 12
+
 K.PROMPT_WAIT = 0.6
 
 K.GUARD_CHASE_MULT = 4
 
 K.CARRY_MAX_DIST = 3600
 K.VEL_ARRIVE = 3
+
 K.SNAP_MAX_JUMP = 8
 K.VEL_TIMEOUT = 16
 
@@ -4391,6 +4583,7 @@ function BX.velocityCarryTo(pos, timeout, tag, arrive, speed)
     local start = h.Position
     local lastPos, stuckFor = start, 0
     local legal = BX.legalWalkSpeed()
+
     local dt = 1 / 60
 
     while os.clock() - t0 < limit do
@@ -4508,6 +4701,7 @@ function BX.captureSafeAnchor(tag, force)
 end
 
 function BX.safeReturnCF()
+
     if BX.tpAnchorCF and BX.inSafeZone(BX.tpAnchorCF.Position) then
         return BX.tpAnchorCF, "anchor"
     end
@@ -4518,6 +4712,7 @@ function BX.safeReturnCF()
     local h = getHRP()
     local z = math.clamp((h and h.Position.Z) or K.SAFE_FALLBACK_Z,
         K.SAFE_ZONE_Z_MIN + 8, K.SAFE_ZONE_Z_MAX - 8)
+
     local y = solidGroundY(Vector3.new(K.SAFE_EDGE_X, K.SAFE_STAND_Y, z))
         or K.SAFE_STAND_Y
     return CFrame.new(K.SAFE_EDGE_X, y, z), "line"
@@ -4633,6 +4828,7 @@ function BX.armDiag()
             if r:IsA("RemoteEvent") then
                 local nm = r.Name
                 BlyxoTop[#BlyxoTop + 1] = r.OnClientEvent:Connect(function(...)
+
                     if not heldEggUid and (os.clock() - (BX.lastCarryEndAt or 0)) > 3 then
                         return
                     end
@@ -4642,6 +4838,7 @@ function BX.armDiag()
                         args[#args + 1] = BX.diagDump((select(i, ...)))
                     end
                     diagPush("RE", nm, table.concat(args, " | "))
+
                     if nm:find("Alert") or nm:find("Verdict") or nm:find("Redeem") then
                         trace(("FORENSICS trigger: %s -> %s"):format(nm, table.concat(args, " | ")))
                         task.defer(BX.diagFlush, nm)
@@ -4683,6 +4880,7 @@ function BX.updatePad(atPos)
 
     if not BX.spoofMoving then
         local vy = hrp.AssemblyLinearVelocity.Y
+
         local rising = BX.jumping() or vy > K.PAD_RISE_VY
         local hum = getHumanoid()
         if hum then
@@ -4690,6 +4888,7 @@ function BX.updatePad(atPos)
             rising = rising or ((st == Enum.HumanoidStateType.Jumping
                 or st == Enum.HumanoidStateType.Freefall) and vy > 0)
         end
+
         if rising and BX.padY then
             wantY = math.min(BX.padY, wantY)
         end
@@ -4705,6 +4904,7 @@ function BX.ensurePad()
         BX.updatePad()
         return BX.pad
     end
+
     for _, c in ipairs(workspace:GetChildren()) do
         if c:IsA("BasePart") and c.Name == K.PAD_NAME then
             pcall(function() c:Destroy() end)
@@ -4819,6 +5019,7 @@ function BX.jumpKeep(idle)
         pcall(BX.destroyPad)
         trace("jumpkeep: removed a hover pad left behind by a previous run")
     else
+
         local stray = workspace:FindFirstChild(K.PAD_NAME)
         if stray and stray:IsA("BasePart") then
             pcall(function() stray:Destroy() end)
@@ -4840,6 +5041,7 @@ function BX.jumpKeep(idle)
        or st == Enum.HumanoidStateType.Seated then
         hum:ChangeState(Enum.HumanoidStateType.GettingUp)
     end
+
     if not hum:GetStateEnabled(Enum.HumanoidStateType.Jumping) then
         hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
     end
@@ -4856,6 +5058,7 @@ task.spawn(function()
     while true do
         if ((getgenv and getgenv().__BLYXO_GEN) or _G.__BLYXO_GEN) ~= __gen then return end
         task.wait(K.JUMP_KEEP_INTERVAL)
+
         pcall(BX.jumpKeep, not stealing)
     end
 end)
@@ -4869,7 +5072,9 @@ K.AC_SAMPLE_FIELDS = {
     "LastValidatedGroundedSample", "LastConfirmedGroundSample",
     "LastSample", "LastGameplayTrustedSample",
 }
+
 K.AC_SCAN_GIVEUP = 3
+
 K.AC_SCAN_RETRY = 180
 K.AC_UNDO_THRESHOLD = 1.5
 K.AC_BIG = 10000000
@@ -4893,6 +5098,7 @@ function BX.acIsValidator(fn)
     for _, mark in ipairs(K.AC_CONST_MARKS) do
         if joined:find(mark, 1, true) then return true, mark end
     end
+
     if joined:find("WalkSpeed", 1, true)
        and joined:find("AssemblyLinearVelocity", 1, true)
        and joined:find("Magnitude", 1, true) then
@@ -4910,6 +5116,7 @@ end
 
 function BX.acCollect()
     if type(getconnections) ~= "function" then
+
         return BX.acCollectFallback()
     end
     local found, seen = {}, {}
@@ -4917,6 +5124,7 @@ function BX.acCollect()
         for _, conn in ipairs(getconnections(RunService.PostSimulation)) do
             local fn = conn.Function
             if fn and BX.acIsValidator(fn) then
+
                 pcall(function() conn:Enable() end)
                 for i = 1, 24 do
                     local ok, a, b = pcall(debug.getupvalue, fn, i)
@@ -4930,6 +5138,7 @@ function BX.acCollect()
             end
         end
     end)
+
     BX.acPruned = 0
     do
         local char = LocalPlayer.Character
@@ -4991,6 +5200,7 @@ function BX.acFixSample(s, hum, pos, vel)
     end
     pcall(function()
         s.Position = pos
+
         if typeof(look) == "Vector3" and look.Magnitude > 0.001 then
             s.CFrame = CFrame.new(pos, pos + look)
         else
@@ -5033,6 +5243,7 @@ function BX.acSpoofState(st, hrp, hum, pos, vel)
         st.MonitorPending = false
         st.ThreatLevel = "Trusted"
         st.WasMeaningfullyFalling = false
+
         st.InitializingUntil = now + 3600
         st.SupportStartedAt = now
         st.ValidationStartedAt = now
@@ -5138,6 +5349,7 @@ function BX.acHookValidators()
 
                 if hrp and beforeCF then
                     local moved = (hrp.Position - beforeCF.Position).Magnitude
+
                     local limit = BX.spoofMoving
                         and math.max(K.AC_UNDO_THRESHOLD, (K.SPOOF_SPEED or 500) * 0.1)
                         or K.AC_UNDO_THRESHOLD
@@ -5203,6 +5415,7 @@ end
 
 K.SPOOF_CLAMP = 0.15
 K.SPOOF_PADDING = 24
+
 K.SPOOF_SPEED = 800
 function BX.safeZonePoint()
     local sl = workspace:FindFirstChildOfClass("SpawnLocation")
@@ -5231,11 +5444,13 @@ function BX.findAcState(force)
     end
     BX.acState = nil
     if type(getgc) ~= "function" then return nil end
+
     if BX.acGone then return nil end
 
     local ch = getChar()
     local hum = getHumanoid()
     local rp = getHRP()
+
     if not (ch and hum and rp) then
         BX.acScanSkipped = true
         return nil
@@ -5244,6 +5459,7 @@ function BX.findAcState(force)
 
     local found
     pcall(function()
+
         for _, o in ipairs(getgc(true)) do
             if type(o) == "table"
                and rawget(o, "Player") == LocalPlayer
@@ -5335,6 +5551,7 @@ function BX.startSpoofHold()
     BX.spoofConn = RunService.Heartbeat:Connect(function()
         local st = BX.acState
         if not st or rawget(st, "Character") ~= LocalPlayer.Character then
+
             local now = os.clock()
             local spent = (BX.acScanFails or 0) >= K.AC_SCAN_GIVEUP
             local gap = spent and K.AC_SCAN_RETRY or 3
@@ -5346,6 +5563,7 @@ function BX.startSpoofHold()
                         BX.acScanFails = 0
                         trace("spoof: anticheat state found - full speed available")
                     elseif BX.acScanSkipped then
+
                     else
                         BX.acScanFails = (BX.acScanFails or 0) + 1
                         if BX.acScanFails == K.AC_SCAN_GIVEUP then
@@ -5381,7 +5599,9 @@ function BX.stopSpoofHold()
 end
 
 K.STEAL_SPEED = 300
+
 K.BANK_HOLD = 4.0
+
 K.CARRY_USE_SERVER_SPEED = true
 
 function BX.kiraCarryTo(dest, speed, arrive, cancel, tag)
@@ -5436,6 +5656,7 @@ function BX.kiraCarryTo(dest, speed, arrive, cancel, tag)
 
         local pace = speed
         if K.CARRY_USE_SERVER_SPEED then
+
             pace = math.max(BX.legalWalkSpeed(), 16)
         end
 
@@ -5509,6 +5730,7 @@ function BX.kiraCarryTo(dest, speed, arrive, cancel, tag)
 end
 
 K.MODEL_MOVE_SPEED = 430
+
 BX.carryProbe = false
 
 K.CARRY_RATIO = 2.4
@@ -5550,6 +5772,7 @@ function BX.guardWindow(areaId, speed)
         local P = require(RS.Shared.Modules.GuardAreas.GuardChasePolicy)
         local d = require(RS.Data.Guards).Directory[areaId]
         if not (P and d and d.WalkSpeed) then return end
+
         local stray = 1
         local g = BX.findAreaGuard and BX.findAreaGuard(areaId)
         local hrp = getHRP()
@@ -5573,6 +5796,7 @@ BX.carryCapped = false
 
 function BX.carrySpeedNow()
     local floor = BX.carryFloor()
+
     local ceiling = BX.carryProbe and K.CARRY_CEILING or K.CARRY_FLOOR
     return math.clamp(BX.carryNow or floor, floor, math.max(ceiling, floor))
 end
@@ -5581,6 +5805,7 @@ function BX.carryDelivered()
     BX.banked = (BX.banked or 0) + 1
     BX.carryGood = BX.carrySpeedNow()
     if BX.carryCapped then return end
+
     if not BX.carryProbe then return end
     BX.carryWins = (BX.carryWins or 0) + 1
     if BX.carryWins >= K.CARRY_STEP_AFTER and BX.carryGood < K.CARRY_CEILING then
@@ -5597,6 +5822,7 @@ function BX.carryRefused()
 
     local floor = BX.carryFloor()
     if BX.carryGood and BX.carrySpeedNow() > BX.carryGood then
+
         BX.carryCapped = true
         BX.carryNow = BX.carryGood
         BX.carryDeepFails = 0
@@ -5626,13 +5852,16 @@ function BX.startVoidWatch()
     if BX.voidWatchThread then return end
     BX.voidWatchThread = task.spawn(function()
         local anchor = nil
+
         while stealing or (BX.inBossArena and BX.inBossArena()) do
             task.wait(0.2)
             local c, h = getChar(), getHRP()
             if c and h then
                 local pos = h.Position
                 local inArena = BX.inBossArena and BX.inBossArena()
+
                 local gy = inArena and BX.groundAt(pos) or solidGroundY(pos)
+
                 local outside = (not inArena) and
                     (pos.X < K.CORRIDOR_X_MIN - K.VOID_BOUNDS_SLACK
                      or pos.X > K.CORRIDOR_X_MAX + K.VOID_BOUNDS_SLACK) or false
@@ -5715,6 +5944,7 @@ function BX.pinDeliver()
     end
 
     pcall(function() conn:Disconnect() end)
+
     pcall(function()
         part.CFrame = homeCF
         part.CanCollide = hadCollide
@@ -5836,6 +6066,7 @@ end
 function BX.blockEggDrop()
     if BX.dropBlocked then return end
     local ok = pcall(function()
+
         local orig = EggState.DropFieldEgg
         if type(orig) == "function" then
             EggState.DropFieldEgg = function(reason, ...)
@@ -5871,6 +6102,7 @@ function BX.blockEggDrop()
 end
 
 K.HIT_WAIT = 3.0
+
 K.WAKE_WINDOW = 0.63
 K.WAKE_PAD = 0.35
 
@@ -5945,11 +6177,16 @@ K.RESTEAL_RETARGET_DIST = 40
 K.ANTIHIT_RAGDOLL_WAIT = 1.0
 
 K.TP_MAX_ADOPTED = 200
+
 K.TP_SETTLE = 0.35
 K.TP_LANDED = 30
+
 K.OUTBOUND_TP = true
+
 K.TP_PROMPT_WAIT = 1.2
+
 K.IDLE_RESCAN = 4
+
 K.AUTO_REFRESH_POLL = 3
 K.AUTO_REFRESH_GAP = 15
 
@@ -5968,6 +6205,7 @@ function BX.stepOutOfGuardReach(areaId)
     local part = g and BX.guardAnchorPart(g)
     local h = getHRP()
     if not part or not h then return false end
+
     local reach = BX.guardHitRange(areaId)
     local want = math.min(reach + 8, K.GUARD_FLAT_RADIUS - 2)
     if want <= reach + 2 then want = reach + 8 end
@@ -5977,6 +6215,7 @@ function BX.stepOutOfGuardReach(areaId)
     local base = away.Magnitude > 0.5 and away.Unit or Vector3.new(-1, 0, 0)
 
     for i = 0, 7 do
+
         local ang = (i == 0) and 0 or (math.pi / 4) * math.ceil(i / 2) * ((i % 2 == 0) and 1 or -1)
         local dir = Vector3.new(
             base.X * math.cos(ang) - base.Z * math.sin(ang), 0,
@@ -5987,6 +6226,7 @@ function BX.stepOutOfGuardReach(areaId)
             and spot.X >= K.CORRIDOR_X_MIN and spot.X <= K.CORRIDOR_X_MAX
         if inBand then
             local gy = solidGroundY(spot)
+
             if gy and math.abs(gy - h.Position.Y) <= 10 then
                 local c = getChar()
                 if c then
@@ -6017,6 +6257,7 @@ function BX.guardStatus(areaId)
 end
 
 K.GUARD_WATCH_GAP = 0.35
+
 K.GUARD_FLAT_RADIUS = 20
 
 function BX.holdGuardDistance(areaId, untilClock)
@@ -6030,6 +6271,7 @@ function BX.holdGuardDistance(areaId, untilClock)
                 local h = getHRP()
                 if part and h then
                     local reach = BX.guardHitRange(areaId)
+
                     local hum = g:FindFirstChildOfClass("Humanoid")
                     local closing = (hum and hum.WalkSpeed or 0) * K.GUARD_WATCH_GAP
                     if (part.Position - h.Position).Magnitude <= reach + 6 + closing then
@@ -6053,16 +6295,22 @@ function BX.eggPosNow(uid)
 end
 
 K.REGRAB_WAIT = 8.0
+
 K.GRAB_HOLD_MAX = 2.75
+
 K.GRAB_HOLD_GRACE = 0.25
+
 K.GRAB_CONFIRM = 0.14
 K.GRAB_TRIES = 3
 
 K.REGRAB_RAGDOLL_WAIT = 6.0
+
 K.REGRAB_SETTLE = 0.08
+
 K.REGRAB_TRIES = 4
 K.REGRAB_POLL = 0.03
 K.REGRAB_HOP_MAX = 60
+
 K.SELECTED_HOLD = 30
 K.SELECTED_POLL = 0.3
 
@@ -6095,6 +6343,7 @@ BX.antiHitEnabled = true
 function BX.ragdollRemaining()
     local left = 0
     if BX.ragdollEndsAt then left = math.max(left, BX.ragdollEndsAt - os.clock()) end
+
     pcall(function()
         local t = LocalPlayer:GetAttribute("RagdollEndTime")
         if type(t) == "number" then
@@ -6120,6 +6369,7 @@ function BX.startAntiHit()
         local flatCap = math.max((hum.WalkSpeed or 16) * K.ANTIHIT_FLAT_MULT,
                                  K.ANTIHIT_FLAT_MIN)
         if v.Y > K.ANTIHIT_RISE or flat > flatCap then
+
             local keep = Vector3.zero
             if flat > 0.001 then
                 keep = (v * Vector3.new(1, 0, 1)).Unit * math.min(flat, hum.WalkSpeed or 16)
@@ -6145,6 +6395,7 @@ function BX.startAntiHit()
                 hum:ChangeState(Enum.HumanoidStateType.GettingUp)
             end)
             BX.antiHitUps = (BX.antiHitUps or 0) + 1
+
             local now = os.clock()
             if now - (BX.antiHitJointAt or 0) > K.ANTIHIT_JOINT_GAP then
                 BX.antiHitJointAt = now
@@ -6188,6 +6439,7 @@ function BX.nearestGrabbableEgg(maxDist)
 end
 
 function BX.regrabEgg(uid, slotKey)
+
     task.wait(K.REGRAB_SETTLE)
 
     do
@@ -6202,6 +6454,7 @@ function BX.regrabEgg(uid, slotKey)
         trace("regrab: still down - waiting for the server to release us")
     end
     BX.waitForRagdollEnd(K.REGRAB_RAGDOLL_WAIT)
+
     BX.waitForCarryAllowed(K.REGRAB_RAGDOLL_WAIT)
 
     local deadline = os.clock() + K.REGRAB_WAIT
@@ -6258,6 +6511,7 @@ function BX.regrabEgg(uid, slotKey)
         if gap > K.REGRAB_HOP_MAX then
             BX.arcTweenTo(pNow, K.ARC_SPEED, "regrab", K.REGRAB_ARRIVE)
         elseif gap > 2 then
+
             local c = getChar()
             local gy = solidGroundY(pNow) or (pNow.Y + 2)
             if c then
@@ -6319,6 +6573,7 @@ function BX.takeGuardHit()
         if (BX.lastGuardHitAt or 0) > before then
             trace(("hit: taken after %.2fs - chase resolved, egg still held=%s")
                 :format(K.HIT_WAIT - (deadline - os.clock()), tostring(heldEggUid ~= nil)))
+
             BX.waitForRagdollEnd(4)
             return true
         end
@@ -6331,6 +6586,7 @@ end
 function BX.returnToSafe()
     local SAFE_POS = BX.homePos()
     local hrp = getHRP()
+
     if hrp and not heldEggUid and (SAFE_POS - hrp.Position).Magnitude < K.SAFE_ARRIVE then
         trace("return: already at safe zone")
         return
@@ -6355,6 +6611,7 @@ function BX.returnToSafe()
         trace(("return: CARRYING - probe at %.0f studs/s (lo=%s hi=%s)"):format(
             speed, tostring(BX.carryLow and math.floor(BX.carryLow) or "-"),
             tostring(BX.carryHigh and math.floor(BX.carryHigh) or "-")))
+
         BX.zigzagThisRoute = false
 
         pcall(BX.armClaimWatch)
@@ -6366,6 +6623,7 @@ function BX.returnToSafe()
         local h = getHRP()
         local dist = h and SAFE_POS and (SAFE_POS - h.Position).Magnitude or 0
         if BX.teleportMode then
+
             local dest, how = BX.safeReturnCF()
             trace(("return: ONE-SHOT to the safe zone via %s -> %.0f,%.0f,%.0f (was %.0f studs out)")
                 :format(how, dest.X, dest.Y, dest.Z, dist))
@@ -6450,6 +6708,7 @@ function BX.returnToSafe()
                 end)
                 trace(("return: NOT claimed at the safe zone - egg state=%s"):format(tostring(st)))
                 toast("Delivery failed - egg " .. tostring(st or "gone"))
+
                 heldEggUid = nil
                 heldEggSlotKey = nil
                 carryLocked = false
@@ -6459,12 +6718,14 @@ function BX.returnToSafe()
             BX.tuneCarrySpeed(claimedOk and "Claimed" or "Lost", speed)
             return
         end
+
         local savedCorridorZ = K.CORRIDOR_Z
         if BX.escapeCorridorZ then
             K.CORRIDOR_Z = BX.escapeCorridorZ
             trace(("return: routing home along z=%.0f (clear of the guard boxes)")
                 :format(K.CORRIDOR_Z))
         end
+
         trace(("return: carrying HOME at %.0f studs/s (dist=%.0f)"):format(
             BX.flyEnabled and K.FLY_CARRY_SPEED or speed, dist))
 
@@ -6516,6 +6777,7 @@ function BX.returnToSafe()
 
         local carrySpeed = K.ARC_CARRY_SPEED or speed
         pcall(BX.stopSpeedHold)
+
         do
             local w = BX.guardWindow and BX.guardWindow(BX.carryAreaId, carrySpeed)
             trace(("guard: %s at %d studs/s in %s"):format(
@@ -6524,6 +6786,7 @@ function BX.returnToSafe()
         end
 
         trace(("return: ARC carry to the safe zone at %d studs/s"):format(carrySpeed))
+
         local trackAt0 = os.clock()
         local trackArea = BX.carryAreaId
         task.spawn(function()
@@ -6582,6 +6845,7 @@ function BX.returnToSafe()
         local waitEnd = os.clock() + 4
         while os.clock() < waitEnd do
             if BX.eggClaimedAt and BX.eggClaimedAt >= tripStart then claimed = true break end
+
             local carrying, st = BX.stillCarrying(uid)
             if not carrying then
                 if st == nil then claimed = true end
@@ -6603,6 +6867,7 @@ function BX.returnToSafe()
                 trace("return: that was your egg - waiting for you to pick the next one")
                 BlyxoStealDone(nil, true)
             else
+
                 BlyxoStealDone()
             end
             heldEggUid = nil
@@ -6622,6 +6887,7 @@ function BX.returnToSafe()
         local h = getHRP()
         local inPlot = false
         pcall(function() inPlot = PlotState and PlotState.ContainsLocalPoint and h and PlotState.ContainsLocalPoint(h.Position) end)
+
         local why = "-"
         pcall(function()
             local h0 = getHRP()
@@ -6667,6 +6933,7 @@ local function stealLoop()
     end
     BX.swapHumanoid()
     bypassAnticheat();  trace("stealLoop: bypassAnticheat done (gated=" .. tostring(not legacyAcBypass) .. ")")
+
     if BX.forensicsEnabled then pcall(BX.armDiag) end
     pcall(BX.blockEggDrop)
     pcall(BX.acArm)
@@ -6681,6 +6948,7 @@ local function stealLoop()
 
     local idleCycles = 0
     while stealing do
+
         RunService.Heartbeat:Wait()
         if not stealing then break end
 
@@ -6700,6 +6968,7 @@ local function stealLoop()
         local hum = getHumanoid()
         if not hrp or not hum or hum.Health <= 0 then
             if hum and hum.Health <= 0 then
+
                 recordSpeedResult(false)
             end
             task.wait(1)
@@ -6721,6 +6990,7 @@ local function stealLoop()
                 local tripAt = os.clock()
                 BX.returnToSafe()
                 BX.lostEgg = nil
+
                 if os.clock() - tripAt < 0.2 then
                     if BX.fastTripUid == have then
                         BX.fastTrips = (BX.fastTrips or 0) + 1
@@ -6808,6 +7078,7 @@ local function stealLoop()
                     trace(("rift: taking %s (%s)"):format(tostring(pick.name), tostring(pick.pet)))
                 end
             else
+
                 selectedEggUid = nil
                 BX.riftCommitted = nil
                 if BX.riftPet and X.riftForgetPick and X.riftForgetPick() then
@@ -6820,6 +7091,7 @@ local function stealLoop()
                     local waitingFor = BX.riftPet and X.petName(BX.riftPet)
                         or table.concat(names, ", ")
                     trace("rift: waiting for " .. tostring(waitingFor))
+
                     BlyxoNote("rift-wait", "Rift: waiting for " .. tostring(waitingFor), 120)
                 end
                 task.wait(1)
@@ -6850,6 +7122,7 @@ local function stealLoop()
         if selectedEggUid and (not target) and (not BX.followBest) then
             local _, st = BX.eggPosNow(selectedEggUid)
             local alive = (st ~= nil) and (st ~= "Claimed")
+
             if BX.selHoldUid ~= selectedEggUid then
                 BX.selHoldUid = selectedEggUid
                 BX.selHoldSince = nil
@@ -6881,6 +7154,7 @@ local function stealLoop()
                 BlyxoPickPrompt("Egg done - pick your next one")
             end
         elseif target then
+
             BX.selHoldSince = nil
             BX.selHoldLast = nil
         end
@@ -6908,6 +7182,7 @@ local function stealLoop()
                     break
                 end
             end
+
             if not target then
                 for _, egg in ipairs(cachedEggs) do
                     if egg.grabbable then
@@ -6977,13 +7252,16 @@ local function stealLoop()
             local h0 = getHRP()
             local eggPos = target.BoundsCFrame.Position
             local toEgg = h0 and (eggPos - h0.Position) or Vector3.zero
+
             BX.captureSafeAnchor("outbound")
 
             BX.tpUsedForThisEgg = false
             local tpOutOk = BX.teleportMode and h0
                 and (eggPos - (BX.homePos() or eggPos)).Magnitude <= (BX.tpOutMaxDist or 900)
+
             trace(("loop: ARC to the egg (%.0f studs)"):format(toEgg.Magnitude))
             BX.outboundAt = os.clock()
+
             BX.outboundTp = false
             if BX.tpTo and K.OUTBOUND_TP then
                 local from = getHRP() and getHRP().Position
@@ -6993,6 +7271,7 @@ local function stealLoop()
                 local gap = (h2 and eggPos) and (h2.Position - eggPos).Magnitude or 9999
                 BX.outboundTp = gap <= K.TP_LANDED
                 if gap > K.TP_LANDED then
+
                     trace(("tp: outbound refused - %.0f studs off, tweening instead")
                         :format(gap))
                     BX.arcTweenTo(eggPos, K.ARC_SPEED, "outbound", 4)
@@ -7031,15 +7310,18 @@ local function stealLoop()
                                                eggPos.Z - h.Position.Z).Magnitude or 9999
             end
             if BX.teleportMode then
+
                 if arrivedGap > 7 then BX.legalHopTo(eggPos) end
                 BX.tpEggCF = CFrame.new(eggPos.X, eggPos.Y + 2, eggPos.Z)
                 BX.tpUsedForThisEgg = true
             elseif arrivedGap > 7 then
                 trace(("loop: %.1f studs short on arrival, closing"):format(arrivedGap))
+
                 if BX.ragdollActive or isRagdolled() then
                     BX.waitForRagdollEnd(3)
                     pcall(BX.readyAfterRagdoll)
                 end
+
                 if BX.flyEnabled or BX.outboundTp then
                     BX.legalHopTo(eggPos, 2)
                 else
@@ -7089,6 +7371,7 @@ local function stealLoop()
                     :format(gap, tostring(BX.routeFail or "short")))
                 idleCycles = idleCycles + 1
                 recordSpeedResult(false)
+
                 BX.unreachable[target.Uid] = tick()
                 local home = BX.homePos()
                 if home then
@@ -7106,8 +7389,10 @@ local function stealLoop()
         end
 
         BX.carryAreaId = target.AreaId
+
         BX.carryTargetPos = target.BoundsCFrame and target.BoundsCFrame.Position or nil
         local carried = carryEgg(target.Uid, slotKey)
+
         if not carried and stealing and BX.outboundAt
            and (BX.relocAt or 0) > BX.outboundAt and target.BoundsCFrame then
             trace("loop: server pulled us back during the grab - going straight back for it")
@@ -7116,8 +7401,10 @@ local function stealLoop()
             BX.arcTweenTo(target.BoundsCFrame.Position, K.ARC_SPEED, "outbound", 4)
             if stealing then carried = carryEgg(target.Uid, slotKey) end
         end
+
         if carried then BX.carryConfirmedAt = os.clock() end
         trace("loop: carried=" .. tostring(carried))
+
         if carried then
             idleCycles = 0
         else
@@ -7131,6 +7418,7 @@ local function stealLoop()
             heldEggUid = target.Uid
             BX.midCarryRegrabs = 0
             heldEggSlotKey = slotKey
+
             BX.carryAreaId = target.AreaId
             BX.carryStartedAt = os.clock()
             isProtecting = true
@@ -7164,6 +7452,7 @@ local function stealLoop()
                         end
                         RunService.Heartbeat:Wait()
                     end
+
                     local h2 = getHRP()
                     if h2 then pcall(function() h2.Anchored = false end) end
                 end)
@@ -7173,6 +7462,7 @@ local function stealLoop()
                 if skipWait then
                     trace("steal: leaving immediately - not waiting for a hit")
                 end
+
                 if not skipWait then
                     local hd = 7
                     pcall(function()
@@ -7206,6 +7496,7 @@ local function stealLoop()
                 end
 
                 if (BX.lastGuardHitAt or 0) > hitBefore or BX.ragdollActive then
+
                     trace("ragdoll: hit landed - already pinned, riding it out")
 
                     local rdl = os.clock() + (BX.antiHitEnabled
@@ -7216,6 +7507,7 @@ local function stealLoop()
                         RunService.Heartbeat:Wait()
                     end
                     pinning = false
+
                     do local hu = getHRP()
                         if hu then pcall(function() hu.Anchored = false end) end
                     end
@@ -7305,6 +7597,7 @@ local function stealLoop()
 
                     local rdl = os.clock() + K.RESTEAL_WINDOW
                     while stealing and os.clock() < rdl do
+
                         local again = BX.ragdollRemaining()
                         if again > 0 then
                             local until2 = os.clock() + again + 0.05
@@ -7366,7 +7659,6 @@ local function stealLoop()
                 if reallyHave then
                     trace(("return: leaving %.2fs after the carry landed")
                         :format(os.clock() - (BX.carryConfirmedAt or os.clock())))
-
                     if BX.stealMode == "Insta Steal" then
                         trace("insta: tp to delivery")
                         local deliverCF = CFrame.new(
@@ -7404,6 +7696,7 @@ end
 
 BlyxoTop.charAdded = LocalPlayer.CharacterAdded:Connect(function()
     task.wait(1)
+
     BX.acState = nil
     BX.acStates = {}
     BX.acScanFails = 0
@@ -7412,6 +7705,7 @@ BlyxoTop.charAdded = LocalPlayer.CharacterAdded:Connect(function()
     pcall(BX.acArm)
     trace(("respawn: re-armed the anticheat state (%d table(s) live)")
         :format(#(BX.acStates or {})))
+
     pcall(BX.swapHumanoid)
     if stealing then
         bypassAnticheat()
@@ -7435,6 +7729,7 @@ task.spawn(function()
     for _ = 1, 40 do
         local icon = nil
         for _, root in ipairs({ (gethui and gethui()) or nil, game:GetService("CoreGui") }) do
+
             local ok, d = pcall(function() return root:FindFirstChild("CollapsedIcon", true) end)
             if ok and d and d:IsA("ImageLabel") and d.Parent and d.Parent.Name == "BlyxoHub" then
                 icon = d
@@ -7465,6 +7760,7 @@ HomeTab:CreateButton({
         for _, fn in pairs({ setclipboard, toclipboard, set_clipboard }) do
             if type(fn) == "function" and pcall(fn, invite) then copied = true break end
         end
+
         pcall(function() game:GetService("GuiService"):OpenBrowserWindow(invite) end)
         print("[BLYXO] Discord: " .. invite)
         toast(copied and "Invite copied to clipboard" or ("Join at " .. invite))
@@ -7531,6 +7827,7 @@ UI.labelToUid = {}
 function UI.buildOptions()
     local options = {}
     UI.labelToUid = {}
+
     local used = {}
     for i, egg in ipairs(cachedEggs) do
         if i > UI.MAX_EGGS then break end
@@ -7568,6 +7865,7 @@ function UI.eggForLabel(value)
         for _, egg in ipairs(cachedEggs) do
             if egg.uid == uid then return egg end
         end
+
         return { uid = uid, name = labelName(value) or value }
     end
 
@@ -7589,9 +7887,11 @@ UI.suppress = false
 
 function UI.onDropdown(value)
     if UI.suppress then return end
+
     if typeof(value) == "table" then value = value[1] end
     local egg = UI.eggForLabel(value)
     if not egg then
+
         trace("target: could not resolve " .. tostring(value) .. " - selection ignored")
         toast("Could not select that egg - refresh and try again")
         return
@@ -7601,6 +7901,7 @@ function UI.onDropdown(value)
     BX.selHoldSince = nil
     BX.selHoldLast = nil
     BX.selHoldUid = egg.uid
+
     if BX.unreachable then BX.unreachable[egg.uid] = nil end
 
     BX.pickWasUser = true
@@ -7707,6 +8008,7 @@ function UI.showSelected()
             :format(tostring(auto.name), tostring(auto.area)))
     end
     label = label or "No eggs found"
+
     UI.suppress = true
     local ok, err = pcall(d.Set, d, label, true)
     UI.suppress = false
@@ -7719,6 +8021,7 @@ function UI.showSelected()
 end
 
 function UI.refresh(force)
+
     UI.refreshing = true
 
     cachedEggs = BX.offthread(function() return evaluateEggs(force ~= false) end) or {}
@@ -7726,11 +8029,13 @@ function UI.refresh(force)
     task.wait()
 
     UI.applyOptions(UI.buildOptions())
+
     if #cachedEggs > 0 then
         local stillThere = false
         for _, e in ipairs(cachedEggs) do
             if e.uid == selectedEggUid then stillThere = true break end
         end
+
         if not stillThere and (BX.followBest or not selectedEggUid)
            and not BX.awaitUserPick then
             selectedEggUid = cachedEggs[1].uid
@@ -7779,6 +8084,7 @@ X.el.autoSteal = StealTab:CreateToggle({
     name = "Auto Steal",
     flag = "AutoSteal",
     callback = function(value)
+
         value = value and true or false
 
         if UI.refreshing then
@@ -7797,12 +8103,14 @@ X.el.autoSteal = StealTab:CreateToggle({
         BX.autoStealSetAt = os.clock()
 
         if value == stealing then
+
             return
         end
 
         stealing = value
         if value then
             stealThread = task.spawn(function()
+
                 pcall(UI.refresh, true)
                 stealLoop()
             end)
@@ -7813,6 +8121,7 @@ X.el.autoSteal = StealTab:CreateToggle({
             BX.holdGen = (BX.holdGen or 0) + 1
             if stealThread then pcall(task.cancel, stealThread) stealThread = nil end
             pcall(BX.stopVoidWatch)
+
             pcall(BX.stopSpeedHold)
             pcall(BX.acUnhook)
             pcall(BX.stopSpoofHold)
@@ -7828,6 +8137,7 @@ X.el.autoSteal = StealTab:CreateToggle({
             heldEggSlotKey = nil
             for _, c in ipairs(antiDeathConns) do pcall(function() c:Disconnect() end) end
             restoreAntiDeath()
+
             pcall(function() BX.repointControls(getHumanoid()) end)
             trace("autosteal: OFF")
             toast("Auto Steal OFF")
@@ -7855,10 +8165,12 @@ K.ESP_MAX = 250
         if liteMode then return end
         liteMode = true
         BX.lite = true
+
         K.ESP_MAX = 30
         K.ESP_REFRESH = 1.0
         K.ESP_VIS_HZ = 6
         K.ESP_BUILD_PER_PASS = 5
+
         K.BOSS_DODGE_GAP = 0.12
         trace(("lite mode ON - %.0f fps, trimming the UI and ESP"):format(fps))
         toast(("Low-end mode on (%.0f fps)"):format(fps))
@@ -7887,6 +8199,7 @@ K.ESP_MAX = 250
                 lowWindows = 0
             end
         end
+
         pcall(function() BlyxoTop.liteFrames:Disconnect() end)
     end)
 end)()
@@ -7911,6 +8224,7 @@ function BX.espEggs()
     for _, rec in ipairs(data.Records) do
         if type(rec) == "table" and rec.Uid
            and typeof(rec.BoundsCFrame) == "CFrame"
+
            and (rec.State == "Slot" or rec.State == "Dropped"
                 or rec.State == "GuardCarried") then
 
@@ -8017,14 +8331,17 @@ local function espMakeCard()
     bb.Name = "EggCard"
     bb.AlwaysOnTop = true
     bb.LightInfluence = 0
+
     bb.MaxDistance = 1e6
     bb.Size = UDim2.fromOffset(190, 40)
     bb.StudsOffset = Vector3.new(0, 3, 0)
     bb.Active = false
     bb.Adornee = anchor
+
     bb.Parent = anchor
 
     local frame = Instance.new("Frame")
+
     frame.Size = UDim2.fromOffset(190, 40)
     frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     frame.BackgroundTransparency = 0.42
@@ -8111,6 +8428,7 @@ function BX.espClear()
         local f = workspace:FindFirstChild(K.ESP_NAME)
         if f then f:Destroy() end
     end)
+
     for _, p in ipairs({ (gethui and select(2, pcall(gethui))) or nil,
                          select(2, pcall(game.GetService, game, "CoreGui")) }) do
         pcall(function()
@@ -8123,6 +8441,7 @@ end
 function BX.espUpdate(eggs)
     if type(eggs) ~= "table" then return end
     local shown = 0
+
     local built = 0
 
     for i, egg in ipairs(eggs) do
@@ -8163,6 +8482,7 @@ function BX.espUpdate(eggs)
                 else
                     card.baseAlpha, card.baseStroke = 0.42, 0.78
                 end
+
                 card.lastFade = nil
             end
         end
@@ -8200,6 +8520,7 @@ BlyxoTop.espVis = RunService.RenderStepped:Connect(function()
             local show = d <= K.ESP_MAX_DIST
             if c.bb.Enabled ~= show then c.bb.Enabled = show end
             if show then
+
                 local s = BlyxoEspScale(d)
                 if math.abs((c.lastScale or -1) - s) > 0.01 or c.lastH ~= c.baseH then
                     c.lastScale, c.lastH = s, c.baseH
@@ -8303,6 +8624,7 @@ StealTab:CreateToggle({
                 if rec then
                     local dir
                     pcall(function() dir = AssetsDir and AssetsDir[rec.AssetCategory] end)
+
                     pcall(function()
                         e.title = (dir and dir.DisplayName ~= "" and dir.DisplayName)
                             or tostring(rec.AssetCategory)
@@ -8457,9 +8779,11 @@ StealTab:CreateToggle({
             c.icon.Image = e.icon
             c.icon.Visible = e.icon ~= ""
             c.title.Text = e.title
+
             local bits = {}
             if (e.value or 0) > 0 then bits[#bits + 1] = formatNumber(e.value) .. "/s" end
             if e.rarity ~= "" then
+
                 local c3 = e.color
                 if 0.299 * c3.R + 0.587 * c3.G + 0.114 * c3.B < 0.35 then
                     c3 = c3:Lerp(Color3.new(1, 1, 1), 0.6)
@@ -8478,6 +8802,7 @@ StealTab:CreateToggle({
             c.baseH = (e.muts ~= "") and 52 or 40
             c.frame.Size = UDim2.fromOffset(190, c.baseH)
         end
+
         for uid, c in pairs(cards) do
             if not seen[uid] then
                 pcall(function() c.anchor:Destroy() end)
@@ -8555,10 +8880,12 @@ end)()
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         local animator = hum and hum:FindFirstChildOfClass("Animator")
         if not animator or hum.Health <= 0 then return end
+
         if hum:GetAttribute(BX.SWAP_ATTR) == true then return end
         local d = day()
 
         if myTrack and myAnimator == animator then
+
             if not myTrack.IsPlaying then
                 myTrack:Play(0, 0.001, sigFor(d))
             elseif myDay ~= d then
@@ -8677,6 +9004,7 @@ end)()
                 local ch = p.Character
                 local hum = ch and ch:FindFirstChildOfClass("Humanoid")
                 local animator = hum and hum:FindFirstChildOfClass("Animator")
+
                 local found = (p == LocalPlayer)
                 if not found and animator then
                     for _, tr in ipairs(animator:GetPlayingAnimationTracks()) do
@@ -8691,6 +9019,7 @@ end)()
                     t.seen = now
                     if t.bb.Adornee ~= head then t.bb.Adornee = head end
                 elseif tags[p] and now - tags[p].seen > 8 then
+
                     dropTag(p)
                 end
             end
@@ -8711,6 +9040,7 @@ end)()
                 local d = (head.Position - eye).Magnitude
                 local a = math.clamp((FAR - d) / (FAR - NEAR), 0, 1)
                     * math.clamp((now - t.born) / 0.3, 0, 1)
+
                 if t.self and d < 2 then a = 0 end
                 if math.abs(a - t.alpha) > 0.03 or (a == 0) ~= (t.alpha == 0) then
                     t.alpha = a
@@ -8735,6 +9065,7 @@ end)()
                 pcall(function() if myTrack then myTrack:Stop(0) myTrack:Destroy() end end)
                 return
             end
+
             if os.clock() - lastBeacon >= 10 then
                 lastBeacon = os.clock()
                 pcall(beacon)
@@ -9000,10 +9331,12 @@ do
                         BX.eggCache = nil
                         trace("farm: started from Main - filter off for this run")
                     end
+
                     BX.syncFollowBest()
                 end
             elseif not stealing and wasStealing then
                 BX.farmActive = false
+
                 BX.syncFollowBest()
             end
             wasStealing = stealing
@@ -9068,6 +9401,7 @@ do
             BX.treadmill = v
             trace("treadmill: " .. (v and "ON" or "OFF"))
             if not v then
+
                 pcall(function()
                     local R = needModule(RS, "Shared", "Remotes")
                     if R and R.Treadmill and R.Treadmill.AskDoff then
@@ -9116,6 +9450,7 @@ do
                         trace(("treadmill: %.0f studs away, going back"):format(gap))
                         BX.arcTweenTo(spot, K.ARC_SPEED, "treadmill", 4)
                     elseif gap > 3 then
+
                         hrp.CFrame = CFrame.new(spot)
                     end
                 end)
@@ -9198,6 +9533,7 @@ EventTab:CreateToggle({
         if BX.autoBossFight then
             pcall(BX.startBossDodge)
             pcall(BX.startBossMover)
+
             pcall(BX.startVoidWatch)
         else
             pcall(BX.stopBossDodge)
@@ -9220,30 +9556,42 @@ K.BOSS_SWING_GAP = 0.65
 K.BOSS_REACH = 9
 
 K.BOSS_EQUIP_SETTLE = 0.25
+
 K.BOSS_HAND_REACH_Y = 30
+
 K.BOSS_HAND_CHASE_Y = 90
+
 K.HAND_RISE_EPS = 2
+
 K.HAND_COMMIT = 1.5
+
 K.BOSS_SURFACE_MARGIN = -20
 
 function BX.targetReach(part)
     if typeof(part) == "Vector3" then return K.BOSS_REACH end
     if not (part and part:IsA("BasePart")) then return K.BOSS_REACH end
     local half = math.max(part.Size.X, part.Size.Z) * 0.5
+
     return math.max(K.BOSS_REACH, half + K.BOSS_SURFACE_MARGIN)
 end
+
 K.BOSS_STEP_SPEED = 420
 K.BOSS_MAX_STEP = 14
 K.ARENA_SINK_MAX = 6
 K.BOSS_Y_TAU = 0.12
+
 K.BOSS_STUCK_TIME = 2.5
+
 K.BOSS_RIM_SWEEP = { 25, 50, 75, 100, 125, 150 }
 K.BOSS_RIM_LOOKAHEAD = 6
 K.BOSS_MOVE_ARRIVE = 1.5
 K.BOSS_SWING_SLACK = 4
+
 K.BOSS_AIM_COS = 0.906
 K.BOSS_AIM_EASE = 0.35
+
 K.BOSS_TRACK_TAU = 0.18
+
 K.BOSS_TRACK_JUMP = 60
 
 BX.bossGoal = nil
@@ -9274,6 +9622,7 @@ end
 
 function BX.startBossMover()
     if BX.bossMoveConn then return end
+
     pcall(enableNoclip)
     BX.bossMoveConn = RunService.Heartbeat:Connect(function(dt)
         if not BX.autoBossFight then return end
@@ -9327,6 +9676,7 @@ function BX.startBossMover()
         end
         local dirUse = flat.Unit
         if BX.stuckSince and (now - BX.stuckSince) > K.BOSS_STUCK_TIME then
+
             BX.stuckFlip = not BX.stuckFlip
             local sgn = BX.stuckFlip and 1 or -1
             dirUse = Vector3.new(-flat.Unit.Z * sgn, 0, flat.Unit.X * sgn)
@@ -9367,6 +9717,7 @@ function BX.startBossMover()
         end
 
         if not gy then
+
             local found = nil
             for _, deg in ipairs(K.BOSS_RIM_SWEEP) do
                 for _, sgn in ipairs(BX.rimSide == -1 and { -1, 1 } or { 1, -1 }) do
@@ -9375,6 +9726,7 @@ function BX.startBossMover()
                         dirUse.X * math.cos(a) - dirUse.Z * math.sin(a), 0,
                         dirUse.X * math.sin(a) + dirUse.Z * math.cos(a))
                     local g = groundFor(d, step)
+
                     if g and groundFor(d, step + K.BOSS_RIM_LOOKAHEAD) then
                         found, gy = d, g
                         BX.rimSide = sgn
@@ -9385,18 +9737,21 @@ function BX.startBossMover()
             end
 
             if not found then
+
                 if dodging then BX.bossDodge = nil else BX.bossGoal = nil end
                 return
             end
 
             dirUse = found
             nxt = h.Position + dirUse * step
+
             BX.stuckSince = now
             if now - (BX.rimLogAt or 0) > 2 then
                 BX.rimLogAt = now
                 trace("boss: hole in the way - following the rim round to the target")
             end
         end
+
         local curY = h.Position.Y
         local k = 1 - math.exp(-dt / K.BOSS_Y_TAU)
         local easedY = curY + (gy - curY) * k
@@ -9405,6 +9760,7 @@ function BX.startBossMover()
             hum.PlatformStand = false
             hum:Move(Vector3.zero, false)
             h.CFrame = CFrame.lookAt(dest, dest + flat.Unit)
+
             h.AssemblyLinearVelocity = Vector3.new(0, h.AssemblyLinearVelocity.Y, 0)
             h.AssemblyAngularVelocity = Vector3.zero
         end)
@@ -9413,6 +9769,7 @@ end
 
 function BX.stopBossMover()
     BX.bossGoal, BX.bossDodge, BX.bossAim = nil, nil, nil
+
     if not stealing then pcall(disableNoclip) end
     if BX.bossMoveConn then
         pcall(function() BX.bossMoveConn:Disconnect() end)
@@ -9437,6 +9794,7 @@ function BX.orbitPoint(tpos, reach)
     local function at(a)
         return Vector3.new(tpos.X + math.cos(a) * r, h.Position.Y, tpos.Z + math.sin(a) * r)
     end
+
     local p1, p2 = at(ang + K.ORBIT_STEP), at(ang - K.ORBIT_STEP)
     local function fromHole(p)
         return Vector3.new(p.X - bh.Position.X, 0, p.Z - bh.Position.Z).Magnitude
@@ -9474,6 +9832,7 @@ function BX.equipBat()
     if bp then
         for _, t in ipairs(bp:GetChildren()) do
             if BX.isBatTool(t) then
+
                 local hum = getHumanoid()
                 local ok = hum and pcall(function() hum:EquipTool(t) end)
                 if not ok or t.Parent ~= char then t.Parent = char end
@@ -9495,6 +9854,7 @@ function BX.batSwing(bat)
             math.floor(workspace:GetServerTimeNow() * 1000)))
     end)
     if not ok then
+
         pcall(function() bat:Activate() end)
         return
     end
@@ -9545,6 +9905,7 @@ function BX.bossTarget()
         local best, bestD
         for _, d in ipairs(towers:GetDescendants()) do
             if d:IsA("BasePart") and d.Name == "Hitbox" then
+
                 local hp = d:GetAttribute("Health")
                 if type(hp) == "number" and hp > 0 then
                     local dist = (d.Position - h.Position).Magnitude
@@ -9553,6 +9914,7 @@ function BX.bossTarget()
             end
         end
         if best then return best, "crystal" end
+
         return nil
     end
 
@@ -9565,6 +9927,7 @@ function BX.bossTarget()
     local seen = 0
     for _, bn in ipairs(K.BOSS_HAND_BONES) do
         local bone = boss:FindFirstChild(bn, true)
+
         if bone and bone:IsA("Bone") then
             local pos
             pcall(function() pos = bone.TransformedWorldCFrame.Position end)
@@ -9592,6 +9955,7 @@ function BX.bossTarget()
 
     local function landable(p)
         if not p then return nil end
+
         if BX.onArenaFloor(p) and BX.clearLine(h.Position, p) then return p end
 
         local wp, ang = BX.ringWaypoint(h.Position, p)
@@ -9680,7 +10044,9 @@ end
 
 BX.arcSpoof = true
 K.ARC_SPOOF_HEADROOM = 1.35
+
 K.ARC_WS_MAX = 4000
+
 K.AC_SHORT_RATIO = 1.064
 K.AC_SAFETY = 0.94
 K.ARC_SPEED_NOSPOOF = 500
@@ -9753,6 +10119,7 @@ function BX.groundAt(pos)
 
     params.FilterDescendantsInstances = ignore
     params.IgnoreWater = true
+
     local top = pos.Y + K.FLOOR_PROBE_UP
     local f = BX.arenaFloor and BX.arenaFloor()
     if f then top = math.max(top, f.Position.Y + K.FLOOR_PROBE_UP) end
@@ -9854,6 +10221,7 @@ function BX.detourAround(from, to)
             local gy = BX.groundAt(Vector3.new(wp.X, from.Y, wp.Z))
             if gy then
                 wp = Vector3.new(wp.X, gy, wp.Z)
+
                 if BX.clearLine(from, wp) and BX.clearLine(wp, to) then
                     return wp, deg * sign
                 end
@@ -9902,6 +10270,7 @@ function BX.hazardParts()
     end
     local arena = BX.bossArena()
     if arena then
+
         for _, name in ipairs({ "SlamIndicator", "SlamArmHitbox", "SlamRestHitbox" }) do
             local d = arena:FindFirstChild(name)
             if d and d:IsA("BasePart") then out[#out + 1] = d end
@@ -9938,6 +10307,7 @@ local function inHazard(part, pos, extra)
 end
 
 function BX.inAnyHazard(pos, extra)
+
     if not BX.bossDodgeEnabled then return nil end
     for _, part in ipairs(BX.hazardParts()) do
         if inHazard(part, pos, extra) then return part end
@@ -9973,6 +10343,7 @@ function BX.dodgeBossHazards()
         if inHazard(part, h.Position) then hit = part break end
     end
     if not hit then
+
         BX.bossDodge = nil
         return false
     end
@@ -9981,6 +10352,7 @@ function BX.dodgeBossHazards()
     local cands = {}
 
     if hit:IsA("Part") and hit.Shape == Enum.PartType.Cylinder then
+
         local want = hit.Size.Y * 0.5 + K.BLACK_HOLE_CLEAR + 4
         for i = 0, K.DODGE_RING_POINTS - 1 do
             local ang = (2 * math.pi / K.DODGE_RING_POINTS) * i
@@ -9998,6 +10370,7 @@ function BX.dodgeBossHazards()
         cands[#cands + 1] = hit.CFrame:PointToWorldSpace(Vector3.new(outX, rel.Y, rel.Z))
         cands[#cands + 1] = hit.CFrame:PointToWorldSpace(Vector3.new(rel.X, rel.Y, -outZ))
         cands[#cands + 1] = hit.CFrame:PointToWorldSpace(Vector3.new(-outX, rel.Y, rel.Z))
+
         cands[#cands + 1] = hit.CFrame:PointToWorldSpace(Vector3.new(outX, rel.Y, outZ))
         cands[#cands + 1] = hit.CFrame:PointToWorldSpace(Vector3.new(-outX, rel.Y, outZ))
     end
@@ -10114,6 +10487,7 @@ task.spawn(function()
                 local bat = BX.equipBat()
 
                 if not bat then
+
                     if os.clock() - (BX.fieldBatAskedAt or 0) > 5 then
                         BX.fieldBatAskedAt = os.clock()
                         local okW, msgW = BX.netCall("RF/Codex/AskWearFieldBat")
@@ -10121,6 +10495,7 @@ task.spawn(function()
                             :format(tostring(okW), tostring(msgW or "")))
                     end
                 elseif BX.batEquippedAt ~= bat then
+
                     BX.batEquippedAt = bat
                     task.wait(K.BOSS_EQUIP_SETTLE)
                 end
@@ -10128,12 +10503,14 @@ task.spawn(function()
                 local hmz = getHumanoid()
                 if hmz then
                     local stt = hmz:GetState()
+
                     if hmz.PlatformStand or stt == Enum.HumanoidStateType.Physics
                        or stt == Enum.HumanoidStateType.PlatformStanding
                        or stt == Enum.HumanoidStateType.None then
                         BX.readyAfterRagdoll()
                     end
                 end
+
                 local inHaz = BX.dodgeBossHazards()
 
                 local snap = X.bossSnapshot()
@@ -10185,6 +10562,7 @@ task.spawn(function()
                 BX.bossAim = tpos
 
                 if d > reach + K.BOSS_SWING_SLACK then
+
                     local smooth = tpos
                     if kind == "hand" then
                         local prev = BX.trackPos
@@ -10200,6 +10578,7 @@ task.spawn(function()
                     BX.bossGoal = { pos = smooth, reach = reach }
                     return
                 end
+
                 local orbit = BX.orbitPoint(tpos, reach)
                 if orbit then
                     BX.bossGoal = { pos = orbit, reach = 0 }
@@ -10220,6 +10599,7 @@ task.spawn(function()
                         local wantDir = flat.Unit
                         local haveDir = hh.CFrame.LookVector * Vector3.new(1, 0, 1)
                         haveDir = haveDir.Magnitude > 0.001 and haveDir.Unit or wantDir
+
                         if haveDir:Dot(wantDir) < K.BOSS_AIM_COS then
                             local cur = hh.CFrame
                             local goal = CFrame.lookAt(cur.Position, cur.Position + wantDir)
@@ -10229,6 +10609,7 @@ task.spawn(function()
                         end
                     end
                 end
+
                 if not bat or not bat.Parent then return end
                 if bat:GetAttribute("CooldownActive") == true then return end
                 if os.clock() - (BX.lastSwingAt or 0) < K.BOSS_SWING_GAP then return end
@@ -10248,10 +10629,13 @@ task.spawn(function()
     local __gen = (getgenv and getgenv().__BLYXO_GEN) or _G.__BLYXO_GEN
     while true do
         if ((getgenv and getgenv().__BLYXO_GEN) or _G.__BLYXO_GEN) ~= __gen then return end
+
         local fast = (BX.inBossArena and BX.inBossArena())
             or (X.bossSnap and X.bossSnap.Open == true)
+
         task.wait(fast and (K.BOSS_POLL_FAST or 1) or (K.BOSS_POLL_IDLE or 10))
         pcall(function()
+
             local snap = X.bossSnapshot(true)
             if not snap then
                 X.boss.line.Set(X.boss.line, "Could not read the boss event")
@@ -10284,6 +10668,7 @@ task.spawn(function()
                 if accepted == true then
                     toast("Boss world open - going in")
                 elseif msg and tostring(msg):find("defeated") then
+
                     BX.bossDeadWindow = true
                     trace("boss: already defeated this round - waiting for the next window")
                     toast("Boss already defeated - waiting for the next one")
@@ -10295,6 +10680,7 @@ task.spawn(function()
 end)
 
 X.rift = {}
+
 K.BOSS_POLL_FAST = 1
 K.BOSS_POLL_IDLE = 10
 K.RIFT_POLL = 2.5
@@ -10465,6 +10851,7 @@ function X.riftTryTrade()
         end
         local reqs = st.Requirements
         if type(reqs) ~= "table" or #reqs < 3 then return nil end
+
         local cheap = X.riftHave(reqs)
         if not cheap then return nil end
         for _, r in ipairs(reqs) do
@@ -10519,9 +10906,11 @@ function X.riftOnField(force)
     if force or not X.riftField or (os.clock() - (X.riftFieldAt or 0)) > K.RIFT_POLL then
         local fresh = X.riftFieldPets()
         if fresh then
+
             X.riftField = fresh
             X.riftFieldOkAt = os.clock()
         else
+
             if (os.clock() - (X.riftFieldOkAt or 0)) > K.RIFT_STALE_MAX then
                 X.riftField = {}
             end
@@ -10591,8 +10980,10 @@ X.rift.pick = EventTab:CreateDropdown({
     value = X.rift.none,
     flag = "RiftPet",
     callback = function(v)
+
         if X.riftSuppress then return end
         if type(v) == "table" then v = v[1] end
+
         local id = (v ~= X.rift.none) and ((X.riftLabelToId or {})[v] or v) or nil
         BX.riftPet = id
         BX.riftCommitted = nil
@@ -10631,6 +11022,7 @@ EventTab:CreateToggle({
         BX.riftOnly = v and true or false
         trace("rift: auto " .. (BX.riftOnly and "ON" or "OFF"))
         BlyxoNote("rift-auto", "Rift auto " .. (BX.riftOnly and "ON" or "OFF"), 2)
+
         local el = X.el and X.el.autoSteal
         if el then
             for _, fn in ipairs({ "Set", "SetValue", "Toggle" }) do
@@ -10659,6 +11051,7 @@ EventTab:CreateToggle({
 })
 
 function X.riftPaint()
+
     local function set(body, title)
         if title and title ~= X.riftLastTitle then
             X.riftLastTitle = title
@@ -10758,6 +11151,7 @@ task.spawn(function()
             local reqs = st.Requirements or {}
             local have = X.riftOwned(reqs)
             local ready = have and #reqs > 0 and have >= #reqs or false
+
             if ready and not lastReady then BlyxoNote("rift-ready", "Rift: all pets ready", 120) end
             lastReady = ready
 
@@ -10792,7 +11186,9 @@ local MiscTab = Window:CreateTab({ name = "Misc" })
 MiscTab:CreateSection({ name = "Look" })
 
 do
+
     local function pal(bgTop, bgBottom, tab, element, field, accent, accentLight)
+
         local edge = element:Lerp(accent, 0.1)
         local edgeHover = element:Lerp(accent, 0.3)
         local t = {
@@ -10828,6 +11224,7 @@ do
             SurfaceStroke = edgeHover,
             ShadowColor = bgBottom,
         }
+
         BlyxoThemeRaw = BlyxoThemeRaw or {}
         BlyxoThemeRaw[t] = { bgTop = bgTop, bgBottom = bgBottom, element = element,
                              accent = accent, accentLight = accentLight }
@@ -10954,6 +11351,7 @@ do
 
         local ok, why = pcall(function()
             local parent = (gethui and gethui()) or game:GetService("CoreGui")
+
             local best, bestArea
             for _, g in ipairs(parent:GetChildren()) do
                 if g:IsA("ScreenGui") and g.Name ~= "BlyxoSplash" then
@@ -10974,9 +11372,11 @@ do
             img.Name = "BlyxoBackground"
             img.Size = UDim2.fromScale(1, 1)
             img.BackgroundTransparency = 1
+
             img.Image = "rbxassetid://" .. id
             img.ScaleType = Enum.ScaleType.Crop
             img.ImageTransparency = math.clamp(tonumber(fade) or K.BG_FADE, 0, 1)
+
             img.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
             img.BackgroundTransparency = 0
             img.BorderSizePixel = 0
@@ -11029,6 +11429,7 @@ do
         local ok, why = applyBackground(id, fade)
         if not ok and tostring(why):find("could not find the hub window") then
             task.spawn(function()
+
                 for _ = 1, 60 do
                     task.wait(0.5)
                     if BX.bgRequest ~= mine then return end
@@ -11053,6 +11454,7 @@ do
         flag = "HubBackground",
         callback = function(v)
             BX.bgImage = tostring(v or "")
+
             local ok, why = X.setBackground(v, BX.bgFade)
             trace("background: " .. tostring(why))
             if why ~= "waiting for the window" then
@@ -11092,6 +11494,7 @@ do
             pcall(function()
                 settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
             end)
+
             pcall(function()
                 for _, d in ipairs(workspace:GetDescendants()) do
                     if d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Smoke")
@@ -11167,6 +11570,7 @@ end
     local ACCENT   = Color3.fromRGB(206, 206, 212)
     local ICON     = Color3.fromRGB(240, 240, 246)
     local TEXT     = Color3.fromRGB(220, 220, 220)
+
     local WARN     = Color3.fromRGB(240, 190, 90)
     local BAD      = Color3.fromRGB(240, 110, 110)
 
@@ -11313,7 +11717,7 @@ end
             LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.X,
             Size = UDim2.fromOffset(math.ceil(w), 18), BackgroundTransparency = 1,
             Font = FONT, TextSize = TEXT_SIZE, TextColor3 = TEXT,
-            TextXAlignment = Enum.TextXAlignment.Left, Text = "
+            TextXAlignment = Enum.TextXAlignment.Left, Text = "--",
         }, c)
     end
 
@@ -11348,6 +11752,7 @@ end
         for kind, box in pairs(iconBoxes) do
             for _, d in ipairs(box:GetDescendants()) do
                 if d:IsA("ImageLabel") then
+
                     if kind ~= "wifi" or (d.ImageColor3 ~= WARN and d.ImageColor3 ~= BAD) then
                         tw(d, 0.4, { ImageColor3 = ICON })
                     end
@@ -11467,6 +11872,7 @@ end
             if f[1].Parent then
                 if fresh then f[1][f[2]] = 1 end
                 if visible and fresh and f[1].Name == "Divider" then
+
                     local o, p, v = f[1], f[2], f[3]
                     task.delay(0.15, function()
                         if o.Parent and not closing then tw(o, t, { [p] = v }) end
@@ -11504,6 +11910,7 @@ end
 
         pill = mk("TextButton", {
             AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.01),
+
             AutomaticSize = Enum.AutomaticSize.X,
             Size = UDim2.fromOffset(0, (UserInputService.TouchEnabled
                 and not UserInputService.KeyboardEnabled) and 36 or 30),
@@ -11558,6 +11965,7 @@ end
             lastTap = now
 
             dragging, grabInput, grabPos = true, inp, target or pill.Position
+
             grabStart = (kind == Enum.UserInputType.MouseButton1)
                 and UserInputService:GetMouseLocation() or inp.Position
             tw(scaler, 0.2, { Scale = baseScale * 1.05 }, Enum.EasingStyle.Back)
@@ -11607,6 +12015,7 @@ end
             return
         end
         if gui then
+
             if closing then closing = false fade(true, 0.3) end
             return
         end
@@ -11617,6 +12026,7 @@ end
             teardown()
             return
         end
+
         for _, f in ipairs(fadeList) do
             if f[1].Parent then f[1][f[2]] = 1 end
         end
@@ -11634,9 +12044,11 @@ end
             fade(true, 0.35, true)
             moving = true
         end)
+
         task.delay(0.1, function() if pill and target then moveTo(target) end end)
 
         frames = 0
+
         conn = RunService.RenderStepped:Connect(function(dt)
             frames += 1
             if dragging and grabInput
@@ -11644,6 +12056,7 @@ end
                 dragTo(UserInputService:GetMouseLocation())
             end
             if moving and target and pill then
+
                 local p = pill.Position:Lerp(target, 1 - math.exp(-math.min(dt, 1 / 30) * 20))
                 if math.abs(p.X.Scale - target.X.Scale) < 1e-4
                    and math.abs(p.Y.Scale - target.Y.Scale) < 1e-4 then
@@ -11681,8 +12094,10 @@ end
                     local tone = (ms > 250 and BAD) or (ms > 150 and WARN) or nil
                     paint(labels.ping, "TextColor3", tone or TEXT)
                     if not closing then
+
                         local img = iconBoxes.wifi and iconBoxes.wifi:FindFirstChild("Img")
                         if img then paint(img, "ImageColor3", tone or ICON) end
+
                         local lit = (ms > 250 and 1) or (ms > 150 and 2) or 3
                         for i, b in ipairs(bars) do
                             local want = i <= lit and 0 or 0.7
@@ -11692,7 +12107,7 @@ end
                         end
                     end
                 else
-                    labels.ping.Text = "
+                    labels.ping.Text = "-- ms"
                 end
             end
         end)
@@ -11795,6 +12210,7 @@ MiscTab:CreateButton({
             toast("Already looking for a server")
             return
         end
+
         if heldEggUid then
             toast("Carrying an egg - bank it first")
             return
@@ -11839,6 +12255,7 @@ MiscTab:CreateButton({
                 if type(srv) == "table" and srv.id ~= game.JobId then
                     local n = tonumber(srv.playing) or 0
                     if n < (tonumber(srv.maxPlayers) or 7) then
+
                         if n < best then
                             best, pool = n, { srv.id }
                         elseif n == best then
@@ -11873,6 +12290,7 @@ MiscTab:CreateButton({
 MiscTab:CreateButton({
     name = "Server Hop",
     callback = function()
+
         if BX.hopping then
             toast("Already looking for a server")
             return
@@ -11969,6 +12387,7 @@ MiscTab:CreateButton({
                     trace("hop: call threw - " .. tostring(err))
                     failReason = failReason or tostring(err)
                 else
+
                     local waited = 0
                     while waited < 5 and not failReason do
                         task.wait(0.2)
@@ -12097,6 +12516,7 @@ function X.cfgReady()
 end
 
 function X.settings()
+
     local controls = {}
     pcall(function()
         for flag, c in pairs(Window.controls or {}) do
@@ -12105,6 +12525,7 @@ function X.settings()
             if kind == "boolean" or kind == "number" or kind == "string" then
                 controls[flag] = v
             elseif kind == "table" then
+
                 local list = {}
                 for _, item in ipairs(v) do
                     if typeof(item) == "string" then list[#list + 1] = item end
@@ -12130,7 +12551,8 @@ function X.applySettings(cfg)
 
     local n = tonumber(cfg.moveSpeed)
     if n then
-        TWEEN_SPEED = math.clamp(n, 100, 800)
+        TWEEN_SPEED = math.clamp(n, 100, 1000)
+
         BX.carrySpeed = math.min(TWEEN_SPEED, (BX.serverWalkSpeed and BX.serverWalkSpeed * 1.5) or 250)
         BX.carryLow, BX.carryHigh = nil, nil
         BX.carryWins = 0
@@ -12253,6 +12675,7 @@ task.spawn(function()
             if lastCount == nil then
                 lastCount = n
             elseif n ~= lastCount then
+
                 local grew = n > lastCount
                 lastCount = n
                 if grew and (os.clock() - lastAt) > K.AUTO_REFRESH_GAP then
@@ -12305,6 +12728,7 @@ task.spawn(function()
             pcall(function() if X.setStatsHud then X.setStatsHud(false) end end)
             pcall(stopProtect)
             pcall(disableNoclip)
+
             for _, holder in ipairs({ BX, BlyxoTop }) do
                 for _, v in pairs(holder) do
                     if typeof(v) == "RBXScriptConnection" then
@@ -12312,6 +12736,7 @@ task.spawn(function()
                     end
                 end
             end
+
             env.__BLYXO_GEN = (tonumber(env.__BLYXO_GEN) or 0) + 1
             return
         end
@@ -12644,6 +13069,7 @@ if false then task.spawn(function()
                     },
                     Body = body,
                 })
+
                 local code = nil
                 if ok and type(res) == "table" then code = tonumber(res.StatusCode) end
                 pending -= 1
@@ -12723,6 +13149,7 @@ if false then task.spawn(function()
             Image = logoAsset, ImageTransparency = 1, ScaleType = Enum.ScaleType.Fit,
         }, badge)
     else
+
         badge.Visible = false
     end
     local wordmarkLabel = new("TextLabel", {
