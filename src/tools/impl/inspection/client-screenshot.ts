@@ -41,7 +41,6 @@ function parseCaptureError(text: string): string | null {
             return typeof payload.error === "string" ? payload.error : "Client screenshot capture failed.";
         }
     } catch {
-        // Older connectors return text rather than a JSON payload.
     }
     return null;
 }
