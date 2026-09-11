@@ -43,7 +43,6 @@ export default function register(server) {
             }
         }
         if (!isSupported()) {
-            // Fall back to client-side screenshot for non-Windows platforms
             try {
                 const { sendAndWait } = await import("../../factory.js");
                 const result = await sendAndWait({
@@ -127,7 +126,7 @@ function renderScreenshotResult(result) {
         };
     }
     if (result.needsDisambiguation && result.windows) {
-        const listing = result.windows.map((w) => `  • PID ${w.pid} — "${w.title}"`).join("\n");
+        const listing = result.windows.map((w) => `  â¢ PID ${w.pid} â "${w.title}"`).join("\n");
         return {
             content: [
                 {
