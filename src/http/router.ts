@@ -102,7 +102,7 @@ export function loadRoutes(): Promise<void> {
                 registered = true;
             }
             if (!registered) {
-                console.error(`[Router] ${file} exports no recognized method handlers (GET/POST/…/WS). Skipping.`);
+                console.error(`[Router] ${file} exports no recognized method handlers (GET/POST/â¦/WS). Skipping.`);
             }
         }
         console.error(`[Router] Loaded ${httpRoutes.length} HTTP route(s), ${wsRoutes.length} WS route(s)` +
@@ -119,8 +119,6 @@ export async function dispatchHttp(req: IncomingMessage, res: ServerResponse): P
         res.end(JSON.stringify({ error: "Authorized local dashboard access required." }));
         return;
     }
-    // Dot-prefixed route directories are not emitted by TypeScript's include glob,
-    // so keep standards-mandated well-known endpoints explicit in the router.
     if (req.method === "GET" && url.pathname === "/.well-known/oauth-protected-resource/mcp") {
         writeProtectedResourceMetadata(req, res);
         return;
