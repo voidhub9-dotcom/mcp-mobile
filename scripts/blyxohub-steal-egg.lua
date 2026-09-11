@@ -779,7 +779,7 @@ K.MAX_SEGMENT = 1500
 
 K.MAX_STALL_RETRIES = 3
 
-K.UNREACHABLE_COOLDOWN = 45
+K.UNREACHABLE_COOLDOWN = 15
 
 K.ZIGZAG_WIDTH = 45
 K.ZIGZAG_SEGMENT = 220
@@ -803,8 +803,8 @@ K.SAFE_TP_CLAIM_TAIL = 0.6    -- listen-only tail, for a late FieldClaimed
 K.SAFE_TP_PLOT_WINDOW = 2.5   -- only reached when BX.safeTpPlotFallback is on
 
 
-K.CARRY_RACE_THREADS = 3
-K.CARRY_RACE_STAGGER = 0.05
+K.CARRY_RACE_THREADS = 6
+K.CARRY_RACE_STAGGER = 0.02
 
 K.LEGAL_JUMP = 180
 K.LEGAL_JUMP_SETTLE = 0.12
@@ -840,7 +840,7 @@ local carryLocked = false
 local guardManipEnabled = false
 local heldEggUid = nil
 local heldEggSlotKey = nil
-local stealDelay = 0.15
+local stealDelay = 0.05
 local selectedEggUid = nil
 local cachedEggs = {}
 local eggDropdown = nil
@@ -3058,8 +3058,8 @@ BX.tpBackEnabled = true
 
 K.SAFE_ARRIVE = 18
 
-K.CARRY_SPEED_CAP = 800
-K.CARRY_SPEED_MIN = 150
+K.CARRY_SPEED_CAP = 1000
+K.CARRY_SPEED_MIN = 200
 K.CARRY_REFERENCE = 500
 K.CARRY_STEP_DOWN = 150  -- punishment for a lost egg, deliberately bigger
 
@@ -3892,7 +3892,7 @@ K.ARC_MAX_FRAME = 0.25
 K.ARC_MAX_DEBT = 2.0
 
 K.ARC_MAX_STEP = 20        -- ceiling on one frame's displacement (hitch guard)
-K.ARC_SPEED = 1200         -- outbound cruise
+K.ARC_SPEED = 1600         -- outbound cruise
 K.ARC_CARRY_SPEED = nil
 
 local function arcGroundY(p, fallback)
@@ -5996,7 +5996,7 @@ K.TP_MAX_ADOPTED = 200
 K.TP_SETTLE = 0.35
 K.TP_LANDED = 30
 K.OUTBOUND_TP = true
-K.TP_PROMPT_WAIT = 1.2
+K.TP_PROMPT_WAIT = 0.5
 K.IDLE_RESCAN = 4
 K.AUTO_REFRESH_POLL = 3
 K.AUTO_REFRESH_GAP = 15
@@ -6109,7 +6109,7 @@ K.GRAB_TRIES = 3
 
 K.REGRAB_RAGDOLL_WAIT = 6.0
 K.REGRAB_SETTLE = 0.08
-K.REGRAB_TRIES = 4
+K.REGRAB_TRIES = 6
 K.REGRAB_POLL = 0.03
 K.REGRAB_HOP_MAX = 60
 K.SELECTED_HOLD = 30
@@ -6800,7 +6800,7 @@ local function stealLoop()
         trace("loop: " .. #cachedEggs .. " eggs")
         if #cachedEggs == 0 then
             idleCycles = idleCycles + 1
-            task.wait(2)
+            task.wait(0.5)
             continue
         end
 
@@ -6976,7 +6976,7 @@ local function stealLoop()
         if not target then
             idleCycles = idleCycles + 1
             trace("loop: no usable target record (idle " .. idleCycles .. "/8)")
-            task.wait(2)
+            task.wait(0.5)
             continue
         end
 
@@ -7224,6 +7224,7 @@ local function stealLoop()
                 end
 
                 local skipWait = not BX.takeHitOnSteal
+                if BX.stealMode == "Insta Steal" then skipWait = true end
                 if skipWait then
                     trace("steal: leaving immediately - not waiting for a hit")
                 end
