@@ -300,7 +300,7 @@ elseif World3 then
 			"Soul Reaper",
 		};
 end;
-end)()
+end)();
 (function()
 if World1 then
 	v = {
@@ -329,7 +329,7 @@ elseif World3 then
 			"Mini Tusk",
 		};
 end;
-end)()
+end)();
 local j = {
 		"Flame",
 		"Ice",
@@ -9784,7 +9784,7 @@ if World2 then
 		end,
 	});
 end;
-end)()
+end)();
 (function()
 if World2 or World3 then
 	Kq.CreateToggle({
@@ -9802,7 +9802,7 @@ if World2 or World3 then
 		end,
 	});
 end;
-end)()
+end)();
 (function()
 if World3 then
 	Kq.CreateToggle({
@@ -9848,7 +9848,7 @@ if World3 then
 		end,
 	});
 end;
-end)()
+end)();
 local Iq = kz.CreateSection("Travel - Worlds");
 Iq.CreateButton({ Title = "Travel East Blue (World 1)", Callback = function()
 		Q.Remotes.CommF_:InvokeServer("TravelMain");
@@ -9935,7 +9935,7 @@ elseif World3 then
 			"Temple of Time",
 		};
 end;
-end)()
+end)();
 Nq.CreateDropdown({
 	Title = "Select Portal",
 	Description = "",
@@ -11347,7 +11347,7 @@ if World1 or World2 or World3 then
 	end)
 
 end
-end)()
+end)();
 
 
 (function()
@@ -11786,7 +11786,7 @@ if World3 then
 		end;
 	end);
 end
-end)()
+end)();
 
 -- Update 30: Magnet Tokens (workspace-wide name scan + hover kill) and Island Secrets.
 task.spawn(function()
