@@ -254,7 +254,7 @@ BringEnemy = function()
 	end
 end
 
-;(function()
+(function()
 if World1 then
 	U = {
 			"The Gorilla King",
@@ -301,7 +301,7 @@ elseif World3 then
 		};
 end;
 end)()
-;(function()
+(function()
 if World1 then
 	v = {
 			"Leather + Scrap Metal",
@@ -9753,7 +9753,7 @@ Kq.CreateToggle({
 		end);
 	end,
 });
-;(function()
+(function()
 if World2 then
 	Kq.CreateToggle({
 		Title = "Esp Flower",
@@ -9785,7 +9785,7 @@ if World2 then
 	});
 end;
 end)()
-;(function()
+(function()
 if World2 or World3 then
 	Kq.CreateToggle({
 		Title = "Esp Aura Colour Dealers",
@@ -9803,7 +9803,7 @@ if World2 or World3 then
 	});
 end;
 end)()
-;(function()
+(function()
 if World3 then
 	Kq.CreateToggle({
 		Title = "Esp Gears",
@@ -9921,7 +9921,7 @@ Wq.CreateToggle({
 	end,
 });
 local Nq = kz.CreateSection("Travel - Portal");
-;(function()
+(function()
 if World1 then
 	Location_Portal = { "Lower Sky", "Upper Sky", "UnderWater" };
 elseif World2 then
@@ -11155,7 +11155,7 @@ do
 	end
 end
 
-;(function()
+(function()
 if World1 or World2 or World3 then
 	local S1_NextQuestActionAt = 0
 	local S1_NpcMissAt = {}
@@ -11350,7 +11350,7 @@ end
 end)()
 
 
-;(function()
+(function()
 if World3 then
 	local S3_DealerCF  = CFrame.new(-16927.451, 9.086, 433.864);
 	local S3_BuyLastAt = 0;
