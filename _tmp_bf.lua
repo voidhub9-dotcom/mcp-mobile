@@ -1,5 +1,4 @@
 -- No remote dependency during startup.  A failed external attack module used to
--- leave limited executors apparently stuck before the UI had initialized.
 if not game:IsLoaded() then pcall(function() game.Loaded:Wait() end) end
 local Y = game.Players;
 local d = Y.LocalPlayer;
@@ -40,22 +39,22 @@ local T = .1;
 local L = 0;
 local P = 25;
 -- Compatibility aliases for new system
-local plr = d
-local replicated = Q
-local Root = R
-local C = R
-local Lv = r
-local TeleportService = a
-local TW = w
-local Lighting = F
-local Enemies = M
-local vim1 = K
-local vim2 = n
-local TeamSelf = I
-local RunSer = W
-local Stats = N
-local Energy = D
-local shouldTween = false
+plr = d
+replicated = Q
+Root = R
+C = R
+Lv = r
+TeleportService = a
+TW = w
+Lighting = F
+Enemies = M
+vim1 = K
+vim2 = n
+TeamSelf = I
+RunSer = W
+Stats = N
+Energy = D
+shouldTween = false
 d.CharacterAdded:Connect(function(character)
     local root = character:WaitForChild("HumanoidRootPart", 10)
     if root and d.Character == character then
@@ -84,11 +83,7 @@ Marines = function()
 		Q.Remotes.CommF_:InvokeServer("SetTeam", "Marines");
 	end;
 
--- ========================================
 -- SUBMERGED ISLAND AUTO-TELEPORT (3rd Sea)
--- ========================================
--- This function handles automatic teleportation to Submerged Island for levels 2600+
--- It teleports to Tiki Outpost NPC, triggers the submarine remote, then continues farming
 
 function HandleSubmergedIslandTeleport(playerLevel, questPos, hrp)
 	if not hrp then return false end
@@ -97,7 +92,6 @@ function HandleSubmergedIslandTeleport(playerLevel, questPos, hrp)
 	if playerLevel >= 2600 then
 		local distance = (questPos.Position - hrp.Position).Magnitude
 		
-		-- If player is far from the quest (> 10000 studs), teleport to Tiki Outpost
 		if distance > 10000 then
 			local tikiNPC = CFrame.new(-16269.7041, 25.2288494, 1373.65955, 0.99739098, 1.47309942e-09, -0.07218909, -4.00651912e-09, 0.99999994, -2.51183763e-09, 0.07218908, 5.75363091e-10, 0.99739092)
 			_tp(tikiNPC)
@@ -121,9 +115,7 @@ end
 Pirates = function()
 		Q.Remotes.CommF_:InvokeServer("SetTeam", "Pirates");
 	end;
--- ========================================
 -- BACKGROUND VIDEO (VonLib API)
--- ========================================
 -- Set background video on the UI window
 if _Window then
 	task.spawn(function()
@@ -133,9 +125,7 @@ if _Window then
 	end)
 end
 
--- ========================================
 -- TEXT GRADIENT SUPPORT
--- ========================================
 function CreateGradientLabel(parent, text, colors, rotation)
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1, 0, 0, 30)
@@ -188,9 +178,7 @@ function UpdateGradientLabel(label, newText, newColors, newRotation)
 	end
 end
 
--- ========================================
 -- IMPROVED MOB HEIGHT & BRING SYSTEM
--- ========================================
 _G.MobHeight = _G.MobHeight or 20
 _B = false
 PosMon = nil
@@ -209,11 +197,6 @@ local function zeroVelocity(part)
 	end)
 end
 
--- Travel tweens (island hop, Marine Fortress, secret quest islands) move the
--- HumanoidRootPart's CFrame directly, but the rest of the character still has
--- normal collision, so it can physically snag on terrain, buildings, or other
--- players between islands. This clears CanCollide across every body part for
--- the duration of the tween so it actually passes through everything, then
 -- restores it once travel finishes.
 local function setCharacterNoclip(char, on)
 	if not char then return end
@@ -271,6 +254,7 @@ BringEnemy = function()
 	end
 end
 
+;(function()
 if World1 then
 	U = {
 			"The Gorilla King",
@@ -316,6 +300,8 @@ elseif World3 then
 			"Soul Reaper",
 		};
 end;
+end)()
+;(function()
 if World1 then
 	v = {
 			"Leather + Scrap Metal",
@@ -343,6 +329,7 @@ elseif World3 then
 			"Mini Tusk",
 		};
 end;
+end)()
 local j = {
 		"Flame",
 		"Ice",
@@ -441,7 +428,6 @@ weaponSc = function(Y)
 			end;
 		end;
 	end;
--- Keep current game effects, quest guidance, and error reporting intact.
 local O = workspace:FindFirstChild("Rocks");
 if O then
 	O:Destroy();
@@ -479,8 +465,6 @@ f.Dist = function(Y, d)
 f.DistH = function(Y, d)
 		return (R.Position - (Y:FindFirstChild("HumanoidRootPart")).Position).Magnitude > d;
 	end;
--- Executor-compatible combat fallback.  It uses the equipped Tool's normal
--- activation rather than synthetic hit remotes, and is shared by every farm.
 f.LastActivate = 0;
 f.Activate = function()
 	local now = os.clock()
@@ -1129,8 +1113,6 @@ _tp = function(target)
 	if typeof(target) ~= "CFrame" then return false, "invalid destination" end
 	local root, character = VoidRoot()
 	if not root or not character then return false, "waiting for character" end
-	-- Farm ticks run faster than a long tween.  Keep ownership when the request
-	-- is for the same destination instead of cancelling and restarting it.
 	if VoidTravel.Tween and VoidTravel.Tween.PlaybackState == Enum.PlaybackState.Playing
 		and VoidTravel.Target and (VoidTravel.Target.Position - target.Position).Magnitude <= 16 then
 		return true, "travelling"
@@ -2073,9 +2055,6 @@ local VonLibrary = loadstring(game:HttpGet(
 ))();
 
 -- Compatibility bridge.
--- Maps the original embedded-library API (Kz / Cz / section objects) to the
--- VonLib API so that every CreateSection / CreateToggle / CreateButton /
--- CreateDropdown / CreateSlider / CreateLabel / CreateBox call below works
 -- without modification.
 
 local _Window = nil;
@@ -2093,7 +2072,6 @@ function Kz.CreateNoti(cfg, force)
 	end;
 end;
 
--- Section factory: each call to tab.CreateSection returns a table whose
 -- Create* methods forward to VonLib's Tab:Add* calls.
 local function _makeSection(Tab, sectionTitle)
 	if sectionTitle and sectionTitle ~= "" then
@@ -2153,7 +2131,6 @@ local function _makeSection(Tab, sectionTitle)
 		});
 	end;
 
-	-- Label: returns an object with SetDesc() so dynamic labels keep working
 	function S.CreateLabel(cfg)
 		local text = (cfg.Title or "") .. (cfg.Content or "");
 		local lbl = Tab:AddLabel(text);
@@ -2344,8 +2321,6 @@ function CheckHasQuest(name)
 		return true
 	end
 	-- Current quest titles abbreviate longer enemy names on small/mobile UI.
-	-- Match meaningful words in order, so "Military Spy" also recognises
-	-- "Mil. Spy" without treating a different quest as the active one.
 	local from, matched = 1, 0
 	for word in wanted:gmatch("[%a%d]+") do
 		if #word >= 3 then
@@ -3596,8 +3571,6 @@ NF.CreateToggle({
 		_G.Auto_Random_Bone = Y;
 	end,
 });
--- Keep purchase loops bounded on mobile executors.  The previous nested repeat
--- loop could create an unbounded queue of requests and leave the result panel open.
 local VoidGacha = { NextBones = 0, NextFruit = 0 }
 local function VoidCloseGachaGui()
 	local gui = plr:FindFirstChildOfClass("PlayerGui")
@@ -9780,6 +9753,7 @@ Kq.CreateToggle({
 		end);
 	end,
 });
+;(function()
 if World2 then
 	Kq.CreateToggle({
 		Title = "Esp Flower",
@@ -9810,6 +9784,8 @@ if World2 then
 		end,
 	});
 end;
+end)()
+;(function()
 if World2 or World3 then
 	Kq.CreateToggle({
 		Title = "Esp Aura Colour Dealers",
@@ -9826,6 +9802,8 @@ if World2 or World3 then
 		end,
 	});
 end;
+end)()
+;(function()
 if World3 then
 	Kq.CreateToggle({
 		Title = "Esp Gears",
@@ -9870,6 +9848,7 @@ if World3 then
 		end,
 	});
 end;
+end)()
 local Iq = kz.CreateSection("Travel - Worlds");
 Iq.CreateButton({ Title = "Travel East Blue (World 1)", Callback = function()
 		Q.Remotes.CommF_:InvokeServer("TravelMain");
@@ -9942,6 +9921,7 @@ Wq.CreateToggle({
 	end,
 });
 local Nq = kz.CreateSection("Travel - Portal");
+;(function()
 if World1 then
 	Location_Portal = { "Lower Sky", "Upper Sky", "UnderWater" };
 elseif World2 then
@@ -9955,6 +9935,7 @@ elseif World3 then
 			"Temple of Time",
 		};
 end;
+end)()
 Nq.CreateDropdown({
 	Title = "Select Portal",
 	Description = "",
@@ -9966,8 +9947,6 @@ Nq.CreateDropdown({
 	end,
 });
 Nq.CreateButton({ Title = "requestEntrance", Callback = function()
-		-- These are entrance destinations, not arbitrary CFrames.  Keeping lower
-		-- and upper sky distinct fixes the old one-size-fits-all Sky route.
 		if _G.Island_PT == "Lower Sky" then
 			Q.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(-4607.82275, 872.54248, -1667.55688));
 		elseif _G.Island_PT == "Upper Sky" then
@@ -11176,6 +11155,7 @@ do
 	end
 end
 
+;(function()
 if World1 or World2 or World3 then
 	local S1_NextQuestActionAt = 0
 	local S1_NpcMissAt = {}
@@ -11290,9 +11270,6 @@ if World1 or World2 or World3 then
         if VoidUpdate30 and (VoidUpdate30.Magnet or VoidUpdate30.Secrets) then return "paused for event farm" end
         S1_ApplyQuestData();
         if BetterFarm.Enabled and BetterFarm.NeedsGiver then
-            -- Do not send a second movement request to the enemy area while the
-            -- normal farm is heading for the quest giver.  If live NPC data has
-            -- not streamed in, use the stable quest fallback for this step.
             BetterFarm.Enabled = false
             CheckQuest()
             if S1_QuestGuiLabel then S1_QuestGuiLabel:Set("Level farm: using quest fallback") end
@@ -11337,9 +11314,6 @@ if World1 or World2 or World3 then
 		if (hrp.Position - spawn.Position).Magnitude > 30 then _tp(spawn); return "moving to enemies"; end;
 		return "waiting for enemies";
 	end;
-	-- Keep shared legacy variables aligned with live quest data.  Other old hub
-	-- loops may still write NameMon, which previously made the farm alternate
-	-- between two islands even while the correct quest was visible.
 	task.spawn(function()
 		while task.wait(.45) do
 			if _G.Level and BetterFarm.Enabled then
@@ -11373,8 +11347,10 @@ if World1 or World2 or World3 then
 	end)
 
 end
+end)()
 
 
+;(function()
 if World3 then
 	local S3_DealerCF  = CFrame.new(-16927.451, 9.086, 433.864);
 	local S3_BuyLastAt = 0;
@@ -11465,7 +11441,6 @@ if World3 then
 		end;
 	end);
 
-	-- sailing: move the boat (seat CFrame), never the player
 	task.spawn(function()
 		while task.wait(.05) do
 			if _G.SailBoats then
@@ -11548,7 +11523,6 @@ if World3 then
 		end;
 	end);
 
-	-- parallel entity combat: each type runs independently, none block the others
 	task.spawn(function()
 		while task.wait() do
 			pcall(function()
@@ -11812,12 +11786,9 @@ if World3 then
 		end;
 	end);
 end
+end)()
 
 -- Update 30: Magnet Tokens (workspace-wide name scan + hover kill) and Island Secrets.
--- Wrapped in its own function (not a bare do...end) so its ~20 locals get their
--- own register allocation instead of counting against the main chunk's 200-local
--- cap -- this block alone was what pushed the whole script past that limit and
--- made loadstring fail to compile the entire hub (nothing loads, no error shown).
 task.spawn(function()
     local player = game:GetService("Players").LocalPlayer
     local rs = game:GetService("ReplicatedStorage")
@@ -11895,10 +11866,6 @@ task.spawn(function()
     end
     local VOIDHUB_JOB_API = "https://job.idshowmeat.workers.dev"
     local VOIDHUB_LOADER_URL = "https://voidon.top/api/loader/main"
-    -- Queues a reload of the hub (via getgenv().VoidHubSourceURL if set, else the
-    -- default loader) to run automatically right after the next teleport lands,
-    -- and turns Magnet farming back on once it's up, so a server hop during the
-    -- event doesn't leave the farm sitting idle on the new server.
     local function magnetQueueAutoResume()
         if typeof(queue_on_teleport) ~= "function" then return end
         local sourceUrl = tostring(getgenv().VoidHubSourceURL or VOIDHUB_LOADER_URL)
@@ -11979,8 +11946,6 @@ end)
     local magnetIslandDeadline = nil
     local magnetPatrolCyclesEmpty = 0
 
-    -- So turning the toggle on starts the patrol at whichever island the
-    -- player is already standing on/near, instead of always jumping back
     -- to the first island in the list.
     local function magnetNearestIslandIndex()
         local char = player.Character
@@ -12076,9 +12041,6 @@ end)
         return true
     end
 
-    -- Secret objectives are only replicated after their island is streamed.
-    -- Route to the selected island first, then let the normal secret logic
-    -- inspect the live objective rather than trying to fire arbitrary remotes.
     function state:TravelToSecret(entry)
         local char = player.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -12179,9 +12141,6 @@ end)
         return true
     end
 
-    -- The event's NPC data is replicated before its models stream into the
-    -- world. Cache candidate models on a slow cadence and only inspect the
-    -- compact combat folders each tick. This keeps the event usable on Delta
     -- and other lower-power executors.
     state.MagnetCandidates, state.MagnetCandidateAt = {}, -math.huge
     function state:IsMagnetMob(v)
@@ -12254,8 +12213,6 @@ end)
             pcall(function() player:RequestStreamAroundAsync(island.pos, 8) end)
             return true, "Scanning " .. island.name
         end
-        -- Short, ground-level steps prevent the old one-shot long tween from
-        -- leaving the root part in mid-air or trying to cross unloaded terrain.
         local step = math.min(flat.Magnitude, 650)
         local fallbackY = root.Position.Y < 3 and (island.pos.Y + 4) or root.Position.Y
         local destination = Vector3.new(root.Position.X + flat.Unit.X * step, fallbackY, root.Position.Z + flat.Unit.Z * step)
@@ -12341,10 +12298,6 @@ end)
         },
     }
 
-    -- Sea 1 routes verified against the Island Secrets guide.  These are kept
-    -- separate from combat handling: each secret has a different server-side
-    -- interaction sequence, so blindly firing a generic "Start" remote leaves
-    -- the character stuck at an NPC (and can desync its active state).
     local hints = {
         ["Tavern Brawl"]              = "Pirate Village: get the Tavern rumour from the Quest Giver, approach the door, choose Breach Door, then defeat all 3 Tavern Pirates.",
         ["Windmill Maintenance"]      = "Pirate Village: equip a cutting weapon and cut all 5 ropes at the windmill.",
@@ -12496,9 +12449,6 @@ end)
                     local nearest, nearestDist = state:FindMagnet()
                     if nearest then
                         magnetPatrolCyclesEmpty = 0
-                        -- Do not tween or freeze server-owned NPCs. Besides causing
-                        -- heavy lag, that path is unreliable on mobile executors. The
-                        -- local player now walks to the target and uses the equipped
                         -- melee tool's normal activation path.
                         local result = state:Fight(nearest, nearestDist)
                         local h2 = nearest:FindFirstChildOfClass("Humanoid")
@@ -12508,9 +12458,6 @@ end)
                     local island = MAGNET_PATROL_ISLANDS[magnetPatrolIndex]
                     local arrived, route = state:PatrolTo(island)
                     if not arrived then return route end
-                    -- Only begin the scan timer once the character has reached the
-                    -- streamed island. The previous order cancelled travel mid-step
-                    -- and reported a false scanning status from the open sea.
                     if not magnetIslandDeadline then magnetIslandDeadline = os.clock() + MAGNET_ISLAND_DWELL end
                     if os.clock() < magnetIslandDeadline then
                         return "Scanning " .. island.name .. string.format(" (%.1fs left)", magnetIslandDeadline - os.clock())
