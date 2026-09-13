@@ -9108,7 +9108,7 @@ task.spawn(function()
 end)
 
 
-local rawHome = _rawWindow:AddTab("Home", iconUrl("home"))
+local rawHome = _rawWindow:AddTab("Home", "home")
 
 local profileBox = rawHome:AddGroupbox({ Side = "Left", Name = "Player Profile" })
 local profileName = LocalPlayer.DisplayName
@@ -9147,7 +9147,7 @@ task.spawn(function()
 end)
 
 VoidHubSplash.step("Building Main", 0.7)
-local rawSteal = _rawWindow:AddTab("Main", iconUrl("egg"))
+local rawSteal = _rawWindow:AddTab("Main", "egg")
 
 __gnSteal = __gnSteal + 1
 __gbSteal = (__gnSteal % 2 == 1) and rawSteal:AddGroupbox({Side="Left", Name="Overview"}) or rawSteal:AddGroupbox({Side="Right", Name="Overview"})
@@ -10449,7 +10449,7 @@ end
 
 
 VoidHubSplash.step("Building Farm", 0.78)
-local rawFarm = _rawWindow:AddTab("Farm", iconUrl("sprout"))
+local rawFarm = _rawWindow:AddTab("Farm", "sprout")
 
 __gnFarm = __gnFarm + 1
 __gbFarm = (__gnFarm % 2 == 1) and rawFarm:AddGroupbox({Side="Left", Name="Overview"}) or rawFarm:AddGroupbox({Side="Right", Name="Overview"})
@@ -10970,7 +10970,7 @@ end
 
 
 VoidHubSplash.step("Building Event", 0.84)
-local rawEvent = _rawWindow:AddTab("Event", iconUrl("star"))
+local rawEvent = _rawWindow:AddTab("Event", "star")
 
 
 X.boss = {}
@@ -12919,7 +12919,7 @@ end)
 
 
 VoidHubSplash.step("Building Misc", 0.9)
-local rawMisc = _rawWindow:AddTab("Misc", iconUrl("slidershorizontal"))
+local rawMisc = _rawWindow:AddTab("Misc", "sliders-horizontal")
 
 __gnMisc = __gnMisc + 1
 do
@@ -13757,11 +13757,11 @@ task.spawn(function()
 end)
 
 VoidHubSplash.step("Loading profiles", 0.95)
-local rawCfg = _rawWindow:AddTab("Config", iconUrl("settings"))
+local rawCfg = _rawWindow:AddTab("Config", "settings")
 
 local advancedBox = rawCfg:AddTabbox({ Side = "Right", Name = "Advanced", PopOut = true })
-local webhookTab = advancedBox:AddTab("Webhooks", iconUrl("send"))
-local interfaceTab = advancedBox:AddTab("Interface", iconUrl("layout"))
+local webhookTab = advancedBox:AddTab("Webhooks", "send")
+local interfaceTab = advancedBox:AddTab("Interface", "layout")
 
 webhookTab:AddInput("WebhookUrl", {
     Text = "Discord Webhook URL",
@@ -13792,7 +13792,7 @@ webhookTab:AddButton({
         Window:AddDialog("WebhookTestDialog", {
             Title = "Send test webhook?",
             Description = "This sends your Roblox display name, username, and game name to the URL you entered.",
-            Icon = iconUrl("send"),
+            Icon = "send",
             AutoDismiss = true,
             OutsideClickDismiss = true,
             FooterButtons = {
@@ -13833,7 +13833,7 @@ if SaveManager then
     SaveManager:IgnoreThemeSettings()
     SaveManager:SetIgnoreIndexes({ "TargetEgg", "ProfileName", "ProfilePick", "WebhookUrl" })
     SaveManager:SetFolder("VoidHub/StealAnEgg")
-    SaveManager:BuildConfigSection(rawCfg, iconUrl("save"))
+    SaveManager:BuildConfigSection(rawCfg, "save")
     task.defer(function() pcall(function() SaveManager:LoadAutoloadConfig() end) end)
 else
     local unavailable = rawCfg:AddGroupbox({ Side = "Left", Name = "Profiles" })
@@ -13843,7 +13843,7 @@ end
 if ThemeManager then
     ThemeManager:SetLibrary(Library)
     ThemeManager:SetFolder("VoidHub")
-    ThemeManager:ApplyToTab(rawCfg, iconUrl("palette"))
+    ThemeManager:ApplyToTab(rawCfg, "palette")
     task.defer(function() pcall(function() ThemeManager:LoadDefault() end) end)
 end
 
