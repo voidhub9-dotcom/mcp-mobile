@@ -1,7 +1,7 @@
 -- Bigfroot | Murder Mystery 2
 -- BigFroot UI (blush.lua) conversion of VoidHub MM2 v1.1
 local Library = loadstring(game:HttpGet("https://gitlab.com/hanniii1/test/-/raw/main/boom.lua?ref_type=heads"))()
-Library:SetFolder("Bigfroot/mm2", "Bigfroot")
+Library:SetFolder("Bigfroot/mm2", "BF Hub")
 
 local Players           = game:GetService("Players")
 local UserInputService  = game:GetService("UserInputService")
@@ -54,11 +54,11 @@ local F = {
 local CFG = {
     walkSpeed    = 16,  jumpPower    = 50,   flySpeed     = 50,
     spinSpeed    = 10,  killRadius   = 18,   knifeRadius  = 12,
-    reachSize    = 10,  farmSpeed    = 60,   bagCap       = 50,
-    alarmDist    = 40,  evadeDist    = 20,   evadeSpeed   = 25,
-    antiKillDist = 15,  scaleSize    = 2,    fov          = 70,
-    maxZoom      = 128, gravity      = 50,   espMaxDist   = 2000,
-    aimFov       = 120, aimPart      = "Head", freecamSpeed = 1,
+    reachSize    = 10,  farmSpeed    = 16,   bagCap       = 50,
+    alarmDist    = 40,  evadeDist    = 20,
+    evadeSpeed   = 25,  antiKillDist = 15,   scaleSize    = 2,
+    fov          = 70,  maxZoom      = 128,  gravity      = 50,
+    espMaxDist   = 2000, aimFov      = 120,  aimPart      = "Head", freecamSpeed = 1,
     trailColor   = Color3.fromRGB(120, 80, 255),
     nametagText  = "Bigfroot",
     danceSel     = "Dance 1",
@@ -1558,9 +1558,9 @@ end
 -- ════════════════════════════════════════════════════════════════════════════
 local Window = Library:CreateWindow({
     Title       = "Bigfroot",
-    Footer      = "Murder Mystery 2  |  v1.1",
+    Footer      = "Murder Mystery 2  |  b1",
     Folder      = "Bigfroot/mm2",
-    Hub         = "Bigfroot",
+    Hub         = "BF Hub",
     Icon        = "skull",
     MenuKeybind = Enum.KeyCode.RightShift,
 })
@@ -1592,7 +1592,6 @@ task.spawn(function()
 end)
 
 -- ─── COMBAT TAB ───────────────────────────────────────────────────────────────
-Window:AddTabSection("Combat")
 local CombatTab  = Window:AddTab("Combat", "crosshair")
 local MurderBox  = CombatTab:AddLeftGroupbox("Murderer")
 local SheriffBox = CombatTab:AddRightGroupbox("Sheriff")
@@ -1698,7 +1697,6 @@ SheriffBox:AddButton({
 })
 
 -- ─── VISUALS TAB ──────────────────────────────────────────────────────────────
-Window:AddTabSection("Visuals")
 local VisualsTab = Window:AddTab("Visuals", "eye")
 local EspBox     = VisualsTab:AddLeftGroupbox("Player ESP")
 local WorldBox   = VisualsTab:AddRightGroupbox("World")
@@ -1764,7 +1762,6 @@ WorldBox:AddToggle("NoFog", { Text = "No Fog", Default = false }):OnChanged(func
 end)
 
 -- ─── PLAYER TAB ───────────────────────────────────────────────────────────────
-Window:AddTabSection("Player")
 local PlayerTab = Window:AddTab("Player", "user")
 local MoveBox   = PlayerTab:AddLeftGroupbox("Movement")
 local AppBox    = PlayerTab:AddRightGroupbox("Appearance")
@@ -1865,7 +1862,6 @@ AppBox:AddToggle("NametagOn",   { Text = "Show Nametag",         Default = false
 end)
 
 -- ─── FARM TAB ─────────────────────────────────────────────────────────────────
-Window:AddTabSection("Farm")
 local FarmTab = Window:AddTab("Farm", "coins")
 local FarmBox = FarmTab:AddLeftGroupbox("Coin Farm")
 
@@ -1873,9 +1869,10 @@ FarmBox:AddToggle("FarmCoins", { Text = "Farm Coins", Default = false }):OnChang
     F.farmCoins = v
     if not v and farmActive then stopFarming() end
 end)
-FarmBox:AddSlider("GlideSpeed", { Text = "Glide Speed", Default = 60, Min = 16, Max = 220, Rounding = 0 }):OnChanged(function(v)
+FarmBox:AddSlider("GlideSpeed", { Text = "Glide Speed", Default = 16, Min = 16, Max = 220, Rounding = 0 }):OnChanged(function(v)
     CFG.farmSpeed = v
 end)
+FarmBox:AddLabel({ Text = "⚠ Speeds above default may get you kicked!", DoesWrap = true, RichText = false, Dim = true })
 FarmBox:AddButton({ Text = "Start Farming", Callback = function()
     F.farmCoins = true; notify("Coins", "Coin farm started.", 2, "success")
 end })
@@ -1886,7 +1883,6 @@ FarmBox:AddButton({ Text = "Stop Farming", Callback = function()
 end })
 
 -- ─── UTILITY ──────────────────────────────────────────────────────────────────
-Window:AddTabSection("Utility")
 
 -- Teleport tab
 local TpTab  = Window:AddTab("Teleport", "map-pin")
