@@ -35,15 +35,32 @@ const inputSchema = z.discriminatedUnion("operation", [
     z.object({ operation: z.literal("status") }),
     z.object({
         operation: z.literal("inject"),
+        preset: z
+            .enum(["cobalt"])
+            .describe(
+                "Named remote spy preset to load. " +
+                "'cobalt' fetches Cobalt (gitlab.com/upio/cobalt) via HttpGet inside the executor — " +
+                "no source string needed, Roblox downloads it directly."
+            )
+            .optional(),
+        url: z
+            .string()
+            .describe(
+                "URL to fetch the spy script from inside the executor using HttpGet. " +
+                "Use this when you have a custom-hosted spy script."
+            )
+            .optional(),
         source: z
             .string()
             .describe(
-                "Luau source code of a remote spy script to inject and execute. " +
-                "The script runs in thread identity 8 and may set getgenv().MCP_CustomRemoteSpy " +
-                "= { type, getLogs, clear, status } for full MCP integration. " +
-                "Compatible with Hydroxide (sets getgenv().Hydroxide) and generic spies " +
-                "that write to getgenv().RemoteSpy or getgenv().RS."
-            ),
+                "Raw Luau source of a remote spy script to inject directly. " +
+                "Runs at thread identity 8. For Cobalt or large scripts use 'preset' or 'url' instead " +
+                "so the executor fetches them — avoids bridge message-size limits. " +
+                "The script may set getgenv().MCP_CustomRemoteSpy = { type, getLogs, clear, status } " +
+                "for full MCP integration. Also compatible with scripts that set getgenv().Hydroxide, " +
+                "getgenv().RemoteSpy, or getgenv().RS."
+            )
+            .optional(),
         maxOutputChars: maxOutputCharsSchema,
     }),
 ]);
@@ -51,13 +68,14 @@ export default function register(server: McpServer): void {
     server.registerTool("remote-spy", {
         title: "Inspect remote inventory and activity",
         description:
-            "Remote spy diagnostics with multi-backend compatibility. " +
-            "Use 'inject' to load a custom spy script (Hydroxide, custom hookfunction spy, etc.) — " +
-            "subsequent 'list' calls read from that spy's live call log. " +
-            "Without an injected spy, 'list' falls back through: getgenv().Hydroxide → " +
-            "getgenv().RemoteSpy/RS → built-in read-only inventory scanner. " +
-            "Never invokes, blocks, edits, or replays remotes. " +
-            "Start with summaryOnly=true and a small limit, then narrow by name before requesting call arguments.",
+            "Remote spy with multi-backend support. " +
+            "Use 'inject' with preset='cobalt' to load Cobalt (best-in-class spy with full argument capture, " +
+            "incoming/outgoing hooks, and blocking). After injection, 'list' reads live call logs directly " +
+            "from the active spy. Backend priority: Cobalt (getgenv().CobaltInitialized) → " +
+            "custom MCP spy (getgenv().MCP_CustomRemoteSpy) → Hydroxide (getgenv().Hydroxide) → " +
+            "generic spy (getgenv().RemoteSpy/RS) → built-in read-only inventory scanner. " +
+            "Never replays or modifies remotes. " +
+            "Start with summaryOnly=true, small limit, then narrow by name before requesting call arguments.",
         inputSchema,
     }, async (input) => {
         const maxOutputChars = (input.operation === "list" || input.operation === "inject")
@@ -65,7 +83,7 @@ export default function register(server: McpServer): void {
             : undefined;
         return sendAndWait({
             type: "remote-spy",
-            data: input,
+            data: input as Record<string, unknown>,
             maxOutputChars,
             stampClient: true,
             truncationHint: "Rerun remote-spy list with summaryOnly=true, a nameFilter, a lower limit, or fewer calls per remote.",

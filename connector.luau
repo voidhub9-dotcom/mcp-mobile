@@ -2537,38 +2537,76 @@ end end function a.o():typeof(__modImpl())local b=a.cache.o if not b then b={c=_
 
 return function(b,c)
 c:BindToType("ensure-remote-spy",function(d)
+if getgenv().CobaltInitialized then
+return{status="ready",mode="cobalt",message="Cobalt remote spy is active."}
+end
 if getgenv().MCP_CustomRemoteSpy then
 return{status="ready",mode=getgenv().MCP_CustomRemoteSpy.type or"custom",message="Custom remote spy is active."}
 end
 local e=getgenv().MCP_RemoteMonitor
 if e then
-return{
-status="ready",
-message="Remote Monitor is ready."
-}
-end local
-
+return{status="ready",message="Remote Monitor is ready."}
+end
 getgenv().MCP_RemoteMonitor={startedAt=os.time(),scans=0,lastScanAt=nil}
-return{
-status="ready",
-message="Read-only Remote Monitor is ready."
-}
+return{status="ready",message="Read-only Remote Monitor is ready."}
 end)
 
 c:BindToType("get-remote-spy-logs",function(d)
+local nameFilter=d.remoteNameFilter or""
+local limit=math.max(1,math.min(tonumber(d.limit)or 10,100))
+local hasFilter=nameFilter~=""
+local summaryOnly=d.summaryOnly~=false
+local dirFilter=d.direction or"Both"
+local maxCPR=math.min(tonumber(d.maxCallsPerRemote)or 1,20)
+
+-- 1. Cobalt
+if getgenv().CobaltInitialized then
+local cobalt=getgenv().Cobalt
+if cobalt and cobalt.shared and cobalt.shared.Logs then
+local cobaltLogs=cobalt.shared.Logs
+local results={}
+local function processCobaltCategory(category,direction)
+for _,log in pairs(category)do
+if#results>=limit then break end
+local ok,remoteName=pcall(function()return log.Instance.Name end)
+if not ok then remoteName="unknown" end
+if not hasFilter or string.find(string.lower(tostring(remoteName)),string.lower(nameFilter),1,true)then
+local ok2,fullPath=pcall(function()return log.Instance:GetFullName()end)
+local ok3,className=pcall(function()return log.Instance.ClassName end)
+local recentCalls=nil
+if not summaryOnly and#log.Calls>0 then
+recentCalls={}
+for i=math.max(1,#log.Calls-maxCPR+1),#log.Calls do
+local call=log.Calls[i]
+if call then
+local entry={Arguments=call.Arguments,Line=call.Line,Source=call.Source}
+if call.InvokeResult then entry.InvokeResult=call.InvokeResult end
+table.insert(recentCalls,entry)
+end
+end
+end
+table.insert(results,{RemoteName=tostring(remoteName),RemoteClass=ok3 and className or"RemoteEvent",Direction=direction,Method="cobalt",TotalCalls=#log.Calls,Ignored=log.Ignored or false,Blocked=log.Blocked or false,RecentCalls=recentCalls,Path=ok2 and fullPath or tostring(remoteName)})
+end
+end
+end
+if dirFilter=="Both"or dirFilter=="Outgoing" then processCobaltCategory(cobaltLogs.Outgoing or{},"Outgoing")end
+if dirFilter=="Both"or dirFilter=="Incoming" then processCobaltCategory(cobaltLogs.Incoming or{},"Incoming")end
+return{count=#results,results=results,mode="cobalt",message="Cobalt remote spy data."}
+end
+end
+
+-- 2. Custom MCP spy
 local customSpy=getgenv().MCP_CustomRemoteSpy
 if customSpy and type(customSpy.getLogs)=="function" then
 local ok,result=pcall(customSpy.getLogs,d)
 if ok and result then return result end
 end
+
+-- 3. Hydroxide
 local hydroxide=getgenv().Hydroxide
 if hydroxide then
 local remotes=hydroxide.remotes or hydroxide.Remotes
 if remotes then
-local nameFilter=d.remoteNameFilter or""
-local limit=math.max(1,math.min(tonumber(d.limit)or 10,100))
-local hasFilter=nameFilter~=""
-local summaryOnly=d.summaryOnly~=false
 local results={}
 for remote,calls in pairs(remotes)do
 if#results>=limit then break end
@@ -2579,10 +2617,7 @@ local ok2,fullPath=pcall(function()return remote:GetFullName()end)
 local recentCalls=nil
 if not summaryOnly and type(calls)=="table" then
 recentCalls={}
-local maxCalls=math.min(tonumber(d.maxCallsPerRemote)or 1,#calls)
-for i=math.max(1,#calls-maxCalls+1),#calls do
-table.insert(recentCalls,calls[i])
-end
+for i=math.max(1,#calls-maxCPR+1),#calls do table.insert(recentCalls,calls[i])end
 end
 table.insert(results,{RemoteName=tostring(name),RemoteClass=ok2 and remote.ClassName or"RemoteEvent",Direction="Outgoing",Method="hydroxide",TotalCalls=type(calls)=="table"and#calls or 0,Ignored=false,Blocked=false,RecentCalls=recentCalls,Path=ok2 and fullPath or tostring(name)})
 end
@@ -2590,14 +2625,12 @@ end
 return{count=#results,results=results,mode="hydroxide",message="Hydroxide remote spy data."}
 end
 end
+
+-- 4. Generic spy
 local genericSpy=getgenv().RemoteSpy or getgenv().RS or getgenv().RemoteSpyLogs
 if genericSpy then
 local logs=genericSpy.Logs or genericSpy.logs or genericSpy.Remotes or genericSpy.remotes
 if logs and type(logs)=="table" then
-local nameFilter=d.remoteNameFilter or""
-local limit=math.max(1,math.min(tonumber(d.limit)or 10,100))
-local hasFilter=nameFilter~=""
-local summaryOnly=d.summaryOnly~=false
 local results={}
 for _,entry in ipairs(logs)do
 if#results>=limit then break end
@@ -2609,82 +2642,61 @@ end
 return{count=#results,results=results,mode="generic_spy",message="Generic remote spy data."}
 end
 end
+
+-- 5. Built-in inventory scanner
 local e=getgenv().MCP_RemoteMonitor
-
 if e then
-local f=d.remoteNameFilter or""
-local g=math.max(1,math.min(tonumber(d.limit)or 10,100))
-local h=f~=""
-
-local i={}
-local function scanRemotes(j,k)
-if#i>=g*3 then return end
-if k>5 then return end
-for l,m in j:GetChildren()do
-if#i>=g*3 then break end
-if m:IsA"RemoteEvent"or m:IsA"RemoteFunction"or m:IsA"UnreliableRemoteEvent"then
-local n=m.Name
-if not h or string.find(string.lower(n),string.lower(f),1,true)then
-local o=""
-pcall(function()o=m:GetFullName()end)
-table.insert(i,{
-RemoteName=n,
-RemoteClass=m.ClassName,
-Direction="unknown",
-Method="basic_mode",
-TotalCalls=0,
-Ignored=false,
-Blocked=false,
-RecentCalls=nil,
-Path=o,
-})
+local results={}
+local function scanRemotes(parent,depth)
+if#results>=limit*3 then return end
+if depth>5 then return end
+for _,child in parent:GetChildren()do
+if#results>=limit*3 then break end
+if child:IsA"RemoteEvent"or child:IsA"RemoteFunction"or child:IsA"UnreliableRemoteEvent"then
+local name=child.Name
+if not hasFilter or string.find(string.lower(name),string.lower(nameFilter),1,true)then
+local fullName=""
+pcall(function()fullName=child:GetFullName()end)
+table.insert(results,{RemoteName=name,RemoteClass=child.ClassName,Direction="unknown",Method="basic_mode",TotalCalls=0,Ignored=false,Blocked=false,RecentCalls=nil,Path=fullName})
 end
 end
-scanRemotes(m,k+1)
+scanRemotes(child,depth+1)
 end
 end
-
-local j={"ReplicatedStorage","Workspace","Players"}
-for k,l in j do
-pcall(function()
-local m=game:GetService(l)
-scanRemotes(m,0)
-end)
+for _,svc in{"ReplicatedStorage","Workspace","Players"}do
+pcall(function()scanRemotes(game:GetService(svc),0)end)
 end
-
-if#i>g then
-local k={}
-for l=1,g do
-k[l]=i[l]
+if#results>limit then
+local trimmed={}
+for i=1,limit do trimmed[i]=results[i]end
+results=trimmed
 end
-i=k
-end
-
 e.scans+=1
 e.lastScanAt=os.time()
-return{
-count=#i,
-results=i,
-mode="inventory",
-message="Read-only remote inventory. Call telemetry is unavailable on this executor."
-}
+return{count=#results,results=results,mode="inventory",message="Read-only remote inventory. Call telemetry is unavailable on this executor."}
 end
 error("Remote Monitor is not initialised. Call ensure-remote-spy first.")
 end)
 end end function a.p():typeof(__modImpl())local b=a.cache.p if not b then b={c=__modImpl()}a.cache.p=b end return b.c end end do local function __modImpl()
 
+local COBALT_URL="https://gitlab.com/upio/cobalt/-/releases/permalink/latest/downloads/Cobalt.luau"
 return function(b,c)
 c:BindToType("clear-remote-spy-logs",function(d)
+if getgenv().CobaltInitialized then
+local cobalt=getgenv().Cobalt
+if cobalt and cobalt.shared and cobalt.shared.ClearLogs then
+pcall(cobalt.shared.ClearLogs)
+return{status="ok",message="Cobalt logs cleared."}
+end
+return{status="no_op",message="Cobalt is active but ClearLogs not accessible."}
+end
 local customSpy=getgenv().MCP_CustomRemoteSpy
 if customSpy and type(customSpy.clear)=="function" then
 pcall(customSpy.clear)
 return{status="ok",message="Custom remote spy logs cleared."}
 end
 if getgenv().MCP_RemoteMonitor then
-return{
-status="no_op",
-message="Read-only Remote Monitor has no stored call payloads to clear."
-}
+return{status="no_op",message="Read-only Remote Monitor has no stored call payloads to clear."}
 end
 error("Remote Monitor is not initialised. Call ensure-remote-spy first.")
 end)
@@ -2694,14 +2706,21 @@ c.Callbacks["ensure-remote-spy"]{}
 
 local e=d.operation
 if e=="status"then
+if getgenv().CobaltInitialized then
+local cobalt=getgenv().Cobalt
+local outCount,inCount=0,0
+if cobalt and cobalt.shared and cobalt.shared.Logs then
+for _ in pairs(cobalt.shared.Logs.Outgoing or{})do outCount+=1 end
+for _ in pairs(cobalt.shared.Logs.Incoming or{})do inCount+=1 end
+end
+return{status="ready",mode="cobalt",outgoingRemotes=outCount,incomingRemotes=inCount,message="Cobalt remote spy is active."}
+end
 local customSpy=getgenv().MCP_CustomRemoteSpy
 if customSpy then
 local spyType=customSpy.type or"custom"
 local statusInfo={}
-if type(customSpy.status)=="function" then
-pcall(function()statusInfo=customSpy.status()or{}end)
-end
-return{status="ready",mode=spyType,scans=statusInfo.scans or 0,lastScanAt=statusInfo.lastScanAt or nil,message="Custom remote spy ("..spyType..") is active and intercepting."}
+if type(customSpy.status)=="function" then pcall(function()statusInfo=customSpy.status()or{}end)end
+return{status="ready",mode=spyType,scans=statusInfo.scans or 0,lastScanAt=statusInfo.lastScanAt or nil,message="Custom remote spy ("..spyType..") is active."}
 end
 if getgenv().Hydroxide then
 return{status="ready",mode="hydroxide",scans=0,lastScanAt=nil,message="Hydroxide remote spy detected."}
@@ -2710,27 +2729,28 @@ if getgenv().RemoteSpy or getgenv().RS then
 return{status="ready",mode="generic_spy",scans=0,lastScanAt=nil,message="Generic remote spy detected."}
 end
 local f=getgenv().MCP_RemoteMonitor
-return{
-status=if f then"ready"else"unavailable",
-mode="read_only_inventory",
-scans=if f then f.scans else 0,
-lastScanAt=if f then f.lastScanAt else nil,
-message="Remote Monitor lists public Remote instances without intercepting or changing game traffic.",
-}
+return{status=if f then"ready"else"unavailable",mode="read_only_inventory",scans=if f then f.scans else 0,lastScanAt=if f then f.lastScanAt else nil,message="Remote Monitor lists public Remote instances without intercepting or changing game traffic."}
 elseif e=="list"then
-return c.Callbacks["get-remote-spy-logs"]{
-direction=d.direction,
-remoteNameFilter=d.nameFilter,
-limit=d.limit,
-maxCallsPerRemote=d.maxCallsPerRemote,
-summaryOnly=d.summaryOnly,
-}
+return c.Callbacks["get-remote-spy-logs"]{direction=d.direction,remoteNameFilter=d.nameFilter,limit=d.limit,maxCallsPerRemote=d.maxCallsPerRemote,summaryOnly=d.summaryOnly}
 elseif e=="clear"then
 return c.Callbacks["clear-remote-spy-logs"]{}
 elseif e=="inject"then
+local preset=d.preset
+local url=d.url
 local source=d.source
+if preset=="cobalt" then url=COBALT_URL end
+if url and not source then
+local ok,result=pcall(function()
+setthreadidentity(8)
+return game:HttpGet(url)
+end)
+if not ok then
+return{status="error",message="HttpGet failed for '"..tostring(url).."': "..tostring(result)}
+end
+source=result
+end
 if type(source)~="string"or source==""then
-error("inject requires a non-empty 'source' string.")
+error("inject requires 'source', 'url', or 'preset'.")
 end
 getgenv().MCP_CustomRemoteSpy=nil
 local ok,err=pcall(function()
@@ -2738,18 +2758,17 @@ setthreadidentity(8)
 loadstring(source)()
 end)
 if not ok then
-return{status="error",message="Custom remote spy script failed: "..tostring(err)}
+return{status="error",message="Spy script failed to execute: "..tostring(err)}
+end
+if preset=="cobalt"or url==COBALT_URL then
+local isReady=getgenv().CobaltInitialized==true
+return{status=isReady and"injected"or"loading",mode="cobalt",message=isReady and"Cobalt remote spy injected and ready."or"Cobalt is loading. Call status in ~2s to confirm it's ready."}
 end
 local injected=getgenv().MCP_CustomRemoteSpy
-if injected then
-return{status="injected",mode=injected.type or"custom",message="Custom remote spy injected and active."}
-end
-if getgenv().Hydroxide then
-return{status="injected",mode="hydroxide",message="Script ran — Hydroxide detected."}
-end
-if getgenv().RemoteSpy or getgenv().RS then
-return{status="injected",mode="generic_spy",message="Script ran — generic remote spy detected."}
-end
+if injected then return{status="injected",mode=injected.type or"custom",message="Custom remote spy injected and active."}end
+if getgenv().CobaltInitialized then return{status="injected",mode="cobalt",message="Cobalt detected."}end
+if getgenv().Hydroxide then return{status="injected",mode="hydroxide",message="Script ran — Hydroxide detected."}end
+if getgenv().RemoteSpy or getgenv().RS then return{status="injected",mode="generic_spy",message="Script ran — generic remote spy detected."}end
 return{status="injected",mode="unknown",message="Script executed. No standard spy interface detected. Use 'list' to verify."}
 end
 
