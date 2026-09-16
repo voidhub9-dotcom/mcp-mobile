@@ -471,7 +471,7 @@ export async function GET(req, res) {
 }
 export async function POST(req, res) {
     if (!isLocalRequest(req)) {
-        json(res, 403, { error: "Tailscale setup actions are only available from the local dashboard." });
+        json(res, 403, { error: "Setup actions are only available from the local dashboard." });
         return;
     }
     let body;

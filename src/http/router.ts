@@ -22,7 +22,6 @@ const wsRoutes: RegisteredWsRoute[] = [];
 let defaultWsHandler: WsRouteHandler | null = null;
 const WS_FALLBACK_NAME = "_ws-fallback";
 const LOCAL_ADMIN_API_ROUTES = new Set([
-    "/api/client-setup",
     "/api/dashboard-settings",
     "/api/decompiler-settings",
     "/api/decompiler-settings/connector",

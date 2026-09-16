@@ -519,7 +519,7 @@ export async function GET(req: IncomingMessage, res: ServerResponse): Promise<vo
 }
 export async function POST(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (!isLocalRequest(req)) {
-        json(res, 403, { error: "Tailscale setup actions are only available from the local dashboard." });
+        json(res, 403, { error: "Setup actions are only available from the local dashboard." });
         return;
     }
     let body: {
