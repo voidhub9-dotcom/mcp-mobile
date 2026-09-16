@@ -1,5 +1,12 @@
 return function(_context, Bridge)
     Bridge:BindToType("ensure-remote-spy", function(data)
+        if getgenv().MCP_CustomRemoteSpy then
+            return {
+                status = "ready",
+                mode = getgenv().MCP_CustomRemoteSpy.type or "custom",
+                message = "Custom remote spy is active.",
+            }
+        end
         local monitor = getgenv().MCP_RemoteMonitor
         if monitor then
             return {
@@ -20,7 +27,100 @@ return function(_context, Bridge)
     end)
 
     Bridge:BindToType("get-remote-spy-logs", function(data)
+        -- 1. Custom MCP spy (user-injected, highest priority)
+        local customSpy = getgenv().MCP_CustomRemoteSpy
+        if customSpy and type(customSpy.getLogs) == "function" then
+            local ok, result = pcall(customSpy.getLogs, data)
+            if ok and result then
+                return result
+            end
+        end
+
+        -- 2. Hydroxide compat
+        local hydroxide = getgenv().Hydroxide
+        if hydroxide then
+            local remotes = hydroxide.remotes or hydroxide.Remotes
+            if remotes then
+                local nameFilter = data.remoteNameFilter or ""
+                local limit = math.max(1, math.min(tonumber(data.limit) or 10, 100))
+                local hasFilter = nameFilter ~= ""
+                local summaryOnly = data.summaryOnly ~= false
+                local results = {}
+                for remote, calls in pairs(remotes) do
+                    if #results >= limit then break end
+                    local ok, name = pcall(function() return remote.Name end)
+                    if not ok then name = "unknown" end
+                    if not hasFilter or string.find(string.lower(tostring(name)), string.lower(nameFilter), 1, true) then
+                        local ok2, fullPath = pcall(function() return remote:GetFullName() end)
+                        local recentCalls = nil
+                        if not summaryOnly and type(calls) == "table" then
+                            recentCalls = {}
+                            local maxCalls = math.min(tonumber(data.maxCallsPerRemote) or 1, #calls)
+                            for i = math.max(1, #calls - maxCalls + 1), #calls do
+                                table.insert(recentCalls, calls[i])
+                            end
+                        end
+                        table.insert(results, {
+                            RemoteName = tostring(name),
+                            RemoteClass = ok2 and remote.ClassName or "RemoteEvent",
+                            Direction = "Outgoing",
+                            Method = "hydroxide",
+                            TotalCalls = type(calls) == "table" and #calls or 0,
+                            Ignored = false,
+                            Blocked = false,
+                            RecentCalls = recentCalls,
+                            Path = ok2 and fullPath or tostring(name),
+                        })
+                    end
+                end
+                return {
+                    count = #results,
+                    results = results,
+                    mode = "hydroxide",
+                    message = "Hydroxide remote spy data.",
+                }
+            end
+        end
+
+        -- 3. Generic spy compat (RemoteSpy / RS / RemoteSpyLogs)
+        local genericSpy = getgenv().RemoteSpy or getgenv().RS or getgenv().RemoteSpyLogs
+        if genericSpy then
+            local logs = genericSpy.Logs or genericSpy.logs or genericSpy.Remotes or genericSpy.remotes
+            if logs and type(logs) == "table" then
+                local nameFilter = data.remoteNameFilter or ""
+                local limit = math.max(1, math.min(tonumber(data.limit) or 10, 100))
+                local hasFilter = nameFilter ~= ""
+                local summaryOnly = data.summaryOnly ~= false
+                local results = {}
+                for _, entry in ipairs(logs) do
+                    if #results >= limit then break end
+                    local remoteName = entry.Name or entry.RemoteName or entry.name or "unknown"
+                    if not hasFilter or string.find(string.lower(tostring(remoteName)), string.lower(nameFilter), 1, true) then
+                        table.insert(results, {
+                            RemoteName = tostring(remoteName),
+                            RemoteClass = entry.ClassName or entry.Class or "RemoteEvent",
+                            Direction = entry.Direction or entry.Type or "unknown",
+                            Method = "generic_spy",
+                            TotalCalls = entry.TotalCalls or entry.Calls or 1,
+                            Ignored = entry.Ignored or false,
+                            Blocked = entry.Blocked or false,
+                            RecentCalls = summaryOnly and nil or entry.Args or entry.arguments or nil,
+                            Path = entry.Path or entry.FullName or tostring(remoteName),
+                        })
+                    end
+                end
+                return {
+                    count = #results,
+                    results = results,
+                    mode = "generic_spy",
+                    message = "Generic remote spy data.",
+                }
+            end
+        end
+
+        -- 4. Built-in read-only inventory scanner fallback
         local monitor = getgenv().MCP_RemoteMonitor
+
         if monitor then
             local nameFilter = data.remoteNameFilter or ""
             local limit = math.max(1, math.min(tonumber(data.limit) or 10, 100))

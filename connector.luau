@@ -2537,6 +2537,9 @@ end end function a.o():typeof(__modImpl())local b=a.cache.o if not b then b={c=_
 
 return function(b,c)
 c:BindToType("ensure-remote-spy",function(d)
+if getgenv().MCP_CustomRemoteSpy then
+return{status="ready",mode=getgenv().MCP_CustomRemoteSpy.type or"custom",message="Custom remote spy is active."}
+end
 local e=getgenv().MCP_RemoteMonitor
 if e then
 return{
@@ -2553,6 +2556,59 @@ message="Read-only Remote Monitor is ready."
 end)
 
 c:BindToType("get-remote-spy-logs",function(d)
+local customSpy=getgenv().MCP_CustomRemoteSpy
+if customSpy and type(customSpy.getLogs)=="function" then
+local ok,result=pcall(customSpy.getLogs,d)
+if ok and result then return result end
+end
+local hydroxide=getgenv().Hydroxide
+if hydroxide then
+local remotes=hydroxide.remotes or hydroxide.Remotes
+if remotes then
+local nameFilter=d.remoteNameFilter or""
+local limit=math.max(1,math.min(tonumber(d.limit)or 10,100))
+local hasFilter=nameFilter~=""
+local summaryOnly=d.summaryOnly~=false
+local results={}
+for remote,calls in pairs(remotes)do
+if#results>=limit then break end
+local ok,name=pcall(function()return remote.Name end)
+if not ok then name="unknown" end
+if not hasFilter or string.find(string.lower(tostring(name)),string.lower(nameFilter),1,true)then
+local ok2,fullPath=pcall(function()return remote:GetFullName()end)
+local recentCalls=nil
+if not summaryOnly and type(calls)=="table" then
+recentCalls={}
+local maxCalls=math.min(tonumber(d.maxCallsPerRemote)or 1,#calls)
+for i=math.max(1,#calls-maxCalls+1),#calls do
+table.insert(recentCalls,calls[i])
+end
+end
+table.insert(results,{RemoteName=tostring(name),RemoteClass=ok2 and remote.ClassName or"RemoteEvent",Direction="Outgoing",Method="hydroxide",TotalCalls=type(calls)=="table"and#calls or 0,Ignored=false,Blocked=false,RecentCalls=recentCalls,Path=ok2 and fullPath or tostring(name)})
+end
+end
+return{count=#results,results=results,mode="hydroxide",message="Hydroxide remote spy data."}
+end
+end
+local genericSpy=getgenv().RemoteSpy or getgenv().RS or getgenv().RemoteSpyLogs
+if genericSpy then
+local logs=genericSpy.Logs or genericSpy.logs or genericSpy.Remotes or genericSpy.remotes
+if logs and type(logs)=="table" then
+local nameFilter=d.remoteNameFilter or""
+local limit=math.max(1,math.min(tonumber(d.limit)or 10,100))
+local hasFilter=nameFilter~=""
+local summaryOnly=d.summaryOnly~=false
+local results={}
+for _,entry in ipairs(logs)do
+if#results>=limit then break end
+local remoteName=entry.Name or entry.RemoteName or entry.name or"unknown"
+if not hasFilter or string.find(string.lower(tostring(remoteName)),string.lower(nameFilter),1,true)then
+table.insert(results,{RemoteName=tostring(remoteName),RemoteClass=entry.ClassName or entry.Class or"RemoteEvent",Direction=entry.Direction or entry.Type or"unknown",Method="generic_spy",TotalCalls=entry.TotalCalls or entry.Calls or 1,Ignored=entry.Ignored or false,Blocked=entry.Blocked or false,RecentCalls=summaryOnly and nil or entry.Args or entry.arguments or nil,Path=entry.Path or entry.FullName or tostring(remoteName)})
+end
+end
+return{count=#results,results=results,mode="generic_spy",message="Generic remote spy data."}
+end
+end
 local e=getgenv().MCP_RemoteMonitor
 
 if e then
@@ -2619,6 +2675,11 @@ end end function a.p():typeof(__modImpl())local b=a.cache.p if not b then b={c=_
 
 return function(b,c)
 c:BindToType("clear-remote-spy-logs",function(d)
+local customSpy=getgenv().MCP_CustomRemoteSpy
+if customSpy and type(customSpy.clear)=="function" then
+pcall(customSpy.clear)
+return{status="ok",message="Custom remote spy logs cleared."}
+end
 if getgenv().MCP_RemoteMonitor then
 return{
 status="no_op",
@@ -2633,6 +2694,21 @@ c.Callbacks["ensure-remote-spy"]{}
 
 local e=d.operation
 if e=="status"then
+local customSpy=getgenv().MCP_CustomRemoteSpy
+if customSpy then
+local spyType=customSpy.type or"custom"
+local statusInfo={}
+if type(customSpy.status)=="function" then
+pcall(function()statusInfo=customSpy.status()or{}end)
+end
+return{status="ready",mode=spyType,scans=statusInfo.scans or 0,lastScanAt=statusInfo.lastScanAt or nil,message="Custom remote spy ("..spyType..") is active and intercepting."}
+end
+if getgenv().Hydroxide then
+return{status="ready",mode="hydroxide",scans=0,lastScanAt=nil,message="Hydroxide remote spy detected."}
+end
+if getgenv().RemoteSpy or getgenv().RS then
+return{status="ready",mode="generic_spy",scans=0,lastScanAt=nil,message="Generic remote spy detected."}
+end
 local f=getgenv().MCP_RemoteMonitor
 return{
 status=if f then"ready"else"unavailable",
@@ -2651,6 +2727,30 @@ summaryOnly=d.summaryOnly,
 }
 elseif e=="clear"then
 return c.Callbacks["clear-remote-spy-logs"]{}
+elseif e=="inject"then
+local source=d.source
+if type(source)~="string"or source==""then
+error("inject requires a non-empty 'source' string.")
+end
+getgenv().MCP_CustomRemoteSpy=nil
+local ok,err=pcall(function()
+setthreadidentity(8)
+loadstring(source)()
+end)
+if not ok then
+return{status="error",message="Custom remote spy script failed: "..tostring(err)}
+end
+local injected=getgenv().MCP_CustomRemoteSpy
+if injected then
+return{status="injected",mode=injected.type or"custom",message="Custom remote spy injected and active."}
+end
+if getgenv().Hydroxide then
+return{status="injected",mode="hydroxide",message="Script ran — Hydroxide detected."}
+end
+if getgenv().RemoteSpy or getgenv().RS then
+return{status="injected",mode="generic_spy",message="Script ran — generic remote spy detected."}
+end
+return{status="injected",mode="unknown",message="Script executed. No standard spy interface detected. Use 'list' to verify."}
 end
 
 error("Invalid remote-spy operation: "..tostring(e))
