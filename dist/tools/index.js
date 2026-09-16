@@ -2,6 +2,7 @@ import registerSetActiveClient from "./impl/clients/set-active-client.js";
 import registerListClients from "./impl/clients/list-clients.js";
 import registerGetClientCapabilities from "./impl/clients/get-client-capabilities.js";
 import registerGetConnectorHealth from "./impl/clients/get-connector-health.js";
+import registerGetLoadstring from "./impl/clients/get-loadstring.js";
 import registerGetSessionAlerts from "./impl/clients/get-session-alerts.js";
 import registerCreateDiagnosticSnapshot from "./impl/clients/create-diagnostic-snapshot.js";
 import registerExecute from "./impl/execution/execute.js";
@@ -33,6 +34,7 @@ export function registerAllTools(server) {
     registerListClients(server);
     registerGetClientCapabilities(server);
     registerGetConnectorHealth(server);
+    registerGetLoadstring(server);
     registerGetSessionAlerts(server);
     registerCreateDiagnosticSnapshot(server);
     registerExecute(server);

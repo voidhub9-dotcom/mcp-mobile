@@ -335,6 +335,10 @@ function setSidebarMode(mode) {
     sidebarNavHome.style.display = mode === 'home' ? 'flex' : 'none';
     sidebarNavClient.style.display = mode === 'client' ? 'flex' : 'none';
     topbarBack.style.display = mode === 'client' ? 'inline-flex' : 'none';
+    const mobileNavHome = document.getElementById('mobileNavHome');
+    const mobileNavClient = document.getElementById('mobileNavClient');
+    if (mobileNavHome) mobileNavHome.style.display = mode === 'home' ? 'flex' : 'none';
+    if (mobileNavClient) mobileNavClient.style.display = mode === 'client' ? 'flex' : 'none';
 }
 
 function showView(name) {
@@ -376,6 +380,15 @@ function showView(name) {
     activeNav.querySelectorAll('.sidebar-item').forEach(btn => {
         btn.classList.toggle('sidebar-item--active', btn.dataset.view === name);
     });
+
+    const mobileNavHome = document.getElementById('mobileNavHome');
+    const mobileNavClient = document.getElementById('mobileNavClient');
+    const activeMobileNav = dashboardMode === 'home' ? mobileNavHome : mobileNavClient;
+    if (activeMobileNav) {
+        activeMobileNav.querySelectorAll('.mobile-nav-item[data-view]').forEach(btn => {
+            btn.classList.toggle('mobile-nav-item--active', btn.dataset.view === name);
+        });
+    }
 }
 
 function bindSidebarNav(nav) {
@@ -385,6 +398,28 @@ function bindSidebarNav(nav) {
 }
 bindSidebarNav(sidebarNavHome);
 bindSidebarNav(sidebarNavClient);
+
+function bindMobileNav(nav) {
+    if (!nav) return;
+    nav.querySelectorAll('.mobile-nav-item[data-view]').forEach(btn => {
+        btn.addEventListener('click', () => showView(btn.dataset.view));
+    });
+}
+bindMobileNav(document.getElementById('mobileNavHome'));
+bindMobileNav(document.getElementById('mobileNavClient'));
+
+const mobileNavBackBtn = document.getElementById('mobileNavBackBtn');
+if (mobileNavBackBtn) {
+    mobileNavBackBtn.addEventListener('click', () => {
+        selectedClientId = null;
+        resetScriptsState();
+        clientSelectorName.textContent = 'Select Client';
+        clientSelectorAvatar.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>';
+        setSidebarMode('home');
+        showView('clients');
+        renderNoClientList('');
+    });
+}
 
 topbarBack.addEventListener('click', () => {
     selectedClientId = null;
