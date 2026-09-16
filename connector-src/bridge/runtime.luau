@@ -58,7 +58,9 @@ while true do
         registerHandlers(context, Bridge)
     end
 
+    getgenv().MCP_ActiveBridge = Bridge
     Bridge:WaitForDisconnect()
+    getgenv().MCP_ActiveBridge = nil
 
     if ScriptMappingPipeline.bridge == Bridge then
         ScriptMappingPipeline.bridge = nil

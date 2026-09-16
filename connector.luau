@@ -4142,7 +4142,9 @@ for r,s in q do
 s(b,o)
 end
 
+getgenv().MCP_ActiveBridge=o
 o:WaitForDisconnect()
+getgenv().MCP_ActiveBridge=nil
 
 if e.bridge==o then
 e.bridge=nil
@@ -4153,7 +4155,10 @@ end
 end end function a.v():typeof(__modImpl())local b=a.cache.v if not b then b={c=__modImpl()}a.cache.v=b end return b.c end end end
 
 if getgenv().MCP_Loaded==true then
+local __ab=getgenv().MCP_ActiveBridge
+if __ab~=nil and __ab.Connected==true then
 return
+end
 end
 
 getgenv().MCP_Loaded=true

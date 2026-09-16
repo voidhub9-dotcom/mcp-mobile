@@ -1,5 +1,8 @@
 if getgenv().MCP_Loaded == true then
-    return
+    local activeBridge = getgenv().MCP_ActiveBridge
+    if activeBridge ~= nil and activeBridge.Connected == true then
+        return
+    end
 end
 
 getgenv().MCP_Loaded = true
