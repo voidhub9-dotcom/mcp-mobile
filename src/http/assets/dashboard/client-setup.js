@@ -910,10 +910,17 @@ const mobileLoadstringStrip = $('mobileLoadstringStrip');
 const mobileLoadstringCode = $('mobileLoadstringCode');
 const mobileLoadstringCopy = $('mobileLoadstringCopy');
 
+function buildCloudMobileSnippet(publicUrl) {
+    const base = publicUrl.replace(/\/$/, '');
+    return `getgenv().BridgeURL = "${base}"\n-- getgenv().MCP_AUTH_TOKEN = "your_token"\nloadstring(game:HttpGet("${base}/mobile-connector.luau"))()`;
+}
+
 function updateMobileLoadstringStrip(data) {
     if (!mobileLoadstringStrip || !mobileLoadstringCode) return;
-    const bridgeUrl = data?.connectors?.currentMachine?.bridgeUrl || data?.publicUrl || null;
-    const snippet = buildMobileLoaderSnippet(bridgeUrl || undefined);
+    const publicUrl = data?.publicUrl;
+    const snippet = publicUrl
+        ? buildCloudMobileSnippet(publicUrl)
+        : buildMobileLoaderSnippet(data?.connectors?.currentMachine?.bridgeUrl || undefined);
     mobileLoadstringCode.textContent = snippet;
     mobileLoadstringStrip.hidden = false;
 }
