@@ -1622,48 +1622,47 @@ MurderBox:AddButton({
         notify("Kill All", "Fired on " .. killed .. " targets.", 3, "success")
     end,
 })
-MurderBox:AddToggle("AutoKill", { Text = "Auto Kill (TP loop)", Default = false }):OnChanged(function(v)
+MurderBox:AddToggle("AutoKill", { Text = "Auto Kill (TP loop)", Default = false, Callback = function(v)
     F.autoKill = v
-end)
-MurderBox:AddToggle("KillAura", { Text = "Kill Aura", Default = false }):OnChanged(function(v)
+end })
+MurderBox:AddToggle("KillAura", { Text = "Kill Aura", Default = false, Callback = function(v)
     F.killAura = v
-end)
-MurderBox:AddSlider("KillRadius", { Text = "Aura Radius", Default = 18, Min = 5, Max = 80, Rounding = 0 }):OnChanged(function(v)
+end })
+MurderBox:AddSlider("KillRadius", { Text = "Aura Radius", Default = 18, Min = 5, Max = 80, Rounding = 0, Callback = function(v)
     CFG.killRadius = v
-end)
+end })
 MurderBox:AddDivider("Knife")
-MurderBox:AddToggle("KnifeReach", { Text = "Knife Reach", Default = false }):OnChanged(function(v)
+MurderBox:AddToggle("KnifeReach", { Text = "Knife Reach", Default = false, Callback = function(v)
     F.knifeReach = v
-end)
-MurderBox:AddSlider("KnifeRadius", { Text = "Reach Radius", Default = 12, Min = 5, Max = 200, Rounding = 0 }):OnChanged(function(v)
+end })
+MurderBox:AddSlider("KnifeRadius", { Text = "Reach Radius", Default = 12, Min = 5, Max = 200, Rounding = 0, Callback = function(v)
     CFG.knifeRadius = v
-end)
-MurderBox:AddToggle("KnifeSilent", { Text = "Silent Throw Aim", Default = false }):OnChanged(function(v)
+end })
+MurderBox:AddToggle("KnifeSilent", { Text = "Silent Throw Aim", Default = false, Callback = function(v)
     F.knifeSilent = v
-end)
-MurderBox:AddToggle("AutoEquip", { Text = "Auto Equip Knife/Gun", Default = false }):OnChanged(function(v)
+end })
+MurderBox:AddToggle("AutoEquip", { Text = "Auto Equip Knife/Gun", Default = false, Callback = function(v)
     F.autoEquip = v
-end)
+end })
 
 SheriffBox:AddDropdown("ShootMode", {
-    Text    = "Shoot Mode",
-    Values  = { "Off", "Auto Shoot", "Wallbang", "Blatant", "Silent Aim", "Trigger Bot" },
-    Default = "Off",
-}):OnChanged(function(v) setShootMode(v) end)
-
-SheriffBox:AddSlider("AimFov", { Text = "Aim FOV", Default = 120, Min = 20, Max = 400, Rounding = 0 }):OnChanged(function(v)
+    Text     = "Shoot Mode",
+    Values   = { "Off", "Auto Shoot", "Wallbang", "Blatant", "Silent Aim", "Trigger Bot" },
+    Default  = "Off",
+    Callback = function(v) setShootMode(v) end,
+})
+SheriffBox:AddSlider("AimFov", { Text = "Aim FOV", Default = 120, Min = 20, Max = 400, Rounding = 0, Callback = function(v)
     CFG.aimFov = v
-end)
+end })
 SheriffBox:AddDropdown("AimPart", {
-    Text    = "Aim Part",
-    Values  = { "Head", "HumanoidRootPart", "Torso" },
-    Default = "Head",
-}):OnChanged(function(v) CFG.aimPart = v end)
-
-SheriffBox:AddToggle("CamLock", { Text = "Camera Lock", Default = false }):OnChanged(function(v)
+    Text     = "Aim Part",
+    Values   = { "Head", "HumanoidRootPart", "Torso" },
+    Default  = "Head",
+    Callback = function(v) CFG.aimPart = v end,
+})
+SheriffBox:AddToggle("CamLock", { Text = "Camera Lock", Default = false, Callback = function(v)
     F.camLock = v
-end)
-
+end })
 SheriffBox:AddButton({
     Text     = "Shoot Murderer Now",
     Callback = function()
@@ -1680,13 +1679,13 @@ SheriffBox:AddButton({
     Text     = "Grab Dropped Gun",
     Callback = grabGun,
 })
-SheriffBox:AddToggle("AutoGun", { Text = "Auto Grab Gun", Default = false }):OnChanged(function(v)
+SheriffBox:AddToggle("AutoGun", { Text = "Auto Grab Gun", Default = false, Callback = function(v)
     F.autoGun = v
-end)
+end })
 SheriffBox:AddDivider("Intel")
-SheriffBox:AddToggle("AutoDetect", { Text = "Auto-Detect Murderer", Default = false }):OnChanged(function(v)
+SheriffBox:AddToggle("AutoDetect", { Text = "Auto-Detect Murderer", Default = false, Callback = function(v)
     F.autoDetect = v
-end)
+end })
 SheriffBox:AddButton({
     Text     = "Who's the Murderer?",
     Callback = function()
@@ -1701,45 +1700,45 @@ local VisualsTab = Window:AddTab("Visuals", "eye")
 local EspBox     = VisualsTab:AddLeftGroupbox("Player ESP")
 local WorldBox   = VisualsTab:AddRightGroupbox("World")
 
-EspBox:AddToggle("EspEnabled", { Text = "Enable ESP", Default = false }):OnChanged(function(v)
+EspBox:AddToggle("EspEnabled", { Text = "Enable ESP", Default = false, Callback = function(v)
     F.espEnabled = v
     if not v then espClearAll() end
-end)
-EspBox:AddToggle("EspBox",       { Text = "Box",              Default = true  }):OnChanged(function(v) F.espBox       = v end)
-EspBox:AddToggle("EspTracer",    { Text = "Tracer",           Default = false }):OnChanged(function(v) F.espTracer    = v end)
-EspBox:AddToggle("EspName",      { Text = "Name + Role",      Default = true  }):OnChanged(function(v) F.espName      = v end)
-EspBox:AddToggle("EspDist",      { Text = "Distance",         Default = true  }):OnChanged(function(v) F.espDist      = v end)
-EspBox:AddToggle("EspHealth",    { Text = "Health",           Default = true  }):OnChanged(function(v) F.espHealth    = v end)
-EspBox:AddToggle("EspHighlight", { Text = "Highlight (Chams)",Default = true  }):OnChanged(function(v) F.espHighlight = v end)
-EspBox:AddToggle("EspSkeleton",  { Text = "Skeleton",         Default = false }):OnChanged(function(v) F.espSkeleton  = v end)
-EspBox:AddToggle("EspRoleColor", { Text = "Role Colors",      Default = true  }):OnChanged(function(v) F.espRoleColor = v end)
-EspBox:AddSlider("EspMaxDist",   { Text = "Max Distance", Default = 2000, Min = 100, Max = 5000, Rounding = 0 }):OnChanged(function(v)
+end })
+EspBox:AddToggle("EspBox",       { Text = "Box",               Default = true,  Callback = function(v) F.espBox       = v end })
+EspBox:AddToggle("EspTracer",    { Text = "Tracer",            Default = false, Callback = function(v) F.espTracer    = v end })
+EspBox:AddToggle("EspName",      { Text = "Name + Role",       Default = true,  Callback = function(v) F.espName      = v end })
+EspBox:AddToggle("EspDist",      { Text = "Distance",          Default = true,  Callback = function(v) F.espDist      = v end })
+EspBox:AddToggle("EspHealth",    { Text = "Health",            Default = true,  Callback = function(v) F.espHealth    = v end })
+EspBox:AddToggle("EspHighlight", { Text = "Highlight (Chams)", Default = true,  Callback = function(v) F.espHighlight = v end })
+EspBox:AddToggle("EspSkeleton",  { Text = "Skeleton",          Default = false, Callback = function(v) F.espSkeleton  = v end })
+EspBox:AddToggle("EspRoleColor", { Text = "Role Colors",       Default = true,  Callback = function(v) F.espRoleColor = v end })
+EspBox:AddSlider("EspMaxDist",   { Text = "Max Distance", Default = 2000, Min = 100, Max = 5000, Rounding = 0, Callback = function(v)
     CFG.espMaxDist = v
-end)
+end })
 EspBox:AddDivider("Role Colors")
-EspBox:AddLabel({ Text = "Murderer" }):AddColorPicker("cMurd", { Default = CFG.cMurd, Title = "Murderer Color" }):OnChanged(function(c)
+EspBox:AddLabel({ Text = "Murderer" }):AddColorPicker("cMurd", { Default = CFG.cMurd, Title = "Murderer Color", Callback = function(c)
     CFG.cMurd = c
-end)
-EspBox:AddLabel({ Text = "Sheriff" }):AddColorPicker("cSher", { Default = CFG.cSher, Title = "Sheriff Color" }):OnChanged(function(c)
+end })
+EspBox:AddLabel({ Text = "Sheriff" }):AddColorPicker("cSher", { Default = CFG.cSher, Title = "Sheriff Color", Callback = function(c)
     CFG.cSher = c
-end)
-EspBox:AddLabel({ Text = "Hero" }):AddColorPicker("cHero", { Default = CFG.cHero, Title = "Hero Color" }):OnChanged(function(c)
+end })
+EspBox:AddLabel({ Text = "Hero" }):AddColorPicker("cHero", { Default = CFG.cHero, Title = "Hero Color", Callback = function(c)
     CFG.cHero = c
-end)
-EspBox:AddLabel({ Text = "Innocent" }):AddColorPicker("cInno", { Default = CFG.cInno, Title = "Innocent Color" }):OnChanged(function(c)
+end })
+EspBox:AddLabel({ Text = "Innocent" }):AddColorPicker("cInno", { Default = CFG.cInno, Title = "Innocent Color", Callback = function(c)
     CFG.cInno = c
-end)
+end })
 
-WorldBox:AddToggle("CoinEsp", { Text = "Coin ESP", Default = false }):OnChanged(function(v)
+WorldBox:AddToggle("CoinEsp", { Text = "Coin ESP", Default = false, Callback = function(v)
     F.coinEsp = v
     if not v then for _, hl in pairs(ESP.coinHL) do pcall(function() hl:Destroy() end) end; ESP.coinHL = {} end
-end)
-WorldBox:AddToggle("DropEsp", { Text = "Gun Drop ESP", Default = false }):OnChanged(function(v)
+end })
+WorldBox:AddToggle("DropEsp", { Text = "Gun Drop ESP", Default = false, Callback = function(v)
     F.dropEsp = v
     if not v then for _, hl in pairs(ESP.dropHL) do pcall(function() hl:Destroy() end) end; ESP.dropHL = {} end
-end)
+end })
 WorldBox:AddDivider("World")
-WorldBox:AddToggle("Fullbright", { Text = "Fullbright", Default = false }):OnChanged(function(v)
+WorldBox:AddToggle("Fullbright", { Text = "Fullbright", Default = false, Callback = function(v)
     F.fullbright = v
     local amb = Lighting:FindFirstChild("BF_Amb")
     if v then
@@ -1748,8 +1747,8 @@ WorldBox:AddToggle("Fullbright", { Text = "Fullbright", Default = false }):OnCha
     else
         if amb then amb:Destroy() end; Lighting.Brightness = 1
     end
-end)
-WorldBox:AddToggle("NoFog", { Text = "No Fog", Default = false }):OnChanged(function(v)
+end })
+WorldBox:AddToggle("NoFog", { Text = "No Fog", Default = false, Callback = function(v)
     F.noFog = v
     if v then
         Lighting:SetAttribute("BF_FogEnd", Lighting.FogEnd)
@@ -1759,119 +1758,119 @@ WorldBox:AddToggle("NoFog", { Text = "No Fog", Default = false }):OnChanged(func
         Lighting.FogEnd   = Lighting:GetAttribute("BF_FogEnd")   or 1000
         Lighting.FogStart = Lighting:GetAttribute("BF_FogStart") or 0
     end
-end)
+end })
 
 -- ─── PLAYER TAB ───────────────────────────────────────────────────────────────
 local PlayerTab = Window:AddTab("Player", "user")
 local MoveBox   = PlayerTab:AddLeftGroupbox("Movement")
 local AppBox    = PlayerTab:AddRightGroupbox("Appearance")
 
-MoveBox:AddToggle("WalkOn", { Text = "WalkSpeed", Default = false }):OnChanged(function(v)
+MoveBox:AddToggle("WalkOn", { Text = "WalkSpeed", Default = false, Callback = function(v)
     F.walkOn = v; applyMovement()
-end)
-MoveBox:AddSlider("WalkSpeed", { Text = "Walk Speed", Default = 16, Min = 16, Max = 200, Rounding = 0 }):OnChanged(function(v)
+end })
+MoveBox:AddSlider("WalkSpeed", { Text = "Walk Speed", Default = 16, Min = 16, Max = 200, Rounding = 0, Callback = function(v)
     CFG.walkSpeed = v; if F.walkOn then applyMovement() end
-end)
-MoveBox:AddToggle("JumpOn", { Text = "JumpPower", Default = false }):OnChanged(function(v)
+end })
+MoveBox:AddToggle("JumpOn", { Text = "JumpPower", Default = false, Callback = function(v)
     F.jumpOn = v; applyMovement()
-end)
-MoveBox:AddSlider("JumpPower", { Text = "Jump Power", Default = 50, Min = 50, Max = 400, Rounding = 0 }):OnChanged(function(v)
+end })
+MoveBox:AddSlider("JumpPower", { Text = "Jump Power", Default = 50, Min = 50, Max = 400, Rounding = 0, Callback = function(v)
     CFG.jumpPower = v; if F.jumpOn then applyMovement() end
-end)
-MoveBox:AddToggle("InfJump", { Text = "Infinite Jump", Default = false }):OnChanged(function(v)
+end })
+MoveBox:AddToggle("InfJump", { Text = "Infinite Jump", Default = false, Callback = function(v)
     F.infJump = v
-end)
-MoveBox:AddToggle("Fly", { Text = "Fly (WASD+Space/Ctrl)", Default = false }):OnChanged(function(v)
+end })
+MoveBox:AddToggle("Fly", { Text = "Fly (WASD+Space/Ctrl)", Default = false, Callback = function(v)
     F.fly = v; if v then startFly() else stopFly() end
-end)
-MoveBox:AddSlider("FlySpeed", { Text = "Fly Speed", Default = 50, Min = 10, Max = 300, Rounding = 0 }):OnChanged(function(v)
+end })
+MoveBox:AddSlider("FlySpeed", { Text = "Fly Speed", Default = 50, Min = 10, Max = 300, Rounding = 0, Callback = function(v)
     CFG.flySpeed = v
-end)
-MoveBox:AddToggle("Noclip", { Text = "Noclip", Default = false }):OnChanged(function(v)
+end })
+MoveBox:AddToggle("Noclip", { Text = "Noclip", Default = false, Callback = function(v)
     F.noclip = v
     if not v then
         local c = LocalPlayer.Character
         if c then for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = true end end end
     end
-end)
-MoveBox:AddToggle("Spin", { Text = "Spin", Default = false }):OnChanged(function(v) F.spin = v end)
-MoveBox:AddSlider("SpinSpeed", { Text = "Spin Speed", Default = 10, Min = 1, Max = 100, Rounding = 0 }):OnChanged(function(v)
+end })
+MoveBox:AddToggle("Spin", { Text = "Spin", Default = false, Callback = function(v) F.spin = v end })
+MoveBox:AddSlider("SpinSpeed", { Text = "Spin Speed", Default = 10, Min = 1, Max = 100, Rounding = 0, Callback = function(v)
     CFG.spinSpeed = v
-end)
-MoveBox:AddToggle("AntiFling", { Text = "Anti-Fling", Default = false }):OnChanged(function(v) F.antiFling = v end)
-MoveBox:AddToggle("FloatMode", { Text = "Float", Default = false }):OnChanged(function(v)
+end })
+MoveBox:AddToggle("AntiFling", { Text = "Anti-Fling", Default = false, Callback = function(v) F.antiFling = v end })
+MoveBox:AddToggle("FloatMode", { Text = "Float", Default = false, Callback = function(v)
     F.floatMode = v; setFloat(v)
-end)
+end })
 MoveBox:AddDivider("Physics")
-MoveBox:AddToggle("LowGrav", { Text = "Low Gravity", Default = false }):OnChanged(function(v)
+MoveBox:AddToggle("LowGrav", { Text = "Low Gravity", Default = false, Callback = function(v)
     F.lowGrav = v; applyGravity()
-end)
-MoveBox:AddSlider("Gravity", { Text = "Gravity", Default = 50, Min = 5, Max = 196, Rounding = 0 }):OnChanged(function(v)
+end })
+MoveBox:AddSlider("Gravity", { Text = "Gravity", Default = 50, Min = 5, Max = 196, Rounding = 0, Callback = function(v)
     CFG.gravity = v; if F.lowGrav then applyGravity() end
-end)
+end })
 
-AppBox:AddToggle("RainbowChar",  { Text = "Rainbow Body",         Default = false }):OnChanged(function(v) F.rainbowChar  = v end)
-AppBox:AddToggle("BigHead",      { Text = "Big Head",             Default = false }):OnChanged(function(v)
+AppBox:AddToggle("RainbowChar",  { Text = "Rainbow Body",         Default = false, Callback = function(v) F.rainbowChar  = v end })
+AppBox:AddToggle("BigHead",      { Text = "Big Head",             Default = false, Callback = function(v)
     F.bigHead = v; if not v then setBigHead(false) end
-end)
-AppBox:AddToggle("RainbowTrail", { Text = "Rainbow Trail",        Default = false }):OnChanged(function(v)
+end })
+AppBox:AddToggle("RainbowTrail", { Text = "Rainbow Trail",        Default = false, Callback = function(v)
     F.rainbowTrail = v; setTrail(v)
-end):AddColorPicker("TrailColor", { Default = CFG.trailColor, Title = "Trail Color" }):OnChanged(function(c)
+end }):AddColorPicker("TrailColor", { Default = CFG.trailColor, Title = "Trail Color", Callback = function(c)
     CFG.trailColor = c
     if trailObj then trailObj.Color = ColorSequence.new(c, c) end
-end)
-AppBox:AddToggle("ForceField", { Text = "ForceField Material",   Default = false }):OnChanged(function(v)
+end })
+AppBox:AddToggle("ForceField", { Text = "ForceField Material",   Default = false, Callback = function(v)
     F.forceField = v; setForceField(v)
-end)
-AppBox:AddToggle("GhostMode",  { Text = "Ghost Mode",            Default = false }):OnChanged(function(v)
+end })
+AppBox:AddToggle("GhostMode",  { Text = "Ghost Mode",            Default = false, Callback = function(v)
     F.ghostMode = v
     if not v then
         local c = LocalPlayer.Character
         if c then for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.LocalTransparencyModifier = 0 end end end
     end
-end)
-AppBox:AddToggle("PlayerScale", { Text = "Player Scale",         Default = false }):OnChanged(function(v)
+end })
+AppBox:AddToggle("PlayerScale", { Text = "Player Scale",         Default = false, Callback = function(v)
     F.playerScale = v; if v then setScale(CFG.scaleSize) else setScale(1) end
-end)
-AppBox:AddSlider("ScaleSize",   { Text = "Scale Size",  Default = 2,   Min = 1,  Max = 5,    Rounding = 1 }):OnChanged(function(v)
+end })
+AppBox:AddSlider("ScaleSize",   { Text = "Scale Size",  Default = 2,   Min = 1,  Max = 5,    Rounding = 1, Callback = function(v)
     CFG.scaleSize = v; if F.playerScale then setScale(v) end
-end)
+end })
 AppBox:AddDivider("Camera")
-AppBox:AddSlider("FOV",         { Text = "FOV",         Default = 70,  Min = 40, Max = 120,  Rounding = 0 }):OnChanged(function(v)
+AppBox:AddSlider("FOV",         { Text = "FOV",         Default = 70,  Min = 40, Max = 120,  Rounding = 0, Callback = function(v)
     CFG.fov = v; applyFOV()
-end)
-AppBox:AddSlider("MaxZoom",     { Text = "Max Zoom",    Default = 128, Min = 10, Max = 2000, Rounding = 0 }):OnChanged(function(v)
+end })
+AppBox:AddSlider("MaxZoom",     { Text = "Max Zoom",    Default = 128, Min = 10, Max = 2000, Rounding = 0, Callback = function(v)
     CFG.maxZoom = v; applyZoom()
-end)
-AppBox:AddToggle("Freecam",     { Text = "Freecam",              Default = false }):OnChanged(function(v)
+end })
+AppBox:AddToggle("Freecam",     { Text = "Freecam",              Default = false, Callback = function(v)
     F.freecam = v; if v then startFreecam() else stopFreecam() end
-end)
-AppBox:AddSlider("FreecamSpeed",{ Text = "Freecam Speed", Default = 1, Min = 1, Max = 30, Rounding = 0 }):OnChanged(function(v)
+end })
+AppBox:AddSlider("FreecamSpeed",{ Text = "Freecam Speed", Default = 1, Min = 1, Max = 30, Rounding = 0, Callback = function(v)
     CFG.freecamSpeed = v
-end)
+end })
 AppBox:AddDivider("Nametag")
-AppBox:AddInput("NametagText",  { Text = "Nametag Text", Default = "Bigfroot", Placeholder = "Bigfroot" }):OnChanged(function(v)
+AppBox:AddInput("NametagText",  { Text = "Nametag Text", Default = "Bigfroot", Placeholder = "Bigfroot", Callback = function(v)
     CFG.nametagText = v ~= "" and v or "Bigfroot"
     if F.nametagOn and nametagGui then
         local lbl = nametagGui:FindFirstChildOfClass("TextLabel")
         if lbl then lbl.Text = CFG.nametagText end
     end
-end)
-AppBox:AddToggle("NametagOn",   { Text = "Show Nametag",         Default = false }):OnChanged(function(v)
+end })
+AppBox:AddToggle("NametagOn",   { Text = "Show Nametag",         Default = false, Callback = function(v)
     F.nametagOn = v; setNametag(v)
-end)
+end })
 
 -- ─── FARM TAB ─────────────────────────────────────────────────────────────────
 local FarmTab = Window:AddTab("Farm", "coins")
 local FarmBox = FarmTab:AddLeftGroupbox("Coin Farm")
 
-FarmBox:AddToggle("FarmCoins", { Text = "Farm Coins", Default = false }):OnChanged(function(v)
+FarmBox:AddToggle("FarmCoins", { Text = "Farm Coins", Default = false, Callback = function(v)
     F.farmCoins = v
     if not v and farmActive then stopFarming() end
-end)
-FarmBox:AddSlider("GlideSpeed", { Text = "Glide Speed", Default = 16, Min = 16, Max = 220, Rounding = 0 }):OnChanged(function(v)
+end })
+FarmBox:AddSlider("GlideSpeed", { Text = "Glide Speed", Default = 16, Min = 16, Max = 220, Rounding = 0, Callback = function(v)
     CFG.farmSpeed = v
-end)
+end })
 FarmBox:AddLabel({ Text = "⚠ Speeds above default may get you kicked!", DoesWrap = true, RichText = false, Dim = true })
 FarmBox:AddButton({ Text = "Start Farming", Callback = function()
     F.farmCoins = true; notify("Coins", "Coin farm started.", 2, "success")
@@ -1894,8 +1893,8 @@ TpBox:AddDropdown("TpPlayer", {
     Values      = {},
     Default     = 1,
     SpecialType = "Player",
-}):OnChanged(function(v) _G.BF_TpTarget = v end)
-
+    Callback    = function(v) _G.BF_TpTarget = v end,
+})
 TpBox:AddButton({ Text = "TP to Player", Callback = function()
     if _G.BF_TpTarget then tpToPlayer(_G.BF_TpTarget) end
 end })
@@ -1929,9 +1928,9 @@ local waypointName = ""
 local wpDropValues = {}
 local wpDrop
 
-TpBox2:AddInput("WpName", { Text = "Waypoint Name", Placeholder = "spot1", Default = "" }):OnChanged(function(v)
+TpBox2:AddInput("WpName", { Text = "Waypoint Name", Placeholder = "spot1", Default = "", Callback = function(v)
     waypointName = v
-end)
+end })
 TpBox2:AddButton({ Text = "Save Current Spot", Callback = function()
     local HRP = hrp()
     if not HRP then return end
@@ -1957,25 +1956,25 @@ TrBox:AddDropdown("FlingTarget", {
     Values      = {},
     Default     = 1,
     SpecialType = "Player",
-}):OnChanged(function(v) trollSelected = v end)
-
-TrBox:AddToggle("FlingT", { Text = "Fling Target",   Default = false }):OnChanged(function(v)
+    Callback    = function(v) trollSelected = v end,
+})
+TrBox:AddToggle("FlingT", { Text = "Fling Target",   Default = false, Callback = function(v)
     flingTargets.target = v; if v then flingLoop() end
-end)
-TrBox:AddToggle("FlingA", { Text = "Fling All",       Default = false }):OnChanged(function(v)
+end })
+TrBox:AddToggle("FlingA", { Text = "Fling All",       Default = false, Callback = function(v)
     flingTargets.all = v; if v then flingLoop() end
-end)
-TrBox:AddToggle("FlingS", { Text = "Fling Sheriff",   Default = false }):OnChanged(function(v)
+end })
+TrBox:AddToggle("FlingS", { Text = "Fling Sheriff",   Default = false, Callback = function(v)
     flingTargets.sheriff = v; if v then flingLoop() end
-end)
-TrBox:AddToggle("FlingM", { Text = "Fling Murderer",  Default = false }):OnChanged(function(v)
+end })
+TrBox:AddToggle("FlingM", { Text = "Fling Murderer",  Default = false, Callback = function(v)
     flingTargets.murderer = v; if v then flingLoop() end
-end)
+end })
 TrBox:AddButton({ Text = "Stop All Fling", Callback = function()
     stopFling(); notify("Fling", "All fling stopped.", 2)
 end })
 
-TrBox2:AddToggle("HeadSit", { Text = "Sit on Target's Head", Default = false }):OnChanged(function(v)
+TrBox2:AddToggle("HeadSit", { Text = "Sit on Target's Head", Default = false, Callback = function(v)
     F.headSit = v
     if v then
         task.spawn(function()
@@ -1994,9 +1993,9 @@ TrBox2:AddToggle("HeadSit", { Text = "Sit on Target's Head", Default = false }):
             end
         end)
     end
-end)
+end })
 TrBox2:AddDivider("Spectate")
-TrBox2:AddToggle("SpecTarget", { Text = "Spectate Target",   Default = false }):OnChanged(function(v)
+TrBox2:AddToggle("SpecTarget", { Text = "Spectate Target",   Default = false, Callback = function(v)
     if v then
         trackConn("specTarget", RunService.RenderStepped:Connect(function()
             local p = trollSelected and Players:FindFirstChild(trollSelected)
@@ -2008,8 +2007,8 @@ TrBox2:AddToggle("SpecTarget", { Text = "Spectate Target",   Default = false }):
         if CONN.specTarget then CONN.specTarget:Disconnect(); CONN.specTarget = nil end
         resetCamera()
     end
-end)
-TrBox2:AddToggle("SpecMurder", { Text = "Spectate Murderer", Default = false }):OnChanged(function(v)
+end })
+TrBox2:AddToggle("SpecMurder", { Text = "Spectate Murderer", Default = false, Callback = function(v)
     if v then
         trackConn("specMurder", RunService.RenderStepped:Connect(function()
             local m = getMurderer()
@@ -2021,45 +2020,46 @@ TrBox2:AddToggle("SpecMurder", { Text = "Spectate Murderer", Default = false }):
         if CONN.specMurder then CONN.specMurder:Disconnect(); CONN.specMurder = nil end
         resetCamera()
     end
-end)
+end })
 TrBox2:AddDivider("Chat & Emotes")
 TrBox2:AddButton({ Text = "Send Roles in Chat", Callback = sendRolesInChat })
 TrBox2:AddDropdown("DanceSel", {
-    Text    = "Dance",
-    Values  = { "Dance 1", "Dance 2", "Dance 3", "Dance 4" },
-    Default = "Dance 1",
-}):OnChanged(function(v)
-    CFG.danceSel = v
-    if F.autoDance then stopDance(); playDance() end
-end)
+    Text     = "Dance",
+    Values   = { "Dance 1", "Dance 2", "Dance 3", "Dance 4" },
+    Default  = "Dance 1",
+    Callback = function(v)
+        CFG.danceSel = v
+        if F.autoDance then stopDance(); playDance() end
+    end,
+})
 TrBox2:AddButton({ Text = "Play Dance", Callback = playDance })
-TrBox2:AddToggle("AutoDance", { Text = "Auto Dance", Default = false }):OnChanged(function(v)
+TrBox2:AddToggle("AutoDance", { Text = "Auto Dance", Default = false, Callback = function(v)
     F.autoDance = v; if not v then stopDance() end
-end)
+end })
 
 -- Defense tab
 local DefTab  = Window:AddTab("Defense", "shield")
 local SafeBox = DefTab:AddLeftGroupbox("Safety")
 local EvBox   = DefTab:AddRightGroupbox("Evasion")
 
-SafeBox:AddToggle("AntiVoid", { Text = "Anti Void",         Default = false }):OnChanged(function(v) F.antiVoid = v end)
-SafeBox:AddToggle("AntiAfk",  { Text = "Anti AFK",          Default = true  }):OnChanged(function(v) F.antiAfk  = v end)
-SafeBox:AddToggle("Alarm",    { Text = "Murderer Alarm",    Default = false }):OnChanged(function(v) F.alarm     = v end)
-SafeBox:AddSlider("AlarmDist",{ Text = "Alarm Distance", Default = 40, Min = 10, Max = 100, Rounding = 0 }):OnChanged(function(v)
+SafeBox:AddToggle("AntiVoid", { Text = "Anti Void",         Default = false, Callback = function(v) F.antiVoid = v end })
+SafeBox:AddToggle("AntiAfk",  { Text = "Anti AFK",          Default = true,  Callback = function(v) F.antiAfk  = v end })
+SafeBox:AddToggle("Alarm",    { Text = "Murderer Alarm",    Default = false, Callback = function(v) F.alarm     = v end })
+SafeBox:AddSlider("AlarmDist",{ Text = "Alarm Distance", Default = 40, Min = 10, Max = 100, Rounding = 0, Callback = function(v)
     CFG.alarmDist = v
-end)
+end })
 
-EvBox:AddToggle("AutoEvade",  { Text = "Auto Evade",        Default = false }):OnChanged(function(v) F.autoEvade = v end)
-EvBox:AddSlider("EvadeDist",  { Text = "Evade Distance", Default = 20, Min = 5,  Max = 60,  Rounding = 0 }):OnChanged(function(v)
+EvBox:AddToggle("AutoEvade",  { Text = "Auto Evade",        Default = false, Callback = function(v) F.autoEvade = v end })
+EvBox:AddSlider("EvadeDist",  { Text = "Evade Distance", Default = 20, Min = 5,  Max = 60,  Rounding = 0, Callback = function(v)
     CFG.evadeDist = v
-end)
-EvBox:AddSlider("EvadeSpeed", { Text = "Evade Speed",   Default = 25, Min = 5,  Max = 80,  Rounding = 0 }):OnChanged(function(v)
+end })
+EvBox:AddSlider("EvadeSpeed", { Text = "Evade Speed",   Default = 25, Min = 5,  Max = 80,  Rounding = 0, Callback = function(v)
     CFG.evadeSpeed = v
-end)
-EvBox:AddToggle("AntiKill",   { Text = "Anti-Kill TP Away", Default = false }):OnChanged(function(v) F.antiKill = v end)
-EvBox:AddSlider("AntiKillDist",{ Text = "Anti-Kill Dist", Default = 15, Min = 5, Max = 40, Rounding = 0 }):OnChanged(function(v)
+end })
+EvBox:AddToggle("AntiKill",   { Text = "Anti-Kill TP Away", Default = false, Callback = function(v) F.antiKill = v end })
+EvBox:AddSlider("AntiKillDist",{ Text = "Anti-Kill Dist", Default = 15, Min = 5, Max = 40, Rounding = 0, Callback = function(v)
     CFG.antiKillDist = v
-end)
+end })
 EvBox:AddButton({ Text = "Flash Step (dash)", Callback = flashStepManual })
 
 -- Server tab
@@ -2103,7 +2103,8 @@ PlrBox:AddDropdown("ServerPlayer", {
     Values      = {},
     Default     = 1,
     SpecialType = "Player",
-}):OnChanged(function(v) _G.BF_SrvTarget = v end)
+    Callback    = function(v) _G.BF_SrvTarget = v end,
+})
 PlrBox:AddButton({ Text = "View Role", Callback = function()
     local name = _G.BF_SrvTarget
     if name then
