@@ -156,6 +156,7 @@ async function refreshClientSetupData() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to load setup options');
     clientSetupData = data;
+    updateMobileLoadstringStrip(data);
     return data;
 }
 
@@ -904,5 +905,29 @@ if (addClientBody) {
     });
 }
 
-return { open: openAddClientModal, close: closeAddClientModal };
+// Mobile quick-copy strip
+const mobileLoadstringStrip = $('mobileLoadstringStrip');
+const mobileLoadstringCode = $('mobileLoadstringCode');
+const mobileLoadstringCopy = $('mobileLoadstringCopy');
+
+function updateMobileLoadstringStrip(data) {
+    if (!mobileLoadstringStrip || !mobileLoadstringCode) return;
+    const bridgeUrl = data?.connectors?.currentMachine?.bridgeUrl || data?.publicUrl || null;
+    const snippet = buildMobileLoaderSnippet(bridgeUrl || undefined);
+    mobileLoadstringCode.textContent = snippet;
+    mobileLoadstringStrip.hidden = false;
+}
+
+if (mobileLoadstringCopy && mobileLoadstringCode) {
+    mobileLoadstringCopy.addEventListener('click', () => {
+        const text = mobileLoadstringCode.textContent || '';
+        navigator.clipboard.writeText(text).then(() => {
+            const prev = mobileLoadstringCopy.innerHTML;
+            mobileLoadstringCopy.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+            setTimeout(() => { mobileLoadstringCopy.innerHTML = prev; }, 1800);
+        }).catch(() => showToast('Copy failed', 'error'));
+    });
+}
+
+return { open: openAddClientModal, close: closeAddClientModal, updateMobileLoadstringStrip };
 }

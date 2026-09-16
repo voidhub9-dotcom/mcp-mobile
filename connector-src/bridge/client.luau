@@ -6,6 +6,19 @@ local GetRegistrationInfo = context.GetRegistrationInfo
 local SanitizeForOutput = context.SanitizeForOutput
 local LuaEncode = context.LuaEncode
 
+-- Detect whether to use secure schemes (wss/https) for domain-based bridges
+local WS_SCHEME, HTTP_SCHEME do
+    local host = BridgeURL:match("^([^:/]+)") or BridgeURL
+    local isLocal = host == "localhost" or host == "127.0.0.1" or host == "::1"
+        or host:match("^192%.168%.") or host:match("^10%.") or host:match("^172%.")
+        or host:match("^%d+%.%d+%.%d+%.%d+$")
+    if isLocal then
+        WS_SCHEME, HTTP_SCHEME = "ws://", "http://"
+    else
+        WS_SCHEME, HTTP_SCHEME = "wss://", "https://"
+    end
+end
+
 local BaseBridge = {}; do
     BaseBridge.__index = BaseBridge
     
@@ -83,7 +96,7 @@ local BaseBridge = {}; do
             local response
             local thread = task.spawn(function()
                 local success, data = pcall(request, {
-                    Url = "http://" .. BridgeURL,
+                    Url = HTTP_SCHEME .. BridgeURL,
                     Method = "GET"
                 })
 
@@ -138,7 +151,7 @@ local WebSocketBridge = setmetatable({}, {__index = BaseBridge}); do
         local wsConnection = nil
         local connectionThread = task.spawn(function()
             local success, result = pcall(function()
-                return WebSocket.connect("ws://" .. BridgeURL)
+                return WebSocket.connect(WS_SCHEME .. BridgeURL)
             end)
             if success then
                 wsConnection = result
@@ -252,7 +265,7 @@ local HTTPBridge = setmetatable({}, {__index = BaseBridge}); do
 
         pcall(function()
             local regResponse = request({
-                Url = "http://" .. BridgeURL .. "/register",
+                Url = HTTP_SCHEME .. BridgeURL .. "/register",
                 Method = "POST",
                 Headers = { ["Content-Type"] = "application/json" },
                 Body = HttpService:JSONEncode(GetRegistrationInfo()),
@@ -269,7 +282,7 @@ local HTTPBridge = setmetatable({}, {__index = BaseBridge}); do
             while self.Connected do
                 local gotCommands = false
                 local success, _ = pcall(function()
-                    local pollUrl = "http://" .. BridgeURL .. "/poll"
+                    local pollUrl = HTTP_SCHEME .. BridgeURL .. "/poll"
                     if self.ClientId then
                         pollUrl = pollUrl .. "?clientId=" .. self.ClientId
                     end
@@ -305,7 +318,7 @@ local HTTPBridge = setmetatable({}, {__index = BaseBridge}); do
                                 if result == nil then return end
 
                                 request({
-                                    Url = "http://" .. BridgeURL .. "/respond",
+                                    Url = HTTP_SCHEME .. BridgeURL .. "/respond",
                                     Method = "POST",
                                     Headers = {
                                         ["Content-Type"] = "application/json"

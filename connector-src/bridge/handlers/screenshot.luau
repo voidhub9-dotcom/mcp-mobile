@@ -12,26 +12,58 @@ Bridge:BindToTypeRaw("client-screenshot", function(data)
     local screenshotData = nil
     local format = "png"
 
-    if type(screenshot) == "function" then
-        local success, result = pcall(screenshot)
-        if success and type(result) == "string" and #result > 0 then
-            screenshotData = result
-        end
-    elseif type(takescreenshot) == "function" then
-        local success, result = pcall(takescreenshot)
-        if success and type(result) == "string" and #result > 0 then
-            screenshotData = result
+    -- User-supplied hook (set before loading connector)
+    local customFn = getgenv and getgenv().MCP_ScreenshotFn
+    if type(customFn) == "function" then
+        local ok, res = pcall(customFn)
+        if ok and type(res) == "string" and #res > 0 then
+            screenshotData = res
         end
     end
 
+    -- Standard executors
+    local screenshotFns = { screenshot, takescreenshot }
+    for _, fn in ipairs(screenshotFns) do
+        if not screenshotData and type(fn) == "function" then
+            local ok, res = pcall(fn)
+            if ok and type(res) == "string" and #res > 0 then
+                screenshotData = res
+            end
+        end
+    end
+
+    -- syn.screenshot() (Synapse / some ports)
+    if not screenshotData and type(syn) == "table" and type(syn.screenshot) == "function" then
+        local ok, res = pcall(syn.screenshot)
+        if ok and type(res) == "string" and #res > 0 then
+            screenshotData = res
+        end
+    end
+
+    -- Delta / VSPhone via getscreenshot() or capturescreen()
+    local mobileFns = { getscreenshot, capturescreen, delta_screenshot }
+    for _, fn in ipairs(mobileFns) do
+        if not screenshotData and type(fn) == "function" then
+            local ok, res = pcall(fn)
+            if ok and type(res) == "string" and #res > 0 then
+                screenshotData = res
+            end
+        end
+    end
+
+    -- File-write path (some executors write a file)
     if not screenshotData and type(writefile) == "function" and type(readfile) == "function" then
         local tempPath = "mcp_screenshot_temp.png"
         pcall(function()
-            if type(screenshot) == "function" then
-                local data = screenshot()
-                if data then
-                    writefile(tempPath, data)
-                    screenshotData = readfile(tempPath)
+            local fns2 = { screenshot, takescreenshot, getscreenshot, capturescreen }
+            for _, fn in ipairs(fns2) do
+                if type(fn) == "function" then
+                    local fileData = fn()
+                    if fileData then
+                        writefile(tempPath, fileData)
+                        screenshotData = readfile(tempPath)
+                        break
+                    end
                 end
             end
         end)
@@ -42,14 +74,20 @@ Bridge:BindToTypeRaw("client-screenshot", function(data)
         end)
     end
 
+    -- Custom URI scheme (some cloud executors)
     if not screenshotData then
-        local success, result = pcall(function()
-            if type(http_get) == "function" then
-                return http_get("screenshot://capture")
+        local uriSchemes = { "screenshot://capture", "vsphone://screenshot", "delta://screenshot" }
+        for _, uri in ipairs(uriSchemes) do
+            if not screenshotData then
+                local ok, res = pcall(function()
+                    if type(http_get) == "function" then
+                        return http_get(uri)
+                    end
+                end)
+                if ok and type(res) == "string" and #res > 100 then
+                    screenshotData = res
+                end
             end
-        end)
-        if success and type(result) == "string" and #result > 100 then
-            screenshotData = result
         end
     end
 

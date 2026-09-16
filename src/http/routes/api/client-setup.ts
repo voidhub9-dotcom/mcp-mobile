@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_BRIDGE_URL, SERVER_PORT, buildLoaderSnippet, normalizeBridgeUrl, } from "../../../shared/connector-snippet.mjs";
+import { PUBLIC_BASE_URL } from "../../../config.js";
 import { getAutoexecStatus, writeLoaderToAutoexec, } from "../../../shared/autoexec.mjs";
 import { readJsonBody } from "../../body.js";
 const COMMAND_TIMEOUT_MS = 30000;
@@ -444,6 +445,7 @@ async function setupPayload(req: IncomingMessage): Promise<Record<string, unknow
     return {
         serverPort: SERVER_PORT,
         isLocalRequest: isLocalRequest(req),
+        publicUrl: PUBLIC_BASE_URL || null,
         lanIp,
         connectors: {
             currentMachine: connector(DEFAULT_BRIDGE_URL),

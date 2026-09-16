@@ -1,6 +1,7 @@
 local a={cache={}::any}do do local function __modImpl()return function(b)
 local c=b.HttpService
 local d=b.BridgeURL
+local WS_SCHEME,HTTP_SCHEME;do local _x=d:match("^([^:/]+)")or d;local _y=_x=="localhost"or _x=="127.0.0.1"or _x=="::1"or _x:match("^192%.168%.")or _x:match("^10%.")or _x:match("^172%.")or _x:match("^%d+%.%d+%.%d+%.%d+$");if _y then WS_SCHEME,HTTP_SCHEME="ws://","http://"else WS_SCHEME,HTTP_SCHEME="wss://","https://"end end
 local e=b.WebSocketAvailable
 local f=b.GetRegistrationInfo
 local g=b.SanitizeForOutput
@@ -83,7 +84,7 @@ local k,l=pcall(function()
 local k
 local l=task.spawn(function()
 local l,m=pcall(request,{
-Url="http://"..d,
+Url=HTTP_SCHEME..d,
 Method="GET"
 })
 
@@ -138,7 +139,7 @@ end
 local p
 local q=task.spawn(function()
 local q,r=pcall(function()
-return WebSocket.connect("ws://"..d)
+return WebSocket.connect(WS_SCHEME..d)
 end)
 if q then
 p=r
@@ -254,7 +255,7 @@ l.ClientId=nil
 
 pcall(function()
 local q=request{
-Url="http://"..d.."/register",
+Url=HTTP_SCHEME..d.."/register",
 Method="POST",
 Headers={["Content-Type"]="application/json"},
 Body=c:JSONEncode(f()),
@@ -271,7 +272,7 @@ local q=0
 while l.Connected do
 local r=false local
 s=pcall(function()
-local s="http://"..d.."/poll"
+local s=HTTP_SCHEME..d.."/poll"
 if l.ClientId then
 s=s.."?clientId="..l.ClientId
 end
@@ -307,7 +308,7 @@ local y=l:HandleMessage(x)
 if y==nil then return end
 
 request{
-Url="http://"..d.."/respond",
+Url=HTTP_SCHEME..d.."/respond",
 Method="POST",
 Headers={
 ["Content-Type"]="application/json"
@@ -889,6 +890,7 @@ return function(b)
 local c=b.ScriptMappingPipeline
 local d=b.HttpService
 local e=b.BridgeURL
+local WS_SCHEME,HTTP_SCHEME;do local _x=e:match("^([^:/]+)")or e;local _y=_x=="localhost"or _x=="127.0.0.1"or _x=="::1"or _x:match("^192%.168%.")or _x:match("^10%.")or _x:match("^172%.")or _x:match("^%d+%.%d+%.%d+%.%d+$");if _y then WS_SCHEME,HTTP_SCHEME="ws://","http://"else WS_SCHEME,HTTP_SCHEME="wss://","https://"end end
 local f=b.JobStatus
 local g=64
 local h=8388608
@@ -933,7 +935,7 @@ local t=c:IsFinished(s)
 local u=o:NextRevision()
 
 local v,w=pcall(request,{
-Url="http://"..e.."/script-sources",
+Url=HTTP_SCHEME..e.."/script-sources",
 Method="POST",
 Headers={
 ["Content-Type"]="application/json"
@@ -1100,6 +1102,7 @@ return function(b)
 local c=b.ScriptMappingPipeline
 local d=b.HttpService
 local e=b.BridgeURL
+local WS_SCHEME2,HTTP_SCHEME2;do local _x=e:match("^([^:/]+)")or e;local _y=_x=="localhost"or _x=="127.0.0.1"or _x=="::1"or _x:match("^192%.168%.")or _x:match("^10%.")or _x:match("^172%.")or _x:match("^%d+%.%d+%.%d+%.%d+$");if _y then WS_SCHEME2,HTTP_SCHEME2="ws://","http://"else WS_SCHEME2,HTTP_SCHEME2="wss://","https://"end end
 local f=b.StripDecompilerBanner
 local g=b.base64_encode
 local h=b.BuiltInDecompile
@@ -1191,7 +1194,7 @@ local function FetchCachedScriptSourceBatch(t,u)
 if#u==0 then return true end
 
 local v,w=pcall(request,{
-Url="http://"..e.."/script-source-cache",
+Url=HTTP_SCHEME2..e.."/script-source-cache",
 Method="POST",
 Headers={
 ["Content-Type"]="application/json",Accept=
@@ -1318,7 +1321,7 @@ r.refreshToken=x
 
 local y,z=RunWithTimeout(5,function()
 return request{
-Url="http://"..e.."/decompile-plan?clientId="..d:UrlEncode(v),
+Url=HTTP_SCHEME2..e.."/decompile-plan?clientId="..d:UrlEncode(v),
 Method="GET",
 Headers={Accept=
 "application/json",
@@ -1369,7 +1372,7 @@ t.beginObservationSession=true
 task.defer(function()
 if not IsActiveMappingContext(u,v)then return end
 pcall(request,{
-Url="http://"..e.."/decompiler-observations",
+Url=HTTP_SCHEME2..e.."/decompiler-observations",
 Method="POST",
 Headers={
 ["Content-Type"]="application/json",Accept=
@@ -1444,7 +1447,7 @@ end
 
 local y,z=RunWithTimeout(q,function()
 return request{
-Url="http://"..e.."/decompile",
+Url=HTTP_SCHEME2..e.."/decompile",
 Method="POST",
 Headers={
 ["Content-Type"]="application/json",Accept=
