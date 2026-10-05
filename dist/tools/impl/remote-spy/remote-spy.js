@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { describeResponse, sendAndWait, sendFireAndForget, toolTextResponse } from "../../factory.js";
-import { maxOutputCharsSchema } from "../../schemas.js";
+import { sendFireAndForget, toolTextResponse } from "../../factory.js";
 
 const PASTE_API = "https://paste-void.lovable.app/api/paste";
 
@@ -122,114 +121,44 @@ end)
 `;
 }
 
-const inputSchema = z.discriminatedUnion("operation", [
-    z.object({
-        operation: z.literal("list"),
-        direction: z
-            .enum(["Incoming", "Outgoing", "Both"])
-            .describe("Call direction to inspect (default: Both)")
-            .optional()
-            .default("Both"),
-        nameFilter: z
-            .string()
-            .describe("Case-insensitive substring filter for remote names")
-            .optional(),
-        limit: z
-            .number()
-            .describe("Maximum remote entries to return (default: 5, max: 100)")
-            .optional()
-            .default(5),
-        maxCallsPerRemote: z
-            .number()
-            .describe("Recent calls to include per remote when summaryOnly is false (default: 1, max: 20)")
-            .optional()
-            .default(1),
-        summaryOnly: z
-            .boolean()
-            .describe("Return names, state, and call counts without argument payloads (default: true)")
-            .optional()
-            .default(true),
-        maxOutputChars: maxOutputCharsSchema,
-    }),
-    z.object({ operation: z.literal("clear") }),
-    z.object({ operation: z.literal("status") }),
-    z.object({
-        operation: z.literal("inject"),
-        preset: z
-            .enum(["cobalt"])
-            .describe("Named remote spy preset to load. 'cobalt' fetches Cobalt via HttpGet inside the executor.")
-            .optional(),
-        url: z
-            .string()
-            .describe("URL to fetch the spy script from inside the executor using HttpGet.")
-            .optional(),
-        source: z
-            .string()
-            .describe("Raw Luau source of a remote spy script to inject directly.")
-            .optional(),
-        maxOutputChars: maxOutputCharsSchema,
-    }),
-    z.object({
-        operation: z.literal("capture"),
-        duration: z
-            .number()
-            .optional()
-            .default(10)
-            .describe("Seconds to capture remote calls before uploading results to paste-void (default: 10)"),
-        nameFilter: z
-            .string()
-            .optional()
-            .describe("Only capture remotes whose name contains this substring (case-insensitive)"),
-    }),
-]);
-
 export default function register(server) {
     server.registerTool("remote-spy", {
-        title: "Inspect remote inventory and activity",
+        title: "Capture Roblox remote calls",
         description:
-            "Remote spy tool. The 'operation' field MUST be exactly one of: 'list', 'clear', 'status', 'inject', 'capture'. " +
-            "PREFERRED on mobile: operation='capture' — injects a self-contained spy script, captures remotes for N seconds, " +
-            "uploads results to paste-void.lovable.app, and prints the rawUrl to console. " +
-            "Read the URL from get-console-output then fetch it. " +
-            "Fallback workflow: (1) operation='inject' preset='cobalt'. " +
-            "(2) operation='list' summaryOnly=true limit=5. " +
-            "(3) operation='list' nameFilter='<name>' summaryOnly=false. " +
-            "(4) operation='clear' to reset. operation='status' to check active spy.",
-        inputSchema,
-    }, async (input) => {
-        if (input.operation === "capture") {
-            const { duration, nameFilter } = input;
-            const script = buildCaptureScript(duration, nameFilter);
+            "Captures remote calls (FireServer, InvokeServer) on the Roblox client. " +
+            "Injects a spy script, captures for the given duration, uploads results to paste-void.lovable.app, " +
+            "and prints the rawUrl to console. After the duration, call get-console-output and look for " +
+            "'[MCP-SPY] Results' — that line contains the paste-void URL to fetch for full results.",
+        inputSchema: z.object({
+            duration: z
+                .number()
+                .optional()
+                .default(10)
+                .describe("Seconds to capture remote calls (default: 10)"),
+            nameFilter: z
+                .string()
+                .optional()
+                .describe("Only capture remotes whose name contains this substring (case-insensitive)"),
+        }),
+    }, async ({ duration, nameFilter }) => {
+        const script = buildCaptureScript(duration, nameFilter);
 
-            let rawUrl;
-            try {
-                rawUrl = await uploadToPaste(script, "mcp-remote-spy");
-            } catch (err) {
-                return toolTextResponse(`Failed to upload capture script to paste-void: ${err}`, {}, true);
-            }
-
-            const loadstringSource = `setthreadidentity(8)\nloadstring(game:HttpGet("${rawUrl}"))()`;
-
-            return sendFireAndForget({
-                type: "execute",
-                data: { source: loadstringSource },
-                successMessage:
-                    `Remote spy capture script injected (duration: ${duration}s${nameFilter ? `, filter: ${nameFilter}` : ""}). ` +
-                    `After ${duration}s, use get-console-output and look for a line starting with "[MCP-SPY] Results" — ` +
-                    `it contains the paste-void rawUrl with all captured remote calls.`,
-            });
+        let rawUrl;
+        try {
+            rawUrl = await uploadToPaste(script, "mcp-remote-spy");
+        } catch (err) {
+            return toolTextResponse(`Failed to upload capture script to paste-void: ${err}`, {}, true);
         }
 
-        const maxOutputChars = (input.operation === "list" || input.operation === "inject")
-            ? input.maxOutputChars
-            : undefined;
-        return sendAndWait({
-            type: "remote-spy",
-            data: input,
-            maxOutputChars,
-            stampClient: true,
-            truncationHint: "Rerun remote-spy list with summaryOnly=true, a nameFilter, a lower limit, or fewer calls per remote.",
-            failureMessage: (response) => "Failed to use remote spy: " + describeResponse(response),
+        const loadstringSource = `setthreadidentity(8)\nloadstring(game:HttpGet("${rawUrl}"))()`;
+
+        return sendFireAndForget({
+            type: "execute",
+            data: { source: loadstringSource },
+            successMessage:
+                `Remote spy injected (duration: ${duration}s${nameFilter ? `, filter: ${nameFilter}` : ""}). ` +
+                `After ${duration}s, call get-console-output and look for "[MCP-SPY] Results" — ` +
+                `that line has the paste-void rawUrl with all captured remote calls.`,
         });
     });
 }
