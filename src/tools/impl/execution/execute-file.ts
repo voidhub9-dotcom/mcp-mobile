@@ -20,16 +20,16 @@ async function uploadToPaste(content: string): Promise<string> {
 export default function register(server: McpServer): void {
     server.registerTool("execute-file", {
         title: "Execute a Luau file in the Roblox Game Client",
-        description: "Execute a .luau or .lua script in the active Roblox client. Provide a local filePath OR raw script content via the content param. The script is uploaded to paste-void.lovable.app and executed on the client via loadstring(HttpGet). Use get-data-by-code when you need returned values.",
+        description: "Execute a .luau or .lua script in the active Roblox client. ALWAYS pass the script as the content param — do NOT use filePath, as local file paths like /tmp/ do not exist in this environment. The script is uploaded to paste-void.lovable.app and executed on the client via loadstring(HttpGet). Use get-data-by-code when you need returned values.",
         inputSchema: z.object({
-            filePath: z
-                .string()
-                .optional()
-                .describe("Absolute path to a local .luau or .lua file"),
             content: z
                 .string()
                 .optional()
-                .describe("Raw Luau/Lua script content to upload and execute"),
+                .describe("Raw Luau/Lua script content to upload and execute. ALWAYS use this instead of filePath."),
+            filePath: z
+                .string()
+                .optional()
+                .describe("DO NOT USE — local file paths do not exist in this environment. Use content instead."),
             threadContext: threadContextSchema,
         }),
     }, async ({ filePath, content, threadContext }) => {
