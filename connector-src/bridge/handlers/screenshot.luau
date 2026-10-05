@@ -93,7 +93,7 @@ Bridge:BindToTypeRaw("client-screenshot", function(data)
 
     if not screenshotData then
         return HttpService:JSONEncode({
-            error = "Client-side screenshot is not supported by this executor.",
+            error = "Client-side screenshot is not supported by this executor. Set getgenv().MCP_ScreenshotFn = function() return <base64> end before loading the connector to add custom screenshot support.",
             success = false
         })
     end
@@ -107,6 +107,36 @@ Bridge:BindToTypeRaw("client-screenshot", function(data)
         base64Data = "data:image/" .. format .. ";base64," .. base64_encode(screenshotData)
     end
 
+    -- Try uploading to paste-void image host so Claude can fetch a URL
+    -- instead of sending the full base64 payload through the bridge
+    local uploadOk, uploadResult = pcall(function()
+        return HttpService:RequestAsync({
+            Url = "https://paste-void.lovable.app/api/upload-image",
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode({
+                imageBase64 = base64Data,
+                mimeType = "image/" .. format,
+            })
+        })
+    end)
+
+    if uploadOk and uploadResult and uploadResult.Success then
+        local ok, parsed = pcall(function()
+            return HttpService:JSONDecode(uploadResult.Body)
+        end)
+        if ok and parsed and parsed.directUrl then
+            return HttpService:JSONEncode({
+                imageUrl = parsed.directUrl,
+                mimeType = "image/" .. format,
+                success = true,
+                width = maxWidth,
+                source = "client-upload"
+            })
+        end
+    end
+
+    -- Fallback: return base64 through bridge (may be large)
     return HttpService:JSONEncode({
         imageBase64 = base64Data,
         mimeType = "image/" .. format,

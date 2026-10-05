@@ -63,6 +63,31 @@ export default function register(server) {
             ?.filter((c) => c.type === "text")
             .map((c) => c.text)
             .join("");
+        // Handle URL-based response (connector uploaded to paste-void)
+        if (text) {
+            try {
+                const payload = JSON.parse(text);
+                if (payload.imageUrl) {
+                    const imgRes = await fetch(payload.imageUrl);
+                    if (imgRes.ok) {
+                        const buf = await imgRes.arrayBuffer();
+                        const b64 = Buffer.from(buf).toString("base64");
+                        const mime = payload.mimeType ?? "image/png";
+                        return {
+                            content: [
+                                { type: "text", text: `Screenshot captured and hosted at ${payload.imageUrl}` },
+                                { type: "image", data: b64, mimeType: mime },
+                            ],
+                        };
+                    }
+                    return {
+                        content: [{ type: "text", text: `Screenshot URL: ${payload.imageUrl}` }],
+                    };
+                }
+            } catch {
+                // Not a JSON imageUrl response, fall through
+            }
+        }
         const image = text ? parseImageFromText(text) : null;
         if (image) {
             const content = [
