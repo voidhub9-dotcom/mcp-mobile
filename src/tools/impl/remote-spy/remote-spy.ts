@@ -68,14 +68,14 @@ export default function register(server: McpServer): void {
     server.registerTool("remote-spy", {
         title: "Inspect remote inventory and activity",
         description:
-            "Remote spy with multi-backend support. " +
-            "Use 'inject' with preset='cobalt' to load Cobalt (best-in-class spy with full argument capture, " +
-            "incoming/outgoing hooks, and blocking). After injection, 'list' reads live call logs directly " +
-            "from the active spy. Backend priority: Cobalt (getgenv().CobaltInitialized) → " +
-            "custom MCP spy (getgenv().MCP_CustomRemoteSpy) → Hydroxide (getgenv().Hydroxide) → " +
-            "generic spy (getgenv().RemoteSpy/RS) → built-in read-only inventory scanner. " +
-            "Never replays or modifies remotes. " +
-            "Start with summaryOnly=true, small limit, then narrow by name before requesting call arguments.",
+            "Remote spy tool. The 'operation' field MUST be exactly one of: 'list', 'clear', 'status', 'inject'. " +
+            "No other value is valid — passing anything else causes an input validation error. " +
+            "Workflow: (1) operation='inject' preset='cobalt' to load the spy. " +
+            "(2) operation='list' summaryOnly=true limit=5 to see what remotes are firing. " +
+            "(3) operation='list' nameFilter='<name>' summaryOnly=false to get call arguments. " +
+            "(4) operation='clear' to reset logs. operation='status' to check if spy is active. " +
+            "Backend priority: Cobalt → MCP_CustomRemoteSpy → Hydroxide → RemoteSpy/RS → built-in scanner. " +
+            "Never replays or modifies remotes.",
         inputSchema,
     }, async (input) => {
         const maxOutputChars = (input.operation === "list" || input.operation === "inject")
