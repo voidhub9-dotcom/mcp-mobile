@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { normalizeScreenshotPayload } from "../../../http/screenshot-payload.js";
 import { sendAndWait, clientStampPrefix } from "../../factory.js";
 import { maxOutputCharsSchema } from "../../schemas.js";
 
@@ -48,7 +49,7 @@ function parseCaptureError(text: string): string | null {
 export default function register(server: McpServer): void {
     server.registerTool("client-screenshot", {
         title: "Take a screenshot from the Roblox client (cross-platform)",
-        description: "Capture a screenshot from the connected Roblox client using in-game viewport capture. Works on any platform (Windows, Mac, mobile). The AI receives the actual image and can visually analyze the game screen. The client executor must support a screenshot function or the http_get screenshot:// protocol.",
+        description: "Capture a screenshot from the connected Roblox client using in-game viewport capture. Works on any platform (Windows, Mac, mobile). The AI receives the actual image and can visually analyze the game screen. The executor must expose screenshot(), takescreenshot(), syn.screenshot(), getscreenshot(), capturescreen(), delta_screenshot(), a configured MCP_ScreenshotFn, or screenshot:// support.",
         inputSchema: z.object({
             maxWidth: z
                 .number()
@@ -83,23 +84,29 @@ export default function register(server: McpServer): void {
         // Handle URL-based response (connector uploaded to paste-void)
         if (text) {
             try {
-                const payload = JSON.parse(text) as { imageUrl?: string; mimeType?: string; success?: boolean; error?: string };
+                const payload = JSON.parse(text) as { imageBase64?: unknown; imageUrl?: unknown; mimeType?: unknown; success?: boolean; error?: string };
                 if (payload.imageUrl) {
-                    const imgRes = await fetch(payload.imageUrl);
+                    const normalized = normalizeScreenshotPayload(payload);
+                    if (!normalized || !normalized.imageData.startsWith("https://")) {
+                        return {
+                            content: [{ type: "text", text: "The screenshot connector returned an unsupported image URL." }],
+                            isError: true,
+                        };
+                    }
+                    const imgRes = await fetch(normalized.imageData);
                     if (imgRes.ok) {
                         const buf = await imgRes.arrayBuffer();
                         const b64 = Buffer.from(buf).toString("base64");
-                        const mime = payload.mimeType ?? "image/png";
                         return {
                             content: [
-                                { type: "text", text: `Screenshot captured and hosted at ${payload.imageUrl}` },
-                                { type: "image", data: b64, mimeType: mime },
+                                { type: "text", text: `Screenshot captured and hosted at ${normalized.imageData}` },
+                                { type: "image", data: b64, mimeType: normalized.mimeType },
                             ] as ToolContent[],
                         };
                     }
                     // URL fetch failed — return the URL as text so Claude at least has it
                     return {
-                        content: [{ type: "text", text: `Screenshot URL: ${payload.imageUrl}` }],
+                        content: [{ type: "text", text: `Screenshot URL: ${normalized.imageData}` }],
                     };
                 }
             } catch {

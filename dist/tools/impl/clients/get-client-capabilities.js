@@ -1,4 +1,6 @@
 import { getActiveClientId, resolveTargetClient } from "../../../bridge/handlers/shared/registry.js";
+import { supportsClientScreenshot } from "../../../bridge/screenshot-capabilities.js";
+import { isSupported as isWindowsScreenshotSupported } from "../../../platform/windows-screenshot.js";
 import { toolTextResponse } from "../../factory.js";
 import { NO_CLIENT_ERROR } from "../../errors.js";
 export default function register(server) {
@@ -31,6 +33,8 @@ export default function register(server) {
             lines.push("");
             lines.push("Tool Availability:");
             const caps = target.capabilities;
+            const clientScreenshotAvailable = supportsClientScreenshot(caps);
+            const windowsHostCaptureAvailable = isWindowsScreenshotSupported();
             const toolChecks = [
                 { tool: "execute", available: !!caps.loadstring && (!!caps.setthreadidentity || !!caps.setidentity) },
                 { tool: "get-data-by-code", available: !!caps.loadstring },
@@ -42,8 +46,8 @@ export default function register(server) {
                 { tool: "script-grep", available: !!caps.getscripts && !!caps.decompile },
                 { tool: "type-text-box", available: true },
                 { tool: "click-button", available: !!caps.firesignal || !!caps.VirtualInputManager },
-                { tool: "client-screenshot", available: !!caps.screenshot || !!caps.takescreenshot || !!caps.screenshot_protocol, reason: "requires screenshot(), takescreenshot(), or executor screenshot:// support" },
-                { tool: "screenshot-window", available: !target.mobile, reason: target.mobile ? "Use client-screenshot on mobile." : undefined },
+                { tool: "client-screenshot", available: clientScreenshotAvailable, reason: clientScreenshotAvailable ? undefined : "requires a supported executor screenshot API or screenshot:// protocol" },
+                { tool: "screenshot-window", available: windowsHostCaptureAvailable || clientScreenshotAvailable, reason: windowsHostCaptureAvailable || clientScreenshotAvailable ? undefined : "requires Windows host capture or a supported client screenshot API" },
                 { tool: "remote-spy", available: !!caps.loadstring },
             ];
             for (const { tool, available, reason } of toolChecks) {

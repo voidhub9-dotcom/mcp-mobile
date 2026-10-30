@@ -13,7 +13,12 @@ Bridge:BindToTypeRaw("client-screenshot", function(data)
     local format = "png"
 
     -- User-supplied hook (set before loading connector)
-    local customFn = getgenv and getgenv().MCP_ScreenshotFn
+    local customFn
+    pcall(function()
+        if type(getgenv) == "function" then
+            customFn = getgenv().MCP_ScreenshotFn
+        end
+    end)
     if type(customFn) == "function" then
         local ok, res = pcall(customFn)
         if ok and type(res) == "string" and #res > 0 then
@@ -22,8 +27,7 @@ Bridge:BindToTypeRaw("client-screenshot", function(data)
     end
 
     -- Standard executors
-    local screenshotFns = { screenshot, takescreenshot }
-    for _, fn in ipairs(screenshotFns) do
+    local function tryScreenshot(fn)
         if not screenshotData and type(fn) == "function" then
             local ok, res = pcall(fn)
             if ok and type(res) == "string" and #res > 0 then
@@ -31,6 +35,8 @@ Bridge:BindToTypeRaw("client-screenshot", function(data)
             end
         end
     end
+    tryScreenshot(screenshot)
+    tryScreenshot(takescreenshot)
 
     -- syn.screenshot() (Synapse / some ports)
     if not screenshotData and type(syn) == "table" and type(syn.screenshot) == "function" then
@@ -41,21 +47,20 @@ Bridge:BindToTypeRaw("client-screenshot", function(data)
     end
 
     -- Delta / VSPhone via getscreenshot() or capturescreen()
-    local mobileFns = { getscreenshot, capturescreen, delta_screenshot }
-    for _, fn in ipairs(mobileFns) do
-        if not screenshotData and type(fn) == "function" then
-            local ok, res = pcall(fn)
-            if ok and type(res) == "string" and #res > 0 then
-                screenshotData = res
-            end
-        end
-    end
+    tryScreenshot(getscreenshot)
+    tryScreenshot(capturescreen)
+    tryScreenshot(delta_screenshot)
 
     -- File-write path (some executors write a file)
     if not screenshotData and type(writefile) == "function" and type(readfile) == "function" then
         local tempPath = "mcp_screenshot_temp.png"
         pcall(function()
-            local fns2 = { screenshot, takescreenshot, getscreenshot, capturescreen }
+            local fns2 = {}
+            if type(screenshot) == "function" then table.insert(fns2, screenshot) end
+            if type(takescreenshot) == "function" then table.insert(fns2, takescreenshot) end
+            if type(getscreenshot) == "function" then table.insert(fns2, getscreenshot) end
+            if type(capturescreen) == "function" then table.insert(fns2, capturescreen) end
+            if type(delta_screenshot) == "function" then table.insert(fns2, delta_screenshot) end
             for _, fn in ipairs(fns2) do
                 if type(fn) == "function" then
                     local fileData = fn()

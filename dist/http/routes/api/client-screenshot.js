@@ -1,6 +1,7 @@
 import { GetResponseOfIdFromClient, SendArbitraryDataToClient } from "../../../bridge/handlers/shared/communication.js";
 import { resolveTargetClient, setActiveClientId } from "../../../bridge/handlers/shared/registry.js";
 import { readJsonBody } from "../../body.js";
+import { normalizeScreenshotPayload } from "../../screenshot-payload.js";
 function clamp(value, fallback, min, max) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? Math.max(min, Math.min(max, Math.floor(parsed))) : fallback;
@@ -37,12 +38,13 @@ export async function POST(req, res) {
         if (capture.success === false || typeof capture.error === "string") {
             return send(res, 422, { error: typeof capture.error === "string" ? capture.error : "Screenshot capture failed." });
         }
-        if (typeof capture.imageBase64 !== "string" || !capture.imageBase64.startsWith("data:image/")) {
+        const normalized = normalizeScreenshotPayload(capture);
+        if (!normalized) {
             return send(res, 502, { error: "The client did not return image data." });
         }
         return send(res, 200, {
-            imageData: capture.imageBase64,
-            mimeType: typeof capture.mimeType === "string" ? capture.mimeType : "image/png",
+            imageData: normalized.imageData,
+            mimeType: normalized.mimeType,
             clientId: target.clientId,
         });
     }

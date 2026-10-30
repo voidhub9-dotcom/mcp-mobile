@@ -90,6 +90,12 @@ local function CheckCapability(name, checkFn)
     return results.capabilities[name]
 end
 
+local function HasCustomScreenshot()
+    if type(getgenv) ~= "function" then return false end
+    local ok, env = pcall(getgenv)
+    return ok and type(env) == "table" and type(env.MCP_ScreenshotFn) == "function"
+end
+
 local function ProbeCapabilities()
     CheckCapability("loadstring", function() return type(loadstring) == "function" end)
     CheckCapability("getgenv", function() return type(getgenv) == "function" end)
@@ -122,7 +128,22 @@ local function ProbeCapabilities()
 
     CheckCapability("screenshot", function() return type(screenshot) == "function" end)
     CheckCapability("takescreenshot", function() return type(takescreenshot) == "function" end)
+    CheckCapability("syn_screenshot", function() return type(syn) == "table" and type(syn.screenshot) == "function" end)
+    CheckCapability("getscreenshot", function() return type(getscreenshot) == "function" end)
+    CheckCapability("capturescreen", function() return type(capturescreen) == "function" end)
+    CheckCapability("delta_screenshot", function() return type(delta_screenshot) == "function" end)
+    CheckCapability("custom_screenshot", HasCustomScreenshot)
     CheckCapability("screenshot_protocol", function() return type(http_get) == "function" end)
+    CheckCapability("client_screenshot", function()
+        return type(screenshot) == "function"
+            or type(takescreenshot) == "function"
+            or (type(syn) == "table" and type(syn.screenshot) == "function")
+            or type(getscreenshot) == "function"
+            or type(capturescreen) == "function"
+            or type(delta_screenshot) == "function"
+            or HasCustomScreenshot()
+            or type(http_get) == "function"
+    end)
 
     CheckCapability("LogService", function()
         return game:GetService("LogService") ~= nil
