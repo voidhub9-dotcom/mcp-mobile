@@ -82,6 +82,12 @@ local function CheckCap(name, fn)
     Capabilities[name] = ok and result == true
 end
 
+local function HasCustomScreenshot()
+    if type(getgenv) ~= "function" then return false end
+    local ok, env = pcall(getgenv)
+    return ok and type(env) == "table" and type(env.MCP_ScreenshotFn) == "function"
+end
+
 CheckCap("loadstring", function() return type(loadstring) == "function" end)
 CheckCap("getgenv", function() return type(getgenv) == "function" end)
 CheckCap("setthreadidentity", function() return type(setthreadidentity) == "function" end)
@@ -110,7 +116,22 @@ CheckCap("VirtualInputManager", function() return Instance.new("VirtualInputMana
 CheckCap("keypress", function() return type(keypress) == "function" end)
 CheckCap("screenshot", function() return type(screenshot) == "function" end)
 CheckCap("takescreenshot", function() return type(takescreenshot) == "function" end)
+CheckCap("syn_screenshot", function() return type(syn) == "table" and type(syn.screenshot) == "function" end)
+CheckCap("getscreenshot", function() return type(getscreenshot) == "function" end)
+CheckCap("capturescreen", function() return type(capturescreen) == "function" end)
+CheckCap("delta_screenshot", function() return type(delta_screenshot) == "function" end)
+CheckCap("custom_screenshot", HasCustomScreenshot)
 CheckCap("screenshot_protocol", function() return type(http_get) == "function" end)
+CheckCap("client_screenshot", function()
+    return type(screenshot) == "function"
+        or type(takescreenshot) == "function"
+        or (type(syn) == "table" and type(syn.screenshot) == "function")
+        or type(getscreenshot) == "function"
+        or type(capturescreen) == "function"
+        or type(delta_screenshot) == "function"
+        or HasCustomScreenshot()
+        or type(http_get) == "function"
+end)
 
 ExecutorName = DetectExecutor()
 DetectPlatform()
@@ -738,26 +759,47 @@ Callbacks["client-screenshot"] = function(data)
     local screenshotData = nil
     local format = "png"
 
-    if type(screenshot) == "function" then
-        local ok, result = pcall(screenshot)
-        if ok and type(result) == "string" and #result > 0 then
-            screenshotData = result
-        end
-    elseif type(takescreenshot) == "function" then
-        local ok, result = pcall(takescreenshot)
-        if ok and type(result) == "string" and #result > 0 then
-            screenshotData = result
+    local function tryCapture(fn)
+        if not screenshotData and type(fn) == "function" then
+            local ok, result = pcall(fn)
+            if ok and type(result) == "string" and #result > 0 then
+                screenshotData = result
+            end
         end
     end
+
+    local customFn
+    pcall(function()
+        if type(getgenv) == "function" then
+            customFn = getgenv().MCP_ScreenshotFn
+        end
+    end)
+    tryCapture(customFn)
+    tryCapture(screenshot)
+    tryCapture(takescreenshot)
+    if type(syn) == "table" then tryCapture(syn.screenshot) end
+    tryCapture(getscreenshot)
+    tryCapture(capturescreen)
+    tryCapture(delta_screenshot)
 
     if not screenshotData and type(writefile) == "function" and type(readfile) == "function" then
         local tempPath = "mcp_screenshot_temp.png"
         pcall(function()
-            if type(screenshot) == "function" then
-                local data2 = screenshot()
-                if data2 then
-                    writefile(tempPath, data2)
-                    screenshotData = readfile(tempPath)
+            local screenshotFns = {}
+            if type(screenshot) == "function" then table.insert(screenshotFns, screenshot) end
+            if type(takescreenshot) == "function" then table.insert(screenshotFns, takescreenshot) end
+            if type(getscreenshot) == "function" then table.insert(screenshotFns, getscreenshot) end
+            if type(capturescreen) == "function" then table.insert(screenshotFns, capturescreen) end
+            if type(delta_screenshot) == "function" then table.insert(screenshotFns, delta_screenshot) end
+            if type(syn) == "table" and type(syn.screenshot) == "function" then table.insert(screenshotFns, syn.screenshot) end
+            for _, fn in ipairs(screenshotFns) do
+                if type(fn) == "function" then
+                    local ok, data2 = pcall(fn)
+                    if ok and type(data2) == "string" and #data2 > 0 then
+                        writefile(tempPath, data2)
+                        screenshotData = readfile(tempPath)
+                        break
+                    end
                 end
             end
         end)
@@ -769,19 +811,22 @@ Callbacks["client-screenshot"] = function(data)
     end
 
     if not screenshotData then
-        local ok, result = pcall(function()
-            if Capabilities.http_get then
-                return HTTPGet("screenshot://capture")
+        local uriSchemes = { "screenshot://capture", "vsphone://screenshot", "delta://screenshot" }
+        for _, uri in ipairs(uriSchemes) do
+            if not screenshotData and Capabilities.http_get then
+                local ok, result = pcall(function()
+                    return HTTPGet(uri)
+                end)
+                if ok and type(result) == "string" and #result > 100 then
+                    screenshotData = result
+                end
             end
-        end)
-        if ok and type(result) == "string" and #result > 100 then
-            screenshotData = result
         end
     end
 
     if not screenshotData then
         return HttpService:JSONEncode({
-            error = "Client-side screenshot is not supported by this executor.",
+            error = "Client-side screenshot is not supported by this executor. Set getgenv().MCP_ScreenshotFn to a function that returns image bytes or base64 before loading the connector to add support.",
             success = false
         })
     end

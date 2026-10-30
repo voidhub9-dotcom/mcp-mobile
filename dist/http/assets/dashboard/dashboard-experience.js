@@ -23,9 +23,9 @@ async function api(path, init = {}) {
 
 function capabilityState(client) {
     const caps = client?.capabilities || {};
-    if (caps.screenshot || caps.takescreenshot) return { label: 'Ready', note: 'Native executor capture is available.', ready: true };
-    if (caps.screenshot_protocol) return { label: 'Possible', note: 'This executor can try screenshot:// capture.', ready: true };
-    return { label: 'Unsupported', note: 'Run the updated mobile connector, then use an executor with screenshot(), takescreenshot(), or screenshot:// support.', ready: false };
+    if (caps.screenshot || caps.takescreenshot || caps.syn_screenshot || caps.getscreenshot || caps.capturescreen || caps.delta_screenshot || caps.custom_screenshot) return { label: 'Ready', note: 'An executor screenshot API is available.', ready: true };
+    if (caps.screenshot_protocol || caps.client_screenshot) return { label: 'Possible', note: 'This executor can try its screenshot capture protocol.', ready: true };
+    return { label: 'Unsupported', note: 'No screenshot API was detected. Update the connector or configure an executor screenshot function.', ready: false };
 }
 
 function selectedIdFromOverview() {

@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BASE_URL, WS_PORT } from "../../../config.js";
 import { getInstanceRole } from "../../../bridge/handlers/shared/communication.js";
+import { normalizeScreenshotPayload } from "../../../http/screenshot-payload.js";
 import { isSupported, performScreenshot, type ScreenshotResult, } from "../../../platform/windows-screenshot.js";
 export default function register(server: McpServer): void {
     server.registerTool("screenshot-window", {
@@ -61,29 +62,29 @@ export default function register(server: McpServer): void {
                     .map((c: any) => c.text)
                     .join("");
                 if (text) {
-                    const match = text.match(/data:image\/([a-z]+);base64,([A-Za-z0-9+/=]+)/);
-                    if (match) {
-                        return {
-                            content: [
-                                {
-                                    type: "image" as const,
-                                    data: match[2],
-                                    mimeType: `image/${match[1]}`,
-                                },
-                            ],
-                        };
-                    }
-                    const match2 = text.match(/"imageBase64":\s*"data:image\/([a-z]+);base64,([A-Za-z0-9+/=]+)/);
-                    if (match2) {
-                        return {
-                            content: [
-                                {
-                                    type: "image" as const,
-                                    data: match2[2],
-                                    mimeType: `image/${match2[1]}`,
-                                },
-                            ],
-                        };
+                    try {
+                        const capture = JSON.parse(text) as { imageBase64?: unknown; imageUrl?: unknown; mimeType?: unknown };
+                        const normalized = normalizeScreenshotPayload(capture);
+                        if (normalized) {
+                            let imageData = normalized.imageData;
+                            let mimeType = normalized.mimeType;
+                            if (imageData.startsWith("https://")) {
+                                const imageResponse = await fetch(imageData);
+                                if (!imageResponse.ok) throw new Error(`Hosted screenshot fetch failed (${imageResponse.status}).`);
+                                if (imageResponse.headers.get("content-type")?.startsWith("image/")) {
+                                    mimeType = imageResponse.headers.get("content-type")!.split(";")[0]!;
+                                }
+                                imageData = `data:${mimeType};base64,${Buffer.from(await imageResponse.arrayBuffer()).toString("base64")}`;
+                            }
+                            const match = imageData.match(/^data:image\/([a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i);
+                            if (match) {
+                                return {
+                                    content: [{ type: "image" as const, data: match[2], mimeType }],
+                                };
+                            }
+                        }
+                    } catch {
+                        // Preserve the original client result if it is not an uploaded-image response.
                     }
                 }
                 return result;

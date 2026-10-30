@@ -2933,26 +2933,54 @@ h=math.max(20,math.min(h,100))
 local i
 local j="png"
 
-if type(screenshot)=="function"then
-local k,l=pcall(screenshot)
-if k and type(l)=="string"and#l>0 then
-i=l
+local k
+pcall(function()
+if type(getgenv)=="function"then
+k=getgenv().MCP_ScreenshotFn
 end
-elseif type(takescreenshot)=="function"then
-local k,l=pcall(takescreenshot)
-if k and type(l)=="string"and#l>0 then
-i=l
+end)
+if type(k)=="function"then
+local l,m=pcall(k)
+if l and type(m)=="string"and#m>0 then
+i=m
 end
 end
+local function tryCapture(l)
+if not i and type(l)=="function"then
+local m,n=pcall(l)
+if m and type(n)=="string"and#n>0 then
+i=n
+end
+end
+end
+tryCapture(screenshot)
+tryCapture(takescreenshot)
+if not i and type(syn)=="table"and type(syn.screenshot)=="function"then
+local l,m=pcall(syn.screenshot)
+if l and type(m)=="string"and#m>0 then
+i=m
+end
+end
+tryCapture(getscreenshot)
+tryCapture(capturescreen)
+tryCapture(delta_screenshot)
 
 if not i and type(writefile)=="function"and type(readfile)=="function"then
 local k="mcp_screenshot_temp.png"
 pcall(function()
-if type(screenshot)=="function"then
-local l=screenshot()
-if l then
-writefile(k,l)
+local l={}
+if type(screenshot)=="function"then table.insert(l,screenshot)end
+if type(takescreenshot)=="function"then table.insert(l,takescreenshot)end
+if type(getscreenshot)=="function"then table.insert(l,getscreenshot)end
+if type(capturescreen)=="function"then table.insert(l,capturescreen)end
+if type(delta_screenshot)=="function"then table.insert(l,delta_screenshot)end
+if type(syn)=="table"and type(syn.screenshot)=="function"then table.insert(l,syn.screenshot)end
+for m,n in ipairs(l)do
+local o,p=pcall(n)
+if o and type(p)=="string"and#p>0 then
+writefile(k,p)
 i=readfile(k)
+break
 end
 end
 end)
@@ -2964,19 +2992,24 @@ end)
 end
 
 if not i then
-local k,l=pcall(function()
+local l={"screenshot://capture","vsphone://screenshot","delta://screenshot"}
+for m,n in ipairs(l)do
+if not i then
+local o,p=pcall(function()
 if type(http_get)=="function"then
-return http_get"screenshot://capture"
+return http_get(n)
 end
 end)
-if k and type(l)=="string"and#l>100 then
-i=l
+if o and type(p)=="string"and#p>100 then
+i=p
+end
+end
 end
 end
 
 if not i then
 return d:JSONEncode({
-error="Client-side screenshot is not supported by this executor.",
+error="Client-side screenshot is not supported by this executor. Set getgenv().MCP_ScreenshotFn = function() return <base64> end before loading the connector to add custom screenshot support.",
 success=false
 })
 end
