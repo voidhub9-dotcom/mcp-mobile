@@ -503,7 +503,15 @@ function renderNoClientList(filter) {
     });
 }
 
-createClientSetup({ $, escapeHtml, showToast, dashboardApiFetch });
+const clientSetup = createClientSetup({ $, escapeHtml, showToast, dashboardApiFetch });
+// Populate the connector-script strip immediately so the no-client screen is
+// useful on first paint instead of only after opening the Add Client modal.
+dashboardApiFetch('/api/client-setup')
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+        if (data) clientSetup.updateMobileLoadstringStrip(data);
+    })
+    .catch(() => {});
 
 function selectClient(clientId) {
     if (selectedClientId !== clientId) resetScriptsState();
@@ -526,9 +534,9 @@ function updateOverview() {
     $('overviewUsername').textContent = c.username;
     $('overviewPlace').textContent = c.placeName;
     $('overviewClientId').textContent = c.clientId;
-    $('overviewPlaceId').textContent = c.placeId || 'â';
-    $('overviewUserId').textContent = c.userId || 'â';
-    $('overviewJobId').textContent = c.jobId || 'â';
+    $('overviewPlaceId').textContent = c.placeId || '—';
+    $('overviewUserId').textContent = c.userId || '—';
+    $('overviewJobId').textContent = c.jobId || '—';
 
     const profileLink = $('overviewProfileLink');
     if (profileLink) {
@@ -607,7 +615,7 @@ function updateOverview() {
         } else if (isFullyIndexed && hasCompleteSourceSync) {
             semanticIndexStatus.textContent = 'Codebase fully indexed';
         } else if (isFullyIndexed && syncDone && sourceGap > 0) {
-            semanticIndexStatus.textContent = `Indexed received scripts Â· ${sourceGap} source ${sourceGap === 1 ? 'gap' : 'gaps'}`;
+            semanticIndexStatus.textContent = `Indexed received scripts · ${sourceGap} source ${sourceGap === 1 ? 'gap' : 'gaps'}`;
         } else {
             semanticIndexStatus.textContent = syncDone
                 ? `Ready to index ${mapped} scripts`
@@ -636,7 +644,7 @@ function monitorSnapshotText(client) {
     const lines = [
         'Roblox MCP health snapshot',
         `Client: ${client.username || 'Unknown'}`,
-        `Place: ${client.placeName || 'Unknown'} (${client.placeId || 'â'})`,
+        `Place: ${client.placeName || 'Unknown'} (${client.placeId || '—'})`,
         `Job ID: ${client.jobId || 'Unknown'}`,
         `Transport: ${(client.transport || 'unknown').toUpperCase()}`,
         `Session uptime: ${formatMonitorDuration(health.sessionUptimeMs)}`,
@@ -662,10 +670,10 @@ function updateMonitor(client) {
     const lastSeen = $('monitorLastSeen'); if (lastSeen) lastSeen.textContent = `Last bridge activity ${formatMonitorDuration(health.idleMs)} ago`;
     const reconnects = $('monitorReconnects'); if (reconnects) reconnects.textContent = String(Number(health.reconnectCount || 0));
     const changes = $('monitorSessionChanges'); if (changes) changes.textContent = String(Number(health.sessionChangeCount || 0));
-    const job = $('monitorJobId'); if (job) job.textContent = client.jobId ? client.jobId.slice(0, 18) + (client.jobId.length > 18 ? 'â¦' : '') : 'â';
-    const place = $('monitorPlace'); if (place) place.textContent = `${client.placeName || 'Unknown place'} Â· ${client.transport === 'ws' ? 'WebSocket' : 'HTTP polling'}`;
+    const job = $('monitorJobId'); if (job) job.textContent = client.jobId ? client.jobId.slice(0, 18) + (client.jobId.length > 18 ? '…' : '') : '—';
+    const place = $('monitorPlace'); if (place) place.textContent = `${client.placeName || 'Unknown place'} · ${client.transport === 'ws' ? 'WebSocket' : 'HTTP polling'}`;
     const healthNote = $('monitorHealthNote');
-    if (healthNote) healthNote.textContent = `Active for ${formatMonitorDuration(health.sessionUptimeMs)} Â· ${Number(health.registrationCount || 1)} registrations Â· ${client.executor || 'Unknown executor'}`;
+    if (healthNote) healthNote.textContent = `Active for ${formatMonitorDuration(health.sessionUptimeMs)} · ${Number(health.registrationCount || 1)} registrations · ${client.executor || 'Unknown executor'}`;
 
     const alertList = $('monitorAlerts');
     if (alertList) {
@@ -674,9 +682,9 @@ function updateMonitor(client) {
         } else {
             alertList.innerHTML = alerts.slice(-4).reverse().map(alert => {
                 const when = new Date(alert.detectedAt);
-                const from = `${alert.previousPlaceName || 'Unknown'} Â· ${alert.previousJobId || 'unknown'}`;
-                const to = `${alert.currentPlaceName || 'Unknown'} Â· ${alert.currentJobId || 'unknown'}`;
-                return `<div class="monitor-alert"><i class="monitor-alert-dot"></i><div class="monitor-alert-main"><strong>${escapeHtml(from)} â ${escapeHtml(to)}</strong><span>Server or place changed; the dashboard only recorded this event.</span></div><time>${escapeHtml(formatTime(when))}</time></div>`;
+                const from = `${alert.previousPlaceName || 'Unknown'} · ${alert.previousJobId || 'unknown'}`;
+                const to = `${alert.currentPlaceName || 'Unknown'} · ${alert.currentJobId || 'unknown'}`;
+                return `<div class="monitor-alert"><i class="monitor-alert-dot"></i><div class="monitor-alert-main"><strong>${escapeHtml(from)} → ${escapeHtml(to)}</strong><span>Server or place changed; the dashboard only recorded this event.</span></div><time>${escapeHtml(formatTime(when))}</time></div>`;
             }).join('');
         }
     }
@@ -705,7 +713,7 @@ function renderOverviewClients() {
             <div class="section-client-avatar">${avatarHtml(c.userId, c.username, 32)}</div>
             <div class="section-client-info">
                 <div class="section-client-name">${c.username}</div>
-                <div class="section-client-meta">${c.placeName} Â· ${c.clientId.slice(0, 8)}â¦</div>
+                <div class="section-client-meta">${c.placeName} · ${c.clientId.slice(0, 8)}…</div>
             </div>
             <span class="section-client-transport ${transportClass(c.transport)}">${c.transport}</span>
         </div>`;
@@ -860,8 +868,8 @@ function formatProgress(job) {
     const total = Number(job.total) || 0;
     const completed = Number(job.completed) || 0;
     const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
-    const count = total > 0 ? `\n${completed}/${total} Â· ${percent}%` : '';
-    return `${job.message || 'Runningâ¦'}${count}`;
+    const count = total > 0 ? `\n${completed}/${total} · ${percent}%` : '';
+    return `${job.message || 'Running…'}${count}`;
 }
 
 function sleep(ms) {
@@ -870,7 +878,7 @@ function sleep(ms) {
 
 async function pollToolProgress(jobId, def) {
     const startTime = performance.now();
-    $('toolOutputBody').textContent = 'Initializingâ¦';
+    $('toolOutputBody').textContent = 'Initializing…';
     $('toolResponseStatus').textContent = 'Pending';
     $('toolResponseStatus').className = 'tool-res-badge';
     $('toolResponseTime').textContent = '';
@@ -937,7 +945,7 @@ async function pollOverviewIndexProgress(jobId) {
             return;
         }
 
-        semanticIndexStatus.textContent = formatProgress(job).replace('\n', ' Â· ');
+        semanticIndexStatus.textContent = formatProgress(job).replace('\n', ' · ');
         await sleep(750);
     }
 }
@@ -994,7 +1002,7 @@ toolRunBtn.addEventListener('click', async () => {
     payload.clientId = selectedClientId;
 
     toolRunBtn.disabled = true;
-    toolRunBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10" stroke-dasharray="50" stroke-dashoffset="20"/></svg> Runningâ¦';
+    toolRunBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10" stroke-dasharray="50" stroke-dashoffset="20"/></svg> Running…';
 
     const startTime = performance.now();
     try {
@@ -1558,7 +1566,7 @@ function renderSearchFileHits(files, query) {
             const info = getScriptDisplayInfo(script);
             return '<button class="scripts-search-file" data-debug-id="' + escapeHtml(script.debugId) + '">' +
                 '<span class="scripts-search-file-name">' + FILE_ICON + '<span>' + highlightQuery(info.displayPath, query) + '</span></span>' +
-                '<span class="scripts-search-file-meta">' + script.lines + ' lines Â· ' + formatBytes(script.bytes) + '</span>' +
+                '<span class="scripts-search-file-meta">' + script.lines + ' lines · ' + formatBytes(script.bytes) + '</span>' +
                 '</button>';
         }).join('') +
         '</div>';
@@ -1628,10 +1636,10 @@ async function renderScriptsSearchResults() {
         const codeHits = Array.isArray(data.code) ? data.code : [];
         const codeMatchCount = Number(data.totalCodeMatches) || codeHits.reduce((sum, result) => sum + (Number(result.matchCount) || 0), 0);
         const total = fileHits.length + codeMatchCount;
-        const limited = data.limited ? ' Â· limited' : '';
+        const limited = data.limited ? ' · limited' : '';
         $('scriptsCount').textContent = total === 0
             ? '0 results'
-            : fileHits.length + ' files Â· ' + codeMatchCount + ' code' + limited;
+            : fileHits.length + ' files · ' + codeMatchCount + ' code' + limited;
 
         if (total === 0) {
             list.innerHTML = '<div class="logs-empty">No matching scripts</div>';
@@ -1771,7 +1779,7 @@ async function openScriptSource(debugId, lineNumber = null) {
 
         renderBreadcrumb(fileName);
 
-        $('scriptsCodeInfo').textContent = lines.length + ' lines (' + lines.filter(l => l.trim()).length + ' loc) Â· ' + formatBytes(data.source.length);
+        $('scriptsCodeInfo').textContent = lines.length + ' lines (' + lines.filter(l => l.trim()).length + ' loc) · ' + formatBytes(data.source.length);
 
         let gutterHtml = '';
         for (let i = 1; i <= lines.length; i++) {
@@ -1867,14 +1875,14 @@ function syncGutterFromCode() {
         html += '<span>' + i + '</span>';
     }
     $('scriptsCodeGutter').innerHTML = html;
-    $('scriptsCodeInfo').textContent = lines.length + ' lines (' + lines.filter(l => l.trim()).length + ' loc) Â· ' + formatBytes(text.length);
+    $('scriptsCodeInfo').textContent = lines.length + ' lines (' + lines.filter(l => l.trim()).length + ' loc) · ' + formatBytes(text.length);
 }
 
 scriptsCodeSaveBtn.addEventListener('click', async () => {
     const codeEl = $('scriptsCodeBody');
     const source = codeEl.textContent || '';
     scriptsCodeSaveBtn.disabled = true;
-    scriptsCodeSaveBtn.textContent = 'Savingâ¦';
+    scriptsCodeSaveBtn.textContent = 'Saving…';
     try {
         const res = await dashboardApiFetch('/api/scripts/source', {
             method: 'PUT',
@@ -1889,7 +1897,7 @@ scriptsCodeSaveBtn.addEventListener('click', async () => {
         if (res.ok) {
             showToast('Source saved', 'success');
             $('scriptsCodeInfo').textContent =
-                data.lines + ' lines (' + source.split('\n').filter(l => l.trim()).length + ' loc) Â· ' + formatBytes(data.bytes);
+                data.lines + ' lines (' + source.split('\n').filter(l => l.trim()).length + ' loc) · ' + formatBytes(data.bytes);
             const script = scriptsData.find(s => s.debugId === scriptsViewingFile);
             if (script) {
                 script.lines = data.lines;
@@ -2213,7 +2221,7 @@ async function loadSemanticSettings() {
         settingsProvider = d.provider || 'openai';
         $('settingsOpenaiUrl').value = d.openaiBaseUrl || '';
         $('settingsOpenaiModel').value = d.openaiModel || '';
-        $('settingsOpenaiKey').value = d.openaiApiKeySet ? 'â¢â¢â¢â¢â¢â¢â¢â¢' : '';
+        $('settingsOpenaiKey').value = d.openaiApiKeySet ? '•�¢•�¢•�¢•�¢' : '';
         $('settingsOllamaUrl').value = d.ollamaBaseUrl || '';
         $('settingsOllamaModel').value = d.ollamaModel || '';
         $('settingsSaveEmbeddings').checked = d.saveEmbeddingsToDisk === true;
@@ -2559,8 +2567,8 @@ function decompilerHealthHtml(id) {
     if (health.lastError) titleBits.push(health.lastError);
     return `
         <div class="decompiler-provider-health">
-            <span class="decompiler-health-pill ${decompilerHealthClass(status)}" title="${escapeHtml(titleBits.join(' Â· '))}">${escapeHtml(decompilerHealthLabel(status))}</span>
-            ${detail.length ? `<span class="decompiler-health-detail">${escapeHtml(detail.join(' Â· '))}</span>` : ''}
+            <span class="decompiler-health-pill ${decompilerHealthClass(status)}" title="${escapeHtml(titleBits.join(' · '))}">${escapeHtml(decompilerHealthLabel(status))}</span>
+            ${detail.length ? `<span class="decompiler-health-detail">${escapeHtml(detail.join(' · '))}</span>` : ''}
         </div>
     `;
 }
@@ -2576,7 +2584,7 @@ function decompilerRowHtml(id, index) {
     const settingsSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06A2 2 0 1 1 7.1 4.3l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06A2 2 0 1 1 19.7 7.1l-.06.06A1.65 1.65 0 0 0 19.4 9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
     const meta = id === 'builtin'
         ? ui.description
-        : `${decompilerProviderByline(id, provider)}${provider.endpoint ? ' Â· ' + provider.endpoint : ''}`;
+        : `${decompilerProviderByline(id, provider)}${provider.endpoint ? ' · ' + provider.endpoint : ''}`;
 
     return `
         <div class="decompiler-provider-row ${locked ? 'decompiler-provider-row--pinned' : ''}" data-provider-id="${escapeHtml(id)}" draggable="false">
@@ -2632,7 +2640,7 @@ function collectDecompilerSettings() {
             options: current.options && typeof current.options === 'object' && !Array.isArray(current.options) ? current.options : {}
         };
         if (current.apiKeyDirty === true) provider.apiKey = current.apiKey || '';
-        else if (current.apiKey && !String(current.apiKey).startsWith('â¢â¢')) provider.apiKey = current.apiKey;
+        else if (current.apiKey && !String(current.apiKey).startsWith('•�¢')) provider.apiKey = current.apiKey;
         providers[id] = provider;
     }
 
@@ -3057,7 +3065,7 @@ function openDecompilerProviderModal(id, options = {}) {
 }
 
 function oracleProviderModalHtml(provider) {
-    const maskedKey = provider.apiKey || (provider.apiKeySet ? 'â¢â¢â¢â¢â¢â¢â¢â¢' : '');
+    const maskedKey = provider.apiKey || (provider.apiKeySet ? '•�¢•�¢•�¢•�¢' : '');
     const version = provider.version == null ? '' : String(provider.version);
     const options = formatSettingsJson(provider.options);
     const purchaseUrl = providerUi('oracle').purchaseUrl || '#';
@@ -3363,7 +3371,7 @@ async function saveDecompilerProviderModal(options = {}) {
 
     if (id === 'oracle') {
         const key = ($('decompilerModalOracleKey')?.value || '').trim();
-        if (!key.startsWith('â¢â¢')) {
+        if (!key.startsWith('•�¢')) {
             provider.apiKey = key;
             provider.apiKeySet = Boolean(key);
             provider.apiKeyDirty = true;
@@ -3393,7 +3401,7 @@ async function saveDecompilerProviderModal(options = {}) {
         }
         if (!custom) return false;
         const endpoint = endpointToMcpHostValue(custom.endpoint);
-        if (!custom.apiKey.startsWith('â¢â¢')) {
+        if (!custom.apiKey.startsWith('•�¢')) {
             provider.apiKey = custom.apiKey;
             provider.apiKeySet = Boolean(custom.apiKey);
             provider.apiKeyDirty = true;
@@ -3436,7 +3444,7 @@ function openaiSettingsPayload() {
         openaiBaseUrl: $('settingsOpenaiUrl').value,
         openaiModel: $('settingsOpenaiModel').value
     };
-    if (!key.startsWith('â¢â¢')) body.openaiApiKey = key;
+    if (!key.startsWith('•�¢')) body.openaiApiKey = key;
     return body;
 }
 
@@ -3594,7 +3602,7 @@ $('settingsSaveEmbeddings').addEventListener('change', () => {
 });
 $('deleteEmbeddingCacheBtn').addEventListener('click', () => deleteEmbeddingCache());
 $('settingsTestBtn').addEventListener('click', async () => {
-    const r = $('settingsTestResult'); r.innerHTML = 'Testingâ¦'; r.className = '';
+    const r = $('settingsTestResult'); r.innerHTML = 'Testing…'; r.className = '';
     try {
         const body = {
             enabled: semanticSearchEnabled,
@@ -3605,13 +3613,13 @@ $('settingsTestBtn').addEventListener('click', async () => {
             ollamaModel: $('settingsOllamaModel').value
         };
         const key = $('settingsOpenaiKey').value;
-        if (!key.startsWith('â¢â¢')) body.openaiApiKey = key;
+        if (!key.startsWith('•�¢')) body.openaiApiKey = key;
         const res = await dashboardApiFetch('/api/semantic-settings/test', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
         const d = await res.json();
-        r.textContent = d.ok ? `â Success (${d.dimensions||'?'}d, ${d.latencyMs||'?'}ms)` : 'â ' + (d.error||'Failed');
+        r.textContent = d.ok ? `✓ Success (${d.dimensions||'?'}d, ${d.latencyMs||'?'}ms)` : '✗ ' + (d.error||'Failed');
         r.className = 'settings-test-result ' + (d.ok ? 'settings-test-result--ok' : 'settings-test-result--err');
         showToast(d.ok ? 'Connection test passed' : 'Connection test failed', d.ok ? 'success' : 'error');
-    } catch(e) { r.textContent = 'â Network error'; r.className = 'settings-test-result settings-test-result--err'; showToast('Network error testing connection', 'error'); }
+    } catch(e) { r.textContent = '✗ Network error'; r.className = 'settings-test-result settings-test-result--err'; showToast('Network error testing connection', 'error'); }
 });
 
 async function updateStatus() {
