@@ -128,7 +128,9 @@ export async function sendAndWait(options) {
             truncationHint: options.truncationHint,
         }, true);
     }
-    const text = options.successMessage?.(response) ?? response.output;
+    // response.output is only guaranteed on the default failureField ("output");
+    // guard against a missing output on the "error" failureField path.
+    const text = options.successMessage?.(response) ?? response.output ?? "Done.";
     const stamped = options.stampClient ? clientStampPrefix() + text : text;
     return toolTextResponse(stamped, {
         maxOutputChars: options.maxOutputChars,

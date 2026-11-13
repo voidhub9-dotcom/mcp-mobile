@@ -7,7 +7,7 @@ const inputSchema = z.object({
     remoteName: z.string().describe("Exact remote name to hook (required for hook/capture operations). Use scan first to discover candidates.").optional(),
     remotePath: z.string().describe("Instance path to the remote (e.g. game.ReplicatedStorage.Events.SomeRemote). Alternative to remoteName.").optional(),
     direction: z.enum(["Incoming", "Outgoing", "Both"]).describe("Direction to hook (default: Both)").optional().default("Both"),
-    duration: z.number().describe("How long to capture remote calls in seconds (default: 10, max: 60). Only for hook operation.").optional().default(10),
+    duration: z.number().min(1).max(60).describe("How long to capture remote calls in seconds (default: 10, max: 60). Only for hook operation.").optional().default(10),
     threadContext: threadContextSchema,
     timeout: z.number().describe("Timeout in ms for the response (default: 15000, max: 120000)").optional().default(15e3),
     maxOutputChars: maxOutputCharsSchema
@@ -128,10 +128,10 @@ return HttpService:JSONEncode(results)
 `;
 function hookCode(remoteName: string | undefined, remotePath: string | undefined, direction: string | undefined, duration: number): string {
     const dir = direction || "Both";
-    const target = remotePath ? `game:GetService("Players").LocalPlayer` : "";
+    const safeDuration = Math.min(Math.max(Number.isFinite(duration) ? duration : 10, 1), 60);
     return `
 local HttpService = game:GetService("HttpService")
-local duration = ${duration}
+local duration = ${safeDuration}
 local direction = "${dir}"
 local remoteName = ${remoteName ? JSON.stringify(remoteName) : "nil"}
 local remotePath = ${remotePath ? JSON.stringify(remotePath) : "nil"}
@@ -168,61 +168,86 @@ if not target then
   return HttpService:JSONEncode({error = "Remote not found"})
 end
 
-local captures = {}
+-- Persistent capture store so the "capture" operation can read hooks later.
+local store = getgenv().MCP_RemoteCaptures
+if type(store) ~= "table" then
+  store = {}
+  getgenv().MCP_RemoteCaptures = store
+end
+local captures = store[target:GetFullName()]
+if type(captures) ~= "table" then
+  captures = {}
+  store[target:GetFullName()] = captures
+end
+
 local hookName = target.Name
 local hookPath = target:GetFullName()
 local hookClass = target.ClassName
 
-local function captureCall(directionLabel, args)
+local function captureCall(directionLabel, ...)
+  -- select('#', ...) keeps nil holes in the argument list; ipairs would stop at the first nil.
+  local n = select('#', ...)
   local safeArgs = {}
-  for i, arg in ipairs(args) do
-    pcall(function()
-      if type(arg) == "table" then
-        safeArgs[i] = HttpService:JSONEncode(arg)
+  for i = 1, n do
+    local arg = select(i, ...)
+    local ok, encoded = pcall(function()
+      if arg == nil then
+        return "<nil>"
+      elseif type(arg) == "table" then
+        return HttpService:JSONEncode(arg)
       else
-        safeArgs[i] = tostring(arg)
+        return tostring(arg)
       end
     end)
-    if not safeArgs[i] then safeArgs[i] = "<unserializable>" end
+    safeArgs[i] = ok and encoded or "<unserializable>"
   end
 
   table.insert(captures, {
     direction = directionLabel,
     args = safeArgs,
-    time = os.clock(),
+    time = os.time(),
   })
 end
 
 if target:IsA("RemoteEvent") then
   if direction == "Incoming" or direction == "Both" then
     target.OnClientEvent:Connect(function(...)
-      captureCall("Incoming", {...})
+      captureCall("Incoming", ...)
     end)
-  end
-  if direction == "Outgoing" or direction == "Both" then
-    local originalFire = target.FireServer
-    if originalFire then
-      local mt = getrawmetatable(target) or {}
-      local original = target.FireServer
-      local hook
-      hook = hookfunction or hookmetamethod
-      if hook then
-        pcall(function()
-          hook(target, "FireServer", function(self, ...)
-            captureCall("Outgoing", {...})
-            return original(self, ...)
-          end)
-        end)
-      end
-    end
   end
 elseif target:IsA("RemoteFunction") then
   if direction == "Incoming" or direction == "Both" then
     pcall(function()
       local oldInvoke = target.OnClientInvoke
       target.OnClientInvoke = function(...)
-        captureCall("Incoming", {...})
+        captureCall("Incoming", ...)
         if oldInvoke then return oldInvoke(...) end
+      end
+    end)
+  end
+end
+
+-- Outgoing hooks (FireServer / InvokeServer) require executor function hooking.
+if direction == "Outgoing" or direction == "Both" then
+  if hookmetamethod then
+    pcall(function()
+      local oldNamecall
+      oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod and getnamecallmethod() or nil
+        if self == target and (method == "FireServer" or method == "InvokeServer") then
+          captureCall("Outgoing", ...)
+        end
+        return oldNamecall(self, ...)
+      end)
+    end)
+  elseif hookfunction then
+    pcall(function()
+      local originalMethod = target:IsA("RemoteEvent") and target.FireServer or target.InvokeServer
+      if originalMethod then
+        hookfunction(originalMethod, function(...)
+          captureCall("Outgoing", ...)
+          return originalMethod(...)
+        end)
       end
     end)
   end
@@ -244,12 +269,20 @@ return HttpService:JSONEncode(result)
 const CAPTURE_CODE = `
 local HttpService = game:GetService("HttpService")
 
-if not getgenv().MCP_RemoteCaptures then
+local store = getgenv().MCP_RemoteCaptures
+if type(store) ~= "table" then
   return HttpService:JSONEncode({error = "No active hooks. Use the hook operation first."})
 end
 
-local captures = getgenv().MCP_RemoteCaptures or {}
-return HttpService:JSONEncode(captures)
+local total = 0
+for _, remoteCaptures in pairs(store) do
+  total = total + #remoteCaptures
+end
+if total == 0 then
+  return HttpService:JSONEncode({error = "Hooks are active but no remote calls have been captured yet."})
+end
+
+return HttpService:JSONEncode({totalCaptures = total, remotes = store})
 `;
 const DUMP_CODE = `
 local HttpService = game:GetService("HttpService")
@@ -320,10 +353,16 @@ function register(server: McpServer): void {
                 };
         }
         const clampedTimeout = Math.min(Math.max(input.timeout, 1e3), 12e4);
+        // The hook operation waits out the full capture duration client-side, so the
+        // response timeout must always cover it (plus dispatch overhead) or the call
+        // would time out even though the hook is working.
+        const effectiveTimeout = input.operation === "hook"
+            ? Math.min(Math.max(clampedTimeout, (input.duration ?? 10) * 1000 + 5000), 12e4)
+            : clampedTimeout;
         return sendAndWait({
             type: "get-data-by-code",
             data: { source: `setthreadidentity(${input.threadContext});${code}` },
-            timeoutMs: clampedTimeout,
+            timeoutMs: effectiveTimeout,
             maxOutputChars: input.maxOutputChars,
             stampClient: true,
             truncationHint: "Narrow your scan with a specific remote name or reduce the capture duration.",

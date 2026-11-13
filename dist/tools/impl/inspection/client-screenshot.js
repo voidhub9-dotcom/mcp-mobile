@@ -6,7 +6,6 @@ import { exportImageToPasteVoid } from "../../../shared/paste-void.js";
 function parseImageFromText(text) {
     const patterns = [
         /data:image\/([a-z]+);base64,([A-Za-z0-9+/=]+)/,
-        /"imageBase64":\s*"data:image\/([a-z]+);base64,([A-Za-z0-9+/=]+)/,
         /"imageBase64":\s*"([A-Za-z0-9+/=]+)"/,
     ];
     for (const pattern of patterns) {
@@ -85,8 +84,15 @@ export default function register(server) {
         // PC fallback: when the executor cannot capture in-game but this server
         // runs on Windows, take an OS-level screenshot of the Roblox window
         // instead of failing. The PC is perfectly capable of screenshots —
-        // only the executor API was missing.
-        const executorUnsupported = result.isError || parseCaptureErrorFromResult(result);
+        // only the executor API was missing. Connection errors (no client,
+        // invalid client) are NOT executor problems, so they must not trigger
+        // the fallback — that would mask the real error.
+        const resultText = result.content
+            ?.filter((c) => c.type === "text")
+            .map((c) => c.text)
+            .join("") ?? "";
+        const connectionError = /No Roblox client connected|Invalid client ID/.test(resultText);
+        const executorUnsupported = !connectionError && (result.isError || parseCaptureErrorFromResult(result));
         if (executorUnsupported && osScreenshotSupported()) {
             try {
                 const osResult = performScreenshot(undefined, maxWidth);

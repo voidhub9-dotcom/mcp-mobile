@@ -7,6 +7,7 @@ import { semanticIndexCodebase, semanticSearchScripts } from "../../../semantic/
 import { completeProgressJob, createProgressJob, failProgressJob, updateProgressJob, } from "../../../semantic/progress.js";
 import { readJsonBody } from "../../body.js";
 import { formatToolText } from "../../../tools/factory.js";
+import { exportTextToPasteVoid } from "../../../shared/paste-void.js";
 const DEFAULT_SCRIPT_MAX_LINES = 80;
 const HARD_SCRIPT_MAX_LINES = 2000;
 function jsonOk(res, data) {
@@ -187,7 +188,10 @@ export async function POST(req, res) {
             const scriptGetterSource = params.scriptGetterSource;
             const startLine = params.startLine;
             const endLine = params.endLine;
-            const maxLines = numberParam(params.maxLines, DEFAULT_SCRIPT_MAX_LINES, 1, HARD_SCRIPT_MAX_LINES);
+            const exportToPasteVoid = params.exportToPasteVoid === true;
+            // When exporting to paste-void, fetch the full source (up to the hard
+            // line cap) so the upload is not the truncated inline view.
+            const maxLines = numberParam(params.maxLines, exportToPasteVoid ? HARD_SCRIPT_MAX_LINES : DEFAULT_SCRIPT_MAX_LINES, 1, HARD_SCRIPT_MAX_LINES);
             if (!scriptPath && !scriptGetterSource)
                 return jsonErr(res, "Missing 'scriptPath' or 'scriptGetterSource'.");
             const scriptProxyMatch = (scriptPath ?? scriptGetterSource ?? "").match(/^<ScriptProxy: (.+)>$/);
@@ -199,8 +203,14 @@ export async function POST(req, res) {
                 });
                 const stored = index.scripts.find((s) => scriptProxyMatch ? s.debugId === scriptProxyMatch[1] : s.path === scriptPath);
                 if (stored) {
+                    let storedResult = formatSourceRange(stored.source, startLine, endLine, maxLines);
+                    if (exportToPasteVoid) {
+                        const upload = await exportTextToPasteVoid(stored.source, scriptPath.split("/").pop() || "decompiled-script");
+                        if (upload.ok && upload.url)
+                            storedResult = `Full source uploaded to paste-void: ${upload.url}\n\n${storedResult}`;
+                    }
                     return jsonOk(res, {
-                        result: resultText(formatSourceRange(stored.source, startLine, endLine, maxLines), params, "Rerun get-script-content with startLine/endLine or a smaller maxLines value."),
+                        result: resultText(storedResult, params, "Rerun get-script-content with startLine/endLine or a smaller maxLines value."),
                     });
                 }
             }

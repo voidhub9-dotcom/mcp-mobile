@@ -76,6 +76,7 @@ export default function register(server) {
                 ...(startLine !== undefined ? { startLine } : {}),
                 ...(endLine !== undefined ? { endLine } : {}),
                 maxLines,
+                exportToPasteVoid,
                 maxOutputChars,
             }, 60000, {
                 maxOutputChars,
@@ -100,7 +101,10 @@ export default function register(server) {
                             return toolTextResponse(clientStampPrefix() +
                                 `Full source uploaded to paste-void: ${upload.url}\n\n` +
                                 formatSourceRange(storedScript.source, startLine, endLine, maxLines), { maxOutputChars });
-                        return toolTextResponse(`paste-void export failed: ${upload.error ?? "unknown error"}. Returning source inline.`, {}, true);
+                        // Upload failed — still return the source we already have inline.
+                        return toolTextResponse(clientStampPrefix() +
+                            `[paste-void export failed: ${upload.error ?? "unknown error"} — returning source inline.]\n` +
+                            formatSourceRange(storedScript.source, startLine, endLine, maxLines), { maxOutputChars, truncationHint: "Rerun get-script-content with startLine/endLine or a smaller maxLines value." });
                     }
                     return toolTextResponse(clientStampPrefix() +
                         formatSourceRange(storedScript.source, startLine, endLine, maxLines), {
@@ -113,13 +117,16 @@ export default function register(server) {
                 return indexResult.response;
             }
         }
+        // When exporting to paste-void, fetch the full source (up to the hard line
+        // cap) so the upload is not the truncated inline view.
+        const fetchMaxLines = exportToPasteVoid ? HARD_SCRIPT_MAX_LINES : maxLines;
         const data = scriptProxyMatch
-            ? { debugId: scriptProxyMatch[1], startLine, endLine, maxLines }
+            ? { debugId: scriptProxyMatch[1], startLine, endLine, maxLines: fetchMaxLines }
             : {
                 source: scriptGetterSource === undefined ? `return ${scriptPath}` : scriptGetterSource,
                 startLine,
                 endLine,
-                maxLines,
+                maxLines: fetchMaxLines,
             };
         const result = await sendAndWait({
             type: "get-script-content",
@@ -136,9 +143,11 @@ export default function register(server) {
                     .map((c) => c.text)
                     .join("");
                 if (text && text.includes("--")) {
-                    const upload = await exportTextToPasteVoid(text, scriptPath ?? "decompiled-script");
+                    // Strip the client-stamp prefix line so the paste is clean source.
+                    const uploadText = text.replace(/^\[client=[^\]]*\]\n/, "");
+                    const upload = await exportTextToPasteVoid(uploadText, scriptPath ?? "decompiled-script");
                     if (upload.ok && upload.url)
-                        return toolTextResponse(`Full source uploaded to paste-void: ${upload.url}\n\n${text}`, { maxOutputChars });
+                        return toolTextResponse(`Full source (up to ${HARD_SCRIPT_MAX_LINES} lines) uploaded to paste-void: ${upload.url}\n\n${text}`, { maxOutputChars });
                 }
             }
             catch {

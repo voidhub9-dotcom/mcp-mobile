@@ -8,7 +8,7 @@ import { maxOutputCharsSchema } from "../../schemas.js";
 import { fetchScriptSearchIndex } from "./script-sources.js";
 function normalizeLimit(limit) {
     if (!Number.isFinite(limit))
-        return 10;
+        return 5;
     return Math.max(1, Math.min(50, Math.floor(limit)));
 }
 function formatSemanticResults(query, output) {
