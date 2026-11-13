@@ -70,7 +70,7 @@ async function exportImageToPasteVoid(base64: string, mimeType: string): Promise
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
     try {
-        const response = await fetch("https://paste-void.lovable.app/api/upload-image", {
+        const response = await fetch("https://pastevoid.base44.app/api/upload-image", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ image: `data:${mimeType};base64,${base64}` }),

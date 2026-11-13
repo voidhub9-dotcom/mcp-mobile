@@ -4,7 +4,7 @@ import { z } from "zod";
 import { sendFireAndForget, toolTextResponse } from "../../factory.js";
 import { threadContextSchema } from "../../schemas.js";
 
-const PASTE_API = "https://paste-void.lovable.app/api/paste";
+const PASTE_API = "https://pastevoid.base44.app/api/paste";
 
 async function uploadToPaste(content: string): Promise<string> {
     const res = await fetch(PASTE_API, {
@@ -20,7 +20,7 @@ async function uploadToPaste(content: string): Promise<string> {
 export default function register(server: McpServer): void {
     server.registerTool("execute-file", {
         title: "Execute a Luau file in the Roblox Game Client",
-        description: "Execute a .luau or .lua script in the active Roblox client. ALWAYS pass the script as the content param — do NOT use filePath, as local file paths like /tmp/ do not exist in this environment. The script is uploaded to paste-void.lovable.app and executed on the client via loadstring(HttpGet). Use get-data-by-code when you need returned values.",
+        description: "Execute a .luau or .lua script in the active Roblox client. ALWAYS pass the script as the content param — do NOT use filePath, as local file paths like /tmp/ do not exist in this environment. The script is uploaded to pastevoid.base44.app and executed on the client via loadstring(HttpGet). Use get-data-by-code when you need returned values.",
         inputSchema: z.object({
             content: z
                 .string()

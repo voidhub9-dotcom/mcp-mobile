@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { sendFireAndForget, toolTextResponse } from "../../factory.js";
-const PASTE_API = "https://paste-void.lovable.app/api/paste";
+const PASTE_API = "https://pastevoid.base44.app/api/paste";
 async function uploadToPaste(content, title) {
     const res = await fetch(PASTE_API, {
         method: "POST",
@@ -123,7 +123,7 @@ export default function register(server) {
         title: "Read-only remote diagnostics",
         description: "Read-only remote diagnostics: captures remote calls (FireServer, InvokeServer) on the Roblox client " +
             "without blocking, ignoring, or modifying any remote traffic. " +
-            "Injects a spy script, captures for the given duration, uploads results to paste-void.lovable.app, " +
+            "Injects a spy script, captures for the given duration, uploads results to pastevoid.base44.app, " +
             "and prints the rawUrl to console. After the duration, call get-console-output and look for " +
             "'[MCP-SPY] Results' — that line contains the paste-void URL to fetch for full results.",
         inputSchema: z.object({

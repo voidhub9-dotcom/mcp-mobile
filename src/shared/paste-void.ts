@@ -6,8 +6,8 @@
  * image endpoint; the response carries the raw URL for the paste.
  */
 
-export const PASTE_VOID_TEXT_ENDPOINT = "https://paste-void.lovable.app/api/paste";
-export const PASTE_VOID_IMAGE_ENDPOINT = "https://paste-void.lovable.app/api/upload-image";
+export const PASTE_VOID_TEXT_ENDPOINT = "https://pastevoid.base44.app/api/paste";
+export const PASTE_VOID_IMAGE_ENDPOINT = "https://pastevoid.base44.app/api/upload-image";
 
 export interface PasteVoidResult {
     ok: boolean;
