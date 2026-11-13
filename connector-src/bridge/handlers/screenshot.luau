@@ -111,7 +111,7 @@ Bridge:BindToTypeRaw("client-screenshot", function(data)
     -- instead of sending the full base64 payload through the bridge
     local uploadOk, uploadResult = pcall(function()
         return HttpService:RequestAsync({
-            Url = "https://pastevoid.base44.app/api/upload-image",
+            Url = "https://pastevoid.lovable.app/api/upload-image",
             Method = "POST",
             Headers = { ["Content-Type"] = "application/json" },
             Body = HttpService:JSONEncode({

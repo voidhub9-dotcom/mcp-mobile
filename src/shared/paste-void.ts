@@ -2,7 +2,7 @@
  * paste-void export helper.
  *
  * Single source of truth for uploading to the paste-void service
- * (https://pastevoid.base44.app). Text pastes (decompiled sources,
+ * (https://pastevoid.lovable.app). Text pastes (decompiled sources,
  * disassemblies, logs) and images both come back as raw URLs.
  *
  * Behavior notes:
@@ -13,8 +13,8 @@
  *   Validation errors (other 4xx) are never retried.
  */
 
-export const PASTE_VOID_HOST = "https://pastevoid.base44.app";
-export const PASTE_VOID_HOST_NAME = "pastevoid.base44.app";
+export const PASTE_VOID_HOST = "https://pastevoid.lovable.app";
+export const PASTE_VOID_HOST_NAME = "pastevoid.lovable.app";
 export const PASTE_VOID_TEXT_ENDPOINT = `${PASTE_VOID_HOST}/api/paste`;
 export const PASTE_VOID_IMAGE_ENDPOINT = `${PASTE_VOID_HOST}/api/upload-image`;
 export const PASTE_VOID_HEALTH_ENDPOINT = `${PASTE_VOID_HOST}/api/health`;

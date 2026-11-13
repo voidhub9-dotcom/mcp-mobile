@@ -8,7 +8,7 @@ import { exportTextToPasteVoid } from "../../../shared/paste-void.js";
 export default function register(server: McpServer): void {
     server.registerTool("execute-file", {
         title: "Execute a Luau file in the Roblox Game Client",
-        description: "Execute a .luau or .lua script in the active Roblox client. ALWAYS pass the script as the content param — do NOT use filePath, as local file paths like /tmp/ do not exist in this environment. The script is uploaded to pastevoid.base44.app and executed on the client via loadstring(HttpGet). Use get-data-by-code when you need returned values.",
+        description: "Execute a .luau or .lua script in the active Roblox client. ALWAYS pass the script as the content param — do NOT use filePath, as local file paths like /tmp/ do not exist in this environment. The script is uploaded to pastevoid.lovable.app and executed on the client via loadstring(HttpGet). Use get-data-by-code when you need returned values.",
         inputSchema: z.object({
             content: z
                 .string()

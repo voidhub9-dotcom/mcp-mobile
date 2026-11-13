@@ -112,7 +112,7 @@ export default function register(server) {
         title: "Read-only remote diagnostics",
         description: "Read-only remote diagnostics: captures remote calls (FireServer, InvokeServer) on the Roblox client " +
             "without blocking, ignoring, or modifying any remote traffic. " +
-            "Injects a spy script, captures for the given duration, uploads results to pastevoid.base44.app, " +
+            "Injects a spy script, captures for the given duration, uploads results to pastevoid.lovable.app, " +
             "and prints the rawUrl to console. After the duration, call get-console-output and look for " +
             "'[MCP-SPY] Results' — that line contains the paste-void URL to fetch for full results.",
         inputSchema: z.object({
