@@ -15,18 +15,10 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
+local AntiAFK = require("./anti-afk")
+
 if getgenv().MCP_DisableAntiAFK ~= true then
-    local VirtualUser = game:GetService("VirtualUser")
-    local Players_antiAFK = game:GetService("Players")
-    local localPlayer_antiAFK = Players_antiAFK.LocalPlayer
-    if localPlayer_antiAFK then
-        localPlayer_antiAFK.Idled:Connect(function()
-            pcall(function()
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton2(Vector2.new())
-            end)
-        end)
-    end
+    AntiAFK.Ensure()
 end
 
 local cloneref = cloneref or function(x) return x end
@@ -303,4 +295,5 @@ require("./bridge/runtime")({
     LuaEncode = LuaEncode,
     HttpService = HttpService,
     base64_encode = base64_encode,
+    AntiAFK = AntiAFK,
 })

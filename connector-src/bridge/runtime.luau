@@ -53,6 +53,7 @@ while true do
         require("./handlers/screenshot"),
         require("./handlers/game-state"),
         require("./handlers/anticheat"),
+        require("./handlers/anti-afk"),
     }
     for _, registerHandlers in registrars do
         registerHandlers(context, Bridge)

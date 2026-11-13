@@ -156,3 +156,130 @@ test("structured profile reports a clean failure on garbage input", () => {
     assert.equal(result.ok, false);
     assert.ok(result.error);
 });
+
+test("structured profile recovers while loops and keeps trailing code outside the body", () => {
+    // while r0 do r0 = false end; r1 = 1; return
+    const code = [
+        word(2, 0, 0),    // 0: LOADNIL r0
+        word(26, 0, 2),   // 1: JUMPIFNOT r0 -> 4 (offset in D)
+        word(3, 0, 0),    // 2: LOADB r0, false
+        word(24, 0, -3),  // 3: JUMPBACK -> 1
+        word(4, 1, 1),    // 4: LOADN r1, 1
+        word(22, 0, 0),   // 5: RETURN
+    ];
+    const bytecode = buildChunk({ code });
+
+    const disasm = runVoidhubPipeline(bytecode, "disasm");
+    assert.match(disasm.source, /if not r0 then goto 4/);
+
+    const structured = runVoidhubPipeline(bytecode, "structured");
+    assert.equal(structured.ok, true);
+    const src = structured.source;
+    const whileIdx = src.indexOf("while r0 do");
+    assert.ok(whileIdx !== -1, "while loop should be recovered");
+    const endIdx = src.indexOf("end", whileIdx);
+    const bodyIdx = src.indexOf("r0 = false");
+    assert.ok(bodyIdx > whileIdx && bodyIdx < endIdx, "loop body must sit inside the while");
+    const afterIdx = src.indexOf("r1 = 1");
+    assert.ok(afterIdx > endIdx, "code after the loop must not be swallowed into the loop body");
+    assert.equal(src.match(/r0 = false/g)?.length, 1, "loop body should appear exactly once");
+});
+
+test("comparison jumps use the D operand for the offset and AUX for the second register", () => {
+    // if r0 == r1 then r2 = 5 end; return
+    // compilers emit JUMPIFNOTEQ r0, r1 -> 5 to skip the then-branch
+    const code = [
+        word(2, 0, 0),    // 0: LOADNIL r0
+        word(2, 1, 0),    // 1: LOADNIL r1
+        word(30, 0, 2),   // 2: JUMPIFNOTEQ r0, r1 -> 5
+        1,                //    aux: second register is r1
+        word(4, 2, 5),    // 4: LOADN r2, 5
+        word(22, 0, 0),   // 5: RETURN
+    ];
+    const bytecode = buildChunk({ code });
+
+    const disasm = runVoidhubPipeline(bytecode, "disasm");
+    assert.match(disasm.source, /if r0 ~= r1 then goto 5/);
+
+    const structured = runVoidhubPipeline(bytecode, "structured");
+    assert.equal(structured.ok, true);
+    assert.match(structured.source, /if r0 ~= r1 then/);
+    assert.match(structured.source, /r2 = 5/);
+});
+
+test("JUMPXEQK conditions decode the constant index and NOT flag from AUX", () => {
+    // if r0 ~= 1 then r1 = 1 end; return
+    const code = [
+        word(79, 0, 2),       // 0: JUMPXEQKN r0, K0 (NOT) -> 3
+        0x80000000,           //    aux: constant index 0 | NOT flag in the high bit
+        word(4, 1, 1),        // 2: LOADN r1, 1
+        word(22, 0, 0),       // 3: RETURN
+    ];
+    const bytecode = buildChunk({
+        code,
+        constants: [numericConstant(1)],
+    });
+
+    const disasm = runVoidhubPipeline(bytecode, "disasm");
+    assert.match(disasm.source, /if r0 ~= 1 then goto 3/);
+
+    const structured = runVoidhubPipeline(bytecode, "structured");
+    assert.equal(structured.ok, true);
+    assert.match(structured.source, /if not \(r0 == 1\) then/);
+    assert.match(structured.source, /r1 = 1/);
+});
+
+test("generic for loops structure nested conditionals", () => {
+    // for a, b, c in r0 do if r3 then r4 = 2 end end; return
+    const code = [
+        word(2, 0, 0),    // 0: LOADNIL r0
+        word(76, 0, 3),   // 1: FORGPREP r0 -> 5
+        word(4, 3, 1),    // 2: LOADN r3, 1
+        word(26, 3, 1),   // 3: JUMPIFNOT r3 -> 5
+        word(4, 4, 2),    // 4: LOADN r4, 2
+        word(58, 0, -4),  // 5: FORGLOOP r0 -> 2
+        1,                //    aux: 1 loop variable
+        word(22, 0, 0),   // 7: RETURN
+    ];
+    const bytecode = buildChunk({ code });
+
+    const structured = runVoidhubPipeline(bytecode, "structured");
+    assert.equal(structured.ok, true);
+    assert.match(structured.source, /for r3, r4, r5 in r0 do/);
+    assert.match(structured.source, /if r3 then/);
+    const forIdx = structured.source.indexOf("for r3");
+    const ifIdx = structured.source.indexOf("if r3 then");
+    const endIdx = structured.source.indexOf("end", ifIdx);
+    const bodyIdx = structured.source.indexOf("r4 = 2");
+    assert.ok(bodyIdx > forIdx && bodyIdx < endIdx, "nested if body must stay inside the for loop");
+});
+
+test("JUMPX uses the E operand and dead code after a forward jump is skipped", () => {
+    const code = [
+        word(4, 0, 1),   // 0: LOADN r0, 1
+        67 | (2 << 8),   // 1: JUMPX -> 4 (offset lives in bits 8-31)
+        word(4, 1, 2),   // 2: LOADN r1, 2 (dead)
+        word(4, 2, 3),   // 3: LOADN r2, 3 (dead)
+        word(22, 0, 0),  // 4: RETURN
+    ];
+    const bytecode = buildChunk({ code });
+
+    const structured = runVoidhubPipeline(bytecode, "structured");
+    assert.equal(structured.ok, true);
+    assert.match(structured.source, /r0 = 1/);
+    assert.doesNotMatch(structured.source, /r1 = 2/, "dead code must not be emitted");
+    assert.match(structured.source, /return/);
+});
+
+test("LOADN reads its signed 16-bit value from the D operand", () => {
+    const code = [
+        word(4, 0, -1),   // 0: LOADN r0, -1
+        word(4, 1, 300),  // 1: LOADN r1, 300
+        word(22, 0, 0),   // 2: RETURN
+    ];
+    const bytecode = buildChunk({ code });
+
+    const disasm = runVoidhubPipeline(bytecode, "disasm");
+    assert.match(disasm.source, /r0 = -1/);
+    assert.match(disasm.source, /r1 = 300/);
+});

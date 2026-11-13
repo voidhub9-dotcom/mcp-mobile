@@ -124,9 +124,10 @@ end)
 
 export default function register(server: McpServer): void {
     server.registerTool("remote-spy", {
-        title: "Capture Roblox remote calls",
+        title: "Read-only remote diagnostics",
         description:
-            "Captures remote calls (FireServer, InvokeServer) on the Roblox client. " +
+            "Read-only remote diagnostics: captures remote calls (FireServer, InvokeServer) on the Roblox client " +
+            "without blocking, ignoring, or modifying any remote traffic. " +
             "Injects a spy script, captures for the given duration, uploads results to paste-void.lovable.app, " +
             "and prints the rawUrl to console. After the duration, call get-console-output and look for " +
             "'[MCP-SPY] Results' — that line contains the paste-void URL to fetch for full results.",

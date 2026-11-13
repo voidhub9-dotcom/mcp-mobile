@@ -8,7 +8,7 @@
  * always valid.
  */
 
-import { decodeInstructions, IS_UNCONDITIONAL_JUMP, type DecodedInstruction } from "./opcodes.js";
+import { decodeInstructions, IS_UNCONDITIONAL_JUMP, jumpTargetIndex, type DecodedInstruction } from "./opcodes.js";
 import type { LuauConstant, LuauProto } from "./lbc.js";
 import { buildControlFlowGraph, findLoopHeaders, type BasicBlock, type ControlFlowGraph } from "./cfg.js";
 
@@ -56,6 +56,7 @@ function instructionText(proto: LuauProto, instruction: DecodedInstruction): str
     const a = instruction.a;
     const b = instruction.b;
     const c = instruction.c;
+    const d = instruction.d;
     const aux = instruction.aux;
     switch (instruction.opName) {
         case "LOADNIL":
@@ -63,9 +64,9 @@ function instructionText(proto: LuauProto, instruction: DecodedInstruction): str
         case "LOADB":
             return `${reg(a)} = ${b !== 0 ? "true" : "false"}`;
         case "LOADN":
-            return `${reg(a)} = ${c < 128 ? c : c - 256}`;
+            return `${reg(a)} = ${d}`;
         case "LOADK":
-            return `${reg(a)} = ${constantText(k[b])}`;
+            return `${reg(a)} = ${constantText(k[d & 0xffff])}`;
         case "LOADKX":
             return `${reg(a)} = ${constantText(k[aux ?? 0])}`;
         case "MOVE":
@@ -79,7 +80,7 @@ function instructionText(proto: LuauProto, instruction: DecodedInstruction): str
         case "SETUPVAL":
             return `upvalue_${b} = ${reg(a)}`;
         case "GETIMPORT":
-            return `${reg(a)} = import(${constantText(k[aux ?? 0])})`;
+            return `${reg(a)} = import(${constantText(k[d & 0xffff])})`;
         case "GETTABLE":
             return `${reg(a)} = ${reg(b)}[${reg(c)}]`;
         case "SETTABLE":
@@ -89,9 +90,9 @@ function instructionText(proto: LuauProto, instruction: DecodedInstruction): str
         case "SETTABLEKS":
             return `${reg(b)}[${constantText(k[aux ?? 0])}] = ${reg(a)}`;
         case "GETTABLEN":
-            return `${reg(a)} = ${reg(b)}[${c < 128 ? c : c - 256}]`;
+            return `${reg(a)} = ${reg(b)}[${c + 1}]`;
         case "SETTABLEN":
-            return `${reg(b)}[${c < 128 ? c : c - 256}] = ${reg(a)}`;
+            return `${reg(b)}[${c + 1}] = ${reg(a)}`;
         case "NAMECALL":
             return `${reg(a + 1)} = ${reg(b)}:${constantText(k[aux ?? 0])}(...)`;
         case "CALL": {
@@ -140,9 +141,9 @@ function instructionText(proto: LuauProto, instruction: DecodedInstruction): str
         case "OR":
             return `${reg(a)} = ${reg(a)} or ${reg(b)}`;
         case "ANDK":
-            return `${reg(a)} = ${reg(a)} and ${constantText(k[b])}`;
+            return `${reg(a)} = ${reg(a)} and ${constantText(k[c])}`;
         case "ORK":
-            return `${reg(a)} = ${reg(a)} or ${constantText(k[b])}`;
+            return `${reg(a)} = ${reg(a)} or ${constantText(k[c])}`;
         case "NOT":
             return `${reg(a)} = not ${reg(b)}`;
         case "MINUS":
@@ -152,17 +153,17 @@ function instructionText(proto: LuauProto, instruction: DecodedInstruction): str
         case "NEWTABLE":
             return `${reg(a)} = {}`;
         case "DUPTABLE":
-            return `${reg(a)} = dup(${constantText(k[aux ?? 0])})`;
+            return `${reg(a)} = dup(${constantText(k[d & 0xffff])})`;
         case "SETLIST":
             return `${reg(b)}:set_list(${reg(b + 1)}, ${aux ?? 0})`;
         case "CONCAT":
-            return `${reg(a)} = concat(${reg(a)}, …, ${reg(c - 1)})`;
+            return `${reg(a)} = concat(${reg(b)} .. ${reg(c)})`;
         case "GETVARARGS":
             return `${reg(a)} = varargs(${b})`;
         case "DUPCLOSURE":
-            return `${reg(a)} = closure(${constantText(k[b])})`;
+            return `${reg(a)} = closure(${constantText(k[d & 0xffff])})`;
         case "NEWCLOSURE":
-            return `${reg(a)} = closure(${b}, ${aux ?? ""})`;
+            return `${reg(a)} = closure(proto ${d & 0xffff})`;
         case "CAPTURE":
             return `capture(${b === 0 ? "val" : b === 1 ? "ref" : "up"} ${reg(c)})`;
         case "IDIV":
@@ -184,10 +185,14 @@ function instructionText(proto: LuauProto, instruction: DecodedInstruction): str
     }
 }
 
+/** JUMPXEQK* opcodes carry a NOT flag in the high bit of the AUX word. */
+function auxNot(aux: number | undefined): boolean {
+    return ((aux ?? 0) >>> 31) !== 0;
+}
+
 function conditionText(proto: LuauProto, instruction: DecodedInstruction, negate: boolean): string {
     const k = proto.constants;
     const a = instruction.a;
-    const d = instruction.d;
     const aux = instruction.aux;
     let condition: string;
     switch (instruction.opName) {
@@ -198,33 +203,40 @@ function conditionText(proto: LuauProto, instruction: DecodedInstruction, negate
             condition = reg(a);
             negate = !negate;
             break;
+        // Comparison jumps keep the second register in AUX; D is the offset.
         case "JUMPIFEQ":
-            condition = `${reg(a)} == ${reg(d)}`;
+            condition = `${reg(a)} == ${reg(aux ?? 0)}`;
             break;
         case "JUMPIFLE":
-            condition = `${reg(a)} <= ${reg(d)}`;
+            condition = `${reg(a)} <= ${reg(aux ?? 0)}`;
             break;
         case "JUMPIFLT":
-            condition = `${reg(a)} < ${reg(d)}`;
+            condition = `${reg(a)} < ${reg(aux ?? 0)}`;
             break;
         case "JUMPIFNOTEQ":
-            condition = `${reg(a)} ~= ${reg(d)}`;
+            condition = `${reg(a)} ~= ${reg(aux ?? 0)}`;
             break;
         case "JUMPIFNOTLE":
-            condition = `${reg(a)} > ${reg(d)}`;
+            condition = `${reg(a)} > ${reg(aux ?? 0)}`;
             break;
         case "JUMPIFNOTLT":
-            condition = `${reg(a)} >= ${reg(d)}`;
+            condition = `${reg(a)} >= ${reg(aux ?? 0)}`;
             break;
         case "JUMPXEQKNIL":
             condition = `${reg(a)} == nil`;
+            if (auxNot(aux))
+                negate = !negate;
             break;
         case "JUMPXEQKB":
-            condition = `${reg(a)} == ${aux !== 0 ? "true" : "false"}`;
+            condition = `${reg(a)} == ${(aux ?? 0) & 1 ? "true" : "false"}`;
+            if (auxNot(aux))
+                negate = !negate;
             break;
         case "JUMPXEQKN":
         case "JUMPXEQKS":
-            condition = `${reg(a)} == ${constantText(k[aux ?? 0])}`;
+            condition = `${reg(a)} == ${constantText(k[(aux ?? 0) & 0xffffff])}`;
+            if (auxNot(aux))
+                negate = !negate;
             break;
         default:
             condition = `${reg(a)} ?`;
@@ -232,6 +244,13 @@ function conditionText(proto: LuauProto, instruction: DecodedInstruction, negate
     if (negate)
         return `not (${condition})`;
     return condition;
+}
+
+/** Strip a redundant double negation, e.g. `not (not (x))` -> `x`. */
+function invertCondition(condition: string): string {
+    if (condition.startsWith("not (") && condition.endsWith(")"))
+        return condition.slice(5, -1);
+    return `not (${condition})`;
 }
 
 function rawStatements(proto: LuauProto, block: BasicBlock, skipJump: boolean): Statement[] {
@@ -255,6 +274,7 @@ function structureBlock(
     block: BasicBlock,
     loopHeaders: Set<number>,
     visited: Set<number>,
+    enclosingWhile?: number,
 ): Statement[] {
     const out: Statement[] = [];
     if (visited.has(block.id))
@@ -298,7 +318,7 @@ function structureBlock(
         const base = last.a;
         const bodyStart = last.index + 1;
         const loopEnd = last.index + 1 + last.d;
-        const body = rawStatementsInRange(proto, cfg, bodyStart, loopEnd, loopHeaders, visited);
+        const body = statementsBetween(proto, cfg, bodyStart, loopEnd, loopHeaders, visited);
         for (let pc = bodyStart; pc < loopEnd; pc++) {
             const id = cfg.blockAt.get(pc);
             if (id !== undefined)
@@ -315,58 +335,82 @@ function structureBlock(
         return out;
     }
 
-    // Conditional branch -> if statement with structured bodies.
-    if (last && last.opName.startsWith("JUMPIF") || (last && last.opName.startsWith("JUMPXEQK"))) {
-        const condition = conditionText(proto, last, false);
-        const targetId = cfg.blockAt.get(last.index + 1 + (last.opName === "JUMP" ? last.d : last.e));
-        if (targetId !== undefined) {
-            const thenBlock = cfg.blocks[targetId];
-            const thenBody = structureBlock(proto, cfg, thenBlock, loopHeaders, visited);
-            const elseBody = fallthroughId !== undefined
-                ? structureBlock(proto, cfg, cfg.blocks[fallthroughId]!, loopHeaders, visited)
-                : undefined;
-            emitThenAdvance([
-                {
-                    kind: "if",
-                    condition,
-                    body: thenBody,
-                    ...(elseBody ? { elseBody } : {}),
-                },
-            ]);
-            return out;
-        }
-    }
-
-    // Unconditional jump that is not a loop back edge -> goto.
-    if (last && IS_UNCONDITIONAL_JUMP.has(last.opName) && !loopHeaders.has(block.id)) {
-        emitThenAdvance(rawStatements(proto, block, true));
-        const target = last.opName === "JUMPX" ? last.d : last.index + 1 + last.d;
-        if (target < block.start)
-            emitThenAdvance([{ kind: "goto", target }]);
-        return out;
-    }
-
-    // Loop header with back edge -> while loop.
+    // Loop header with a back edge. When the header's conditional jump is a
+    // clean forward exit past the loop body, recover a while loop; otherwise
+    // emit a label so body gotos stay valid and keep structuring below.
+    let emittedLabel = false;
     if (loopHeaders.has(block.id) && block.predecessors.some((p) => p >= block.id)) {
         const loopLast = block.instructions.at(-1);
+        const loopEnd = loopExtent(cfg, block);
         if (loopLast && loopLast.opName.startsWith("JUMPIF")) {
-            const condition = conditionText(proto, loopLast, true);
-            const bodyBlocks = collectLoopBody(proto, cfg, block, loopHeaders, visited);
-            emitThenAdvance([
-                { kind: "while", condition, body: bodyBlocks },
-            ]);
-            return out;
+            const exitTarget = jumpTargetIndex(loopLast);
+            if (exitTarget !== undefined && exitTarget >= loopEnd) {
+                const condition = conditionText(proto, loopLast, true);
+                const bodyBlocks = statementsBetween(proto, cfg, block.end, loopEnd, loopHeaders, visited, block.start);
+                emitThenAdvance([
+                    { kind: "while", condition, body: bodyBlocks },
+                ]);
+                return out;
+            }
         }
         emitThenAdvance([{ kind: "label", pc: block.start }]);
-        emitThenAdvance(rawStatements(proto, block, false));
+        emittedLabel = true;
+    }
+
+    // Conditional branch -> if statement with structured bodies.
+    if (last && (last.opName.startsWith("JUMPIF") || last.opName.startsWith("JUMPXEQK"))) {
+        const condition = conditionText(proto, last, false);
+        const targetId = cfg.blockAt.get(jumpTargetIndex(last) ?? -1);
+        if (targetId !== undefined) {
+            const thenBlock = cfg.blocks[targetId];
+            const thenBody = structureBlock(proto, cfg, thenBlock, loopHeaders, visited, enclosingWhile);
+            const elseBody = fallthroughId !== undefined
+                ? structureBlock(proto, cfg, cfg.blocks[fallthroughId]!, loopHeaders, visited, enclosingWhile)
+                : undefined;
+            if (thenBody.length === 0 && elseBody && elseBody.length > 0) {
+                // The jump target was consumed elsewhere (e.g. a loop latch);
+                // invert the condition and keep the fallthrough as the body.
+                emitThenAdvance([
+                    { kind: "if", condition: invertCondition(condition), body: elseBody },
+                ]);
+            }
+            else {
+                emitThenAdvance([
+                    {
+                        kind: "if",
+                        condition,
+                        body: thenBody,
+                        ...(elseBody && elseBody.length > 0 ? { elseBody } : {}),
+                    },
+                ]);
+            }
+            return out;
+        }
+    }
+
+    // Unconditional jump: keep the goto when it points backwards (loop back
+    // edge or retry); forward jumps are consumed by the outer walker.
+    if (last && IS_UNCONDITIONAL_JUMP.has(last.opName)) {
+        emitThenAdvance(rawStatements(proto, block, true));
+        const target = jumpTargetIndex(last) ?? block.start;
+        if ((target < block.start || emittedLabel) && target !== enclosingWhile)
+            emitThenAdvance([{ kind: "goto", target }]);
+        else if (target > block.start) {
+            // Forward jump: blocks strictly between the jump and its target
+            // with no predecessors are unreachable — skip them.
+            for (let pc = lastIndex; pc < target; pc++) {
+                const deadId = cfg.blockAt.get(pc);
+                if (deadId === undefined)
+                    continue;
+                if (cfg.blocks[deadId]!.predecessors.length === 0)
+                    visited.add(deadId);
+            }
+        }
         return out;
     }
 
     // Plain fallthrough block.
     emitThenAdvance(rawStatements(proto, block, false));
-    if (last && last.opName === "JUMPIFNOT") {
-        // Fallthrough is the then-branch; keep as-is.
-    }
     return out;
 }
 
@@ -377,66 +421,36 @@ function statementsBetween(
     endPc: number,
     loopHeaders: Set<number>,
     visited: Set<number>,
+    enclosingWhile?: number,
 ): Statement[] {
     const out: Statement[] = [];
     let pc = startPc;
     while (pc < endPc) {
         const blockId = cfg.blockAt.get(pc);
-        if (blockId === undefined || visited.has(blockId))
+        if (blockId === undefined)
             break;
         const block = cfg.blocks[blockId]!;
-        out.push(...structureBlock(proto, cfg, block, loopHeaders, visited));
+        const wasVisited = visited.has(blockId);
+        if (!wasVisited)
+            out.push(...structureBlock(proto, cfg, block, loopHeaders, visited, enclosingWhile));
         const last = block.instructions.at(-1);
         pc = last ? last.index + (last.aux !== undefined ? 2 : 1) : block.end;
-        if (last && IS_UNCONDITIONAL_JUMP.has(last.opName))
+        // A block we just structured ends the linear walk; blocks that were
+        // already consumed by nested structuring are simply skipped.
+        if (!wasVisited && last && IS_UNCONDITIONAL_JUMP.has(last.opName))
             break;
     }
     return out;
 }
 
-function rawStatementsInRange(
-    proto: LuauProto,
-    cfg: ControlFlowGraph,
-    startPc: number,
-    endPc: number,
-    loopHeaders: Set<number>,
-    visited: Set<number>,
-): Statement[] {
-    const out: Statement[] = [];
-    let pc = startPc;
-    while (pc < endPc) {
-        const blockId = cfg.blockAt.get(pc);
-        if (blockId === undefined || visited.has(blockId))
-            break;
-        const block = cfg.blocks[blockId]!;
-        visited.add(blockId);
-        out.push(...rawStatements(proto, block, true));
-        const last = block.instructions.at(-1);
-        pc = last ? last.index + (last.aux !== undefined ? 2 : 1) : block.end;
+/** Exclusive end (instruction index) of a loop: the furthest back-edge source. */
+function loopExtent(cfg: ControlFlowGraph, header: BasicBlock): number {
+    let end = header.end;
+    for (const predecessor of header.predecessors) {
+        if (predecessor >= header.id)
+            end = Math.max(end, cfg.blocks[predecessor]!.end);
     }
-    return out;
-}
-
-function collectLoopBody(
-    proto: LuauProto,
-    cfg: ControlFlowGraph,
-    header: BasicBlock,
-    loopHeaders: Set<number>,
-    visited: Set<number>,
-): Statement[] {
-    const body: Statement[] = [];
-    for (const block of cfg.blocks) {
-        if (block.id === header.id || visited.has(block.id))
-            continue;
-        if (block.start < header.start)
-            continue;
-        const reachesHeader = block.successors.includes(header.id);
-        if (!reachesHeader && !header.successors.includes(block.id))
-            continue;
-        body.push(...rawStatements(proto, block, true));
-        visited.add(block.id);
-    }
-    return body;
+    return end;
 }
 
 /** Structure a single proto. Always produces output; ratio flags quality. */
@@ -456,12 +470,12 @@ export function structureProto(proto: LuauProto): StructuredProto {
             const last = block.instructions.at(-1);
             pc = last ? last.index + (last.aux !== undefined ? 2 : 1) : block.end;
             if (last && IS_UNCONDITIONAL_JUMP.has(last.opName)) {
-                const target = last.opName === "JUMPX" ? last.d : last.index + 1 + last.d;
-                pc = Math.max(pc, target);
+                const target = jumpTargetIndex(last);
+                if (target !== undefined)
+                    pc = Math.max(pc, target);
             }
             continue;
         }
-        const before = statements.length;
         statements.push(...structureBlock(proto, cfg, cfg.blocks[blockId]!, loopHeaders, visited));
         const block = cfg.blocks[blockId]!;
         const last = block.instructions.at(-1);
@@ -473,7 +487,6 @@ export function structureProto(proto: LuauProto): StructuredProto {
         else {
             pc = nextPc;
         }
-        void before;
     }
 
     const structuredCount = countStructured(statements);
@@ -481,7 +494,7 @@ export function structureProto(proto: LuauProto): StructuredProto {
     return {
         protoIndex: proto.index,
         statements,
-        structuredRatio: total === 0 ? 1 : structuredCount / total,
+        structuredRatio: total === 0 ? 1 : Math.min(1, structuredCount / total),
     };
 }
 

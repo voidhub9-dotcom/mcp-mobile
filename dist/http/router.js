@@ -11,6 +11,7 @@ const wsRoutes = [];
 let defaultWsHandler = null;
 const WS_FALLBACK_NAME = "_ws-fallback";
 const LOCAL_ADMIN_API_ROUTES = new Set([
+    "/api/client-setup",
     "/api/dashboard-settings",
     "/api/decompiler-settings",
     "/api/decompiler-settings/connector",
@@ -90,7 +91,7 @@ export function loadRoutes() {
                 registered = true;
             }
             if (!registered) {
-                console.error(`[Router] ${file} exports no recognized method handlers (GET/POST/â¦/WS). Skipping.`);
+                console.error(`[Router] ${file} exports no recognized method handlers (GET/POST/…/WS). Skipping.`);
             }
         }
         console.error(`[Router] Loaded ${httpRoutes.length} HTTP route(s), ${wsRoutes.length} WS route(s)` +

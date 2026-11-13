@@ -47,7 +47,7 @@ async function writeCache(): Promise<void> {
         version: CACHE_VERSION,
         entries: Object.fromEntries(entries),
     };
-    const tmpPath = `${SEMANTIC_EMBEDDINGS_PATH}.tmp`;
+    const tmpPath = `${SEMANTIC_EMBEDDINGS_PATH}.${process.pid}.${Date.now()}.tmp`;
     await fs.writeFile(tmpPath, JSON.stringify(payload), { mode: 0o600 });
     await fs.rename(tmpPath, SEMANTIC_EMBEDDINGS_PATH);
     await fs.chmod(SEMANTIC_EMBEDDINGS_PATH, 0o600).catch(() => undefined);

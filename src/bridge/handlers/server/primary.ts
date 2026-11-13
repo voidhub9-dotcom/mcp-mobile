@@ -79,7 +79,7 @@ export async function startAsPrimary(): Promise<void> {
                     }
                     else {
                         res.writeHead(404, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Session not found. The Mcp-Session-Id is a temporary runtime header â do not hardcode it in your config. Remove the header and send a new initialize request." }, id: null }));
+                        res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Session not found. The Mcp-Session-Id is a temporary runtime header — do not hardcode it in your config. Remove the header and send a new initialize request." }, id: null }));
                     }
                     return;
                 }
@@ -90,7 +90,7 @@ export async function startAsPrimary(): Promise<void> {
                     }
                     else {
                         res.writeHead(404, { "Content-Type": "application/json" });
-                        res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Session not found. The Mcp-Session-Id is a temporary runtime header returned by the server after initialize â do not hardcode it in your config. Remove the Mcp-Session-Id header and send a new initialize request to get a fresh session." }, id: null }));
+                        res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Session not found. The Mcp-Session-Id is a temporary runtime header returned by the server after initialize — do not hardcode it in your config. Remove the Mcp-Session-Id header and send a new initialize request to get a fresh session." }, id: null }));
                     }
                     return;
                 }

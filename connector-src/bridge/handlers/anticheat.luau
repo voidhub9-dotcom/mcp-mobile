@@ -505,8 +505,8 @@ return function(_context, Bridge)
                         table.insert(bypassParts, "    local player = game.Players.LocalPlayer")
                         table.insert(bypassParts, "    local char = player.Character")
                         if hasHookmetamethod and hasNewcclosure then
-                            if char then
-                                table.insert(bypassParts, "    local hrp = char:FindFirstChild('HumanoidRootPart')")
+                            table.insert(bypassParts, "    if char then")
+                            table.insert(bypassParts, "    local hrp = char:FindFirstChild('HumanoidRootPart')")
                                 table.insert(bypassParts, "    if hrp then")
                                 table.insert(bypassParts, "        local mt = getrawmetatable(hrp)")
                                 if hasSetreadonly then table.insert(bypassParts, "        setreadonly(mt, false)") end
@@ -523,7 +523,7 @@ return function(_context, Bridge)
                                 table.insert(bypassParts, "        end))")
                                 if hasSetreadonly then table.insert(bypassParts, "        setreadonly(mt, true)") end
                                 table.insert(bypassParts, "    end")
-                            end
+                            table.insert(bypassParts, "    end")
                         end
                         table.insert(bypassParts, "end)")
                     end

@@ -159,6 +159,7 @@ const JUMP_OPCODES: readonly string[] = [
     "FORGPREP_INEXT",
     "FORGPREP_NEXT",
     "JUMPBACK",
+    "JUMPX",
     "JUMPXEQKNIL",
     "JUMPXEQKB",
     "JUMPXEQKN",
@@ -224,4 +225,29 @@ export function decodeInstructions(code: readonly number[]): DecodedInstruction[
         index += hasAux ? 2 : 1;
     }
     return out;
+}
+
+/**
+ * Jump offset in instruction words for a jump instruction.
+ *
+ * Per the Luau bytecode definition, every jump carries its offset in the
+ * signed 16-bit D operand except JUMPX, which uses the wider E operand
+ * (bits 8-31). For jump instructions with an AUX word the offset spans the
+ * AUX word as well ("D = 1" is the next instruction), which the shared
+ * target formula below already accounts for.
+ */
+export function jumpOffset(instruction: DecodedInstruction): number | undefined {
+    if (!IS_JUMP.has(instruction.opName))
+        return undefined;
+    return instruction.opName === "JUMPX" ? instruction.e : instruction.d;
+}
+
+/**
+ * Absolute instruction index a jump leads to, or undefined for
+ * non-jump instructions. Offsets are relative to the word after the
+ * instruction header (including the AUX word when present).
+ */
+export function jumpTargetIndex(instruction: DecodedInstruction): number | undefined {
+    const offset = jumpOffset(instruction);
+    return offset === undefined ? undefined : instruction.index + 1 + offset;
 }

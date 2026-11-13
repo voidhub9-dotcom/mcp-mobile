@@ -1,343 +1,442 @@
-local a={cache={}::any}do do local function __modImpl()return function(b)
+local a={cache={}::any}do do local function __modImpl()
+
+
+
+
+local b={}
+
+local function getState()
+local c=getgenv().MCP_AntiAFKState
+if type(c)~="table"then
+c={}
+getgenv().MCP_AntiAFKState=c
+end
+return c
+end
+
+local function isConnected(c)
+if c.Connection==nil then
+return false
+end
+local d,e=pcall(function()
+return c.Connection.Connected
+end)
+if d and e==true then
+return true
+end
+
+c.Connection=nil
+return false
+end
+
+local function onIdled()
+pcall(function()
+local c=game:GetService"VirtualUser"
+c:CaptureController()
+c:ClickButton2(Vector2.new())
+end)
+end
+
+
+
+function b.Ensure()
+local c=getState()
+if isConnected(c)then
+return true
+end
+
+local d,e=pcall(function()
+local d=game:GetService"Players".LocalPlayer
+if not d then
+return nil
+end
+return d.Idled:Connect(onIdled)
+end)
+
+if d and e~=nil then
+c.Connection=e
+return true
+end
+return false
+end
+
+
+function b.Disable()
+local c=getState()
+if c.Connection~=nil then
+pcall(function()
+c.Connection:Disconnect()
+end)
+c.Connection=nil
+end
+return true
+end
+
+
+function b.Status()
+local c=getgenv().MCP_AntiAFKState
+local d=false
+if type(c)=="table"then
+d=isConnected(c)
+end
+return{
+active=d,
+disabledByConfig=getgenv().MCP_DisableAntiAFK==true,
+}
+end
+
+return b end function a.a():typeof(__modImpl())local b=a.cache.a if not b then b={c=__modImpl()}a.cache.a=b end return b.c end end do local function __modImpl()
+
+return function(b)
 local c=b.HttpService
 local d=b.BridgeURL
-local WS_SCHEME,HTTP_SCHEME;do local _x=d:match("^([^:/]+)")or d;local _y=_x=="localhost"or _x=="127.0.0.1"or _x=="::1"or _x:match("^192%.168%.")or _x:match("^10%.")or _x:match("^172%.")or _x:match("^%d+%.%d+%.%d+%.%d+$");if _y then WS_SCHEME,HTTP_SCHEME="ws://","http://"else WS_SCHEME,HTTP_SCHEME="wss://","https://"end end
 local e=b.WebSocketAvailable
 local f=b.GetRegistrationInfo
 local g=b.SanitizeForOutput
 local h=b.LuaEncode
 
-local i={};do
-i.__index=i
 
-function i.BindToType(j,k,l)
-j.Callbacks[k]=l
-end
-
-function i.BindToTypeRaw(j,k,l)
-j.Callbacks[k]=l
-j.RawCallbacks=j.RawCallbacks or{}
-j.RawCallbacks[k]=true
-end
-
-function i.CreateAlias(j,k,l)
-for m,n in l do
-j.Callbacks[n]=j.Callbacks[k]
-if j.RawCallbacks and j.RawCallbacks[k]then
-j.RawCallbacks[n]=true
-end
+local i,j do
+local k=d:match"^([^:/]+)"or d
+local l=k=="localhost"or k=="127.0.0.1"or k=="::1"
+or k:match"^192%.168%."or k:match"^10%."or k:match"^172%."
+or k:match"^%d+%.%d+%.%d+%.%d+$"
+if l then
+i,j="ws://","http://"
+else
+i,j="wss://","https://"
 end
 end
 
-function i.HandleMessage(j,k)
-if j.Callbacks[k.type]then
-local l,m=pcall(function()
-return j.Callbacks[k.type](k)
+local k={};do
+k.__index=k
+
+function k.BindToType(l,m,n)
+l.Callbacks[m]=n
+end
+
+function k.BindToTypeRaw(l,m,n)
+l.Callbacks[m]=n
+l.RawCallbacks=l.RawCallbacks or{}
+l.RawCallbacks[m]=true
+end
+
+function k.CreateAlias(l,m,n)
+for o,p in n do
+l.Callbacks[p]=l.Callbacks[m]
+if l.RawCallbacks and l.RawCallbacks[m]then
+l.RawCallbacks[p]=true
+end
+end
+end
+
+function k.HandleMessage(l,m)
+if l.Callbacks[m.type]then
+local n,o=pcall(function()
+return l.Callbacks[m.type](m)
 end)
 
-if l and m==nil then
+if n and o==nil then
 return nil
 end
 
-if not l then
-return j:FormatResponse(m,k.id,true)
+if not n then
+return l:FormatResponse(o,m.id,true)
 end
 
-if j.RawCallbacks and j.RawCallbacks[k.type]then
+if l.RawCallbacks and l.RawCallbacks[m.type]then
 return{
-output=tostring(m),
+output=tostring(o),
 success=true,
-id=k.id
+id=m.id
 }
 end
 
-return j:FormatResponse(m,k.id,false)
+return l:FormatResponse(o,m.id,false)
 end
 return nil
 end
 
-function i.FormatResponse(j,k,l,m)
-if m then
+function k.FormatResponse(l,m,n,o)
+if o then
 return{
-error=tostring(k),
+error=tostring(m),
 success=false,
-id=l
+id=n
 }
 end
 
-local n=g(k)
-if typeof(n)~="table"then
-n={n}
+local p=g(m)
+if typeof(p)~="table"then
+p={p}
 end
 
 return{
-output=h(n,{
+output=h(p,{
 Prettify=false
 }),
 success=true,
-id=l
+id=n
 }
 end
 
-function i.IsAlive(j)
-local k,l=pcall(function()
-local k
-local l=task.spawn(function()
-local l,m=pcall(request,{
-Url=HTTP_SCHEME..d,
+function k.IsAlive(l)
+local m,n=pcall(function()
+local m
+local n=task.spawn(function()
+local n,o=pcall(request,{
+Url=j..d,
 Method="GET"
 })
 
-if l then
-k=m
+if n then
+m=o
 end
 end)
 
-local m=os.clock()
-repeat task.wait(0.05)until k~=nil or os.clock()-m>5
+local o=os.clock()
+repeat task.wait(0.05)until m~=nil or os.clock()-o>5
 
-if k==nil then
-task.cancel(l)
+if m==nil then
+task.cancel(n)
 return false
 end
 
-if k.StatusCode==426 or k.StatusCode==200 then
+if m.StatusCode==426 or m.StatusCode==200 then
 return true
 end
 
 return false
 end)
 
-if not k then
+if not m then
 return false
 end
 
-return l
+return n
 end
 end
 
-local j=setmetatable({},{__index=i});do
-j.__index=j
+local l=setmetatable({},{__index=k});do
+l.__index=l
 
-function j.new()
-local k=setmetatable({},j)
+function l.new()
+local m=setmetatable({},l)
 
-local l=0.5
-local m=5
-local n=10
-local o=0
+local n=0.5
+local o=5
+local p=10
+local q=0
 
-while not k:IsAlive()do
-o+=1
-if o>=n then
-error("Failed to connect to bridge server after "..n.." attempts")
+while not m:IsAlive()do
+q+=1
+if q>=p then
+error("Failed to connect to bridge server after "..p.." attempts")
 end
-task.wait(l)
-l=math.min(l*1.5,m)
+task.wait(n)
+n=math.min(n*1.5,o)
 end
 
-local p
-local q=task.spawn(function()
-local q,r=pcall(function()
-return WebSocket.connect(WS_SCHEME..d)
+local r
+local s=task.spawn(function()
+local s,t=pcall(function()
+return WebSocket.connect(i..d)
 end)
-if q then
-p=r
+if s then
+r=t
 end
 end)
 
-local r=os.clock()
-repeat task.wait(0.05)until p~=nil or os.clock()-r>5
+local t=os.clock()
+repeat task.wait(0.05)until r~=nil or os.clock()-t>5
 
-if p==nil then
-task.cancel(q)
+if r==nil then
+task.cancel(s)
 error"WebSocket connection timed out after 5 seconds"
 end
 
-k.WebSocket=p
-k.Connected=true
-k.Callbacks={}
-k.ClientId=nil
+m.WebSocket=r
+m.Connected=true
+m.Callbacks={}
+m.ClientId=nil
 
-k.WebSocket:Send(c:JSONEncode(f()))
+m.WebSocket:Send(c:JSONEncode(f()))
 
-k.AliveThread=task.spawn(function()
-local s=0
+m.AliveThread=task.spawn(function()
+local u=0
 while task.wait(1)do
-if not k.Connected then
+if not m.Connected then
 continue
 end
 
-if k.WebSocket then
-
-s=0
+if m.WebSocket then
+u=0
 continue
 end
 
-if k:IsAlive()then
-s=0
+if m:IsAlive()then
+u=0
 continue
 end
 
-s+=1
-if s<3 then
+u+=1
+if u<3 then
 continue
 end
 
-k.Connected=false
+m.Connected=false
 break
 end
 
 pcall(function()
-k.WebSocket:Close()
+m.WebSocket:Close()
 end)
 end)
 
-k.WebSocket.OnMessage:Connect(function(s)
-local t=c:JSONDecode(s)
+m.WebSocket.OnMessage:Connect(function(u)
+local v=c:JSONDecode(u)
 
-if t.type=="registered"then
-k.ClientId=t.clientId
+if v.type=="registered"then
+m.ClientId=v.clientId
 return
 end
 
-local u=k:HandleMessage(t)
-if u then
-k.WebSocket:Send(c:JSONEncode(u))
+local w=m:HandleMessage(v)
+if w then
+m.WebSocket:Send(c:JSONEncode(w))
 end
 end)
 
-k.WebSocket.OnClose:Connect(function()
-k.Connected=false
-
+m.WebSocket.OnClose:Connect(function()
+m.Connected=false
 end)
 
-if k.WebSocket.OnError then
-k.WebSocket.OnError:Connect(function()
-k.Connected=false
+if m.WebSocket.OnError then
+m.WebSocket.OnError:Connect(function()
+m.Connected=false
 end)
 end
 
-return k
+return m
 end
 
-function j.WaitForDisconnect(k)
-while k.Connected do
+function l.WaitForDisconnect(m)
+while m.Connected do
 task.wait(0.1)
 end
 end
 end
 
-local k=setmetatable({},{__index=i});do
-k.__index=k
+local m=setmetatable({},{__index=k});do
+m.__index=m
 
-function k.new()
-local l=setmetatable({},k)
+function m.new()
+local n=setmetatable({},m)
 
-local m=0.5
-local n=5
-local o=10
-local p=0
+local o=0.5
+local p=5
+local q=10
+local r=0
 
-while not l:IsAlive()do
-p+=1
-if p>=o then
-error("Failed to connect to bridge server after "..o.." attempts")
+while not n:IsAlive()do
+r+=1
+if r>=q then
+error("Failed to connect to bridge server after "..q.." attempts")
 end
-task.wait(m)
-m=math.min(m*1.5,n)
+task.wait(o)
+o=math.min(o*1.5,p)
 end
 
-l.Connected=true
-l.Callbacks={}
-l.PollInterval=0.1
-l.ClientId=nil
+n.Connected=true
+n.Callbacks={}
+n.PollInterval=0.1
+n.ClientId=nil
 
 pcall(function()
-local q=request{
-Url=HTTP_SCHEME..d.."/register",
+local s=request{
+Url=j..d.."/register",
 Method="POST",
 Headers={["Content-Type"]="application/json"},
 Body=c:JSONEncode(f()),
 }
-if q.StatusCode==200 and q.Body then
-local r=c:JSONDecode(q.Body)
-l.ClientId=r.clientId
+if s.StatusCode==200 and s.Body then
+local t=c:JSONDecode(s.Body)
+n.ClientId=t.clientId
 end
 end)
 
-l.PollThread=task.spawn(function()
-local q=0
+n.PollThread=task.spawn(function()
+local s=0
 
-while l.Connected do
-local r=false local
-s=pcall(function()
-local s=HTTP_SCHEME..d.."/poll"
-if l.ClientId then
-s=s.."?clientId="..l.ClientId
+while n.Connected do
+local t=false local
+u=pcall(function()
+local u=j..d.."/poll"
+if n.ClientId then
+u=u.."?clientId="..n.ClientId
 end
-local t=request{
-Url=s,
+local v=request{
+Url=u,
 Method="GET"
 }
 
-if t.StatusCode~=204 and t.StatusCode~=200 then
-q+=1
-if q>=3 then
-l.Connected=false
+if v.StatusCode~=204 and v.StatusCode~=200 then
+s+=1
+if s>=3 then
+n.Connected=false
 end
 
 return
 end
 
-q=0
+s=0
 
-if t.Body and t.Body~=""then
-local u=c:JSONDecode(t.Body)
-local v={}
-if typeof(u)=="table"and u.type==nil and#u>0 then
-v=u
-elseif typeof(u)=="table"and u.type~=nil then
-v={u}
+if v.Body and v.Body~=""then
+local w=c:JSONDecode(v.Body)
+local x={}
+if typeof(w)=="table"and w.type==nil and#w>0 then
+x=w
+elseif typeof(w)=="table"and w.type~=nil then
+x={w}
 end
 
-for w,x in ipairs(v)do
-r=true
+for y,z in ipairs(x)do
+t=true
 task.spawn(function()
-local y=l:HandleMessage(x)
-if y==nil then return end
+local A=n:HandleMessage(z)
+if A==nil then return end
 
 request{
-Url=HTTP_SCHEME..d.."/respond",
+Url=j..d.."/respond",
 Method="POST",
 Headers={
 ["Content-Type"]="application/json"
 },
-Body=c:JSONEncode(y)
+Body=c:JSONEncode(A)
 }
 end)
 end
 end
 end)
 
-if not s then
-q+=1
-if q>=3 then
-l.Connected=false
+if not u then
+s+=1
+if s>=3 then
+n.Connected=false
 end
 end
 
-if not r then
-task.wait(l.PollInterval)
+if not t then
+task.wait(n.PollInterval)
 end
 end
 end)
 
-return l
+return n
 end
 
-function k.WaitForDisconnect(l)
-while l.Connected do
+function m.WaitForDisconnect(n)
+while n.Connected do
 task.wait(0.1)
 end
 end
@@ -345,22 +444,22 @@ end
 
 local function CreateBridge()
 if e then
-local l,m=pcall(function()
-return j.new()
+local n,o=pcall(function()
+return l.new()
 end)
 
-if l then
-return m
+if n then
+return o
 end
 end
 
-return k.new()
+return m.new()
 end
 
 return{
 CreateBridge=CreateBridge,
 }
-end end function a.a():typeof(__modImpl())local b=a.cache.a if not b then b={c=__modImpl()}a.cache.a=b end return b.c end end do local function __modImpl()
+end end function a.b():typeof(__modImpl())local b=a.cache.b if not b then b={c=__modImpl()}a.cache.b=b end return b.c end end do local function __modImpl()
 
 local b={}
 b.__index=b
@@ -459,7 +558,7 @@ end
 
 b.Stop=b.Destroy
 
-return b end function a.b():typeof(__modImpl())local b=a.cache.b if not b then b={c=__modImpl()}a.cache.b=b end return b.c end end do local function __modImpl()
+return b end function a.c():typeof(__modImpl())local b=a.cache.c if not b then b={c=__modImpl()}a.cache.c=b end return b.c end end do local function __modImpl()
 
 local b={}
 b.__index=b
@@ -622,7 +721,7 @@ end
 return true
 end
 
-return b end function a.c():typeof(__modImpl())local b=a.cache.c if not b then b={c=__modImpl()}a.cache.c=b end return b.c end end do local function __modImpl()
+return b end function a.d():typeof(__modImpl())local b=a.cache.d if not b then b={c=__modImpl()}a.cache.d=b end return b.c end end do local function __modImpl()
 
 local b={}
 b.__index=b
@@ -650,7 +749,7 @@ function b.MarkStarted(d)
 d.started=true
 end
 
-return b end function a.d():typeof(__modImpl())local b=a.cache.d if not b then b={c=__modImpl()}a.cache.d=b end return b.c end end do local function __modImpl()
+return b end function a.e():typeof(__modImpl())local b=a.cache.e if not b then b={c=__modImpl()}a.cache.e=b end return b.c end end do local function __modImpl()
 
 local b={}
 
@@ -672,9 +771,9 @@ c.builtinDisabled=true
 c.useDirectBuiltin=false
 end
 
-return b end function a.e():typeof(__modImpl())local b=a.cache.e if not b then b={c=__modImpl()}a.cache.e=b end return b.c end end do local function __modImpl()
+return b end function a.f():typeof(__modImpl())local b=a.cache.f if not b then b={c=__modImpl()}a.cache.f=b end return b.c end end do local function __modImpl()
 
-local b=a.e()
+local b=a.f()
 
 local c={}
 
@@ -693,7 +792,7 @@ d.bytecode=g
 return true
 end
 
-return c end function a.f():typeof(__modImpl())local b=a.cache.f if not b then b={c=__modImpl()}a.cache.f=b end return b.c end end do local function __modImpl()
+return c end function a.g():typeof(__modImpl())local b=a.cache.g if not b then b={c=__modImpl()}a.cache.g=b end return b.c end end do local function __modImpl()
 
 local b={}
 b.__index=b
@@ -730,7 +829,7 @@ d.workers:SetMaxConcurrent(d.currentWorkers)
 end
 end
 
-return b end function a.g():typeof(__modImpl())local b=a.cache.g if not b then b={c=__modImpl()}a.cache.g=b end return b.c end end do local function __modImpl()
+return b end function a.h():typeof(__modImpl())local b=a.cache.h if not b then b={c=__modImpl()}a.cache.h=b end return b.c end end do local function __modImpl()
 
 local b={}
 b.__index=b
@@ -827,7 +926,7 @@ end
 end
 end
 
-return b end function a.h():typeof(__modImpl())local b=a.cache.h if not b then b={c=__modImpl()}a.cache.h=b end return b.c end end do local function __modImpl()
+return b end function a.i():typeof(__modImpl())local b=a.cache.i if not b then b={c=__modImpl()}a.cache.i=b end return b.c end end do local function __modImpl()
 
 local b={}
 b.__index=b
@@ -884,13 +983,12 @@ if g~=false then d:Publish()end
 return true
 end
 
-return b end function a.i():typeof(__modImpl())local b=a.cache.i if not b then b={c=__modImpl()}a.cache.i=b end return b.c end end do local function __modImpl()
+return b end function a.j():typeof(__modImpl())local b=a.cache.j if not b then b={c=__modImpl()}a.cache.j=b end return b.c end end do local function __modImpl()
 
 return function(b)
 local c=b.ScriptMappingPipeline
 local d=b.HttpService
 local e=b.BridgeURL
-local WS_SCHEME,HTTP_SCHEME;do local _x=e:match("^([^:/]+)")or e;local _y=_x=="localhost"or _x=="127.0.0.1"or _x=="::1"or _x:match("^192%.168%.")or _x:match("^10%.")or _x:match("^172%.")or _x:match("^%d+%.%d+%.%d+%.%d+$");if _y then WS_SCHEME,HTTP_SCHEME="ws://","http://"else WS_SCHEME,HTTP_SCHEME="wss://","https://"end end
 local f=b.JobStatus
 local g=64
 local h=8388608
@@ -935,7 +1033,7 @@ local t=c:IsFinished(s)
 local u=o:NextRevision()
 
 local v,w=pcall(request,{
-Url=HTTP_SCHEME..e.."/script-sources",
+Url="http://"..e.."/script-sources",
 Method="POST",
 Headers={
 ["Content-Type"]="application/json"
@@ -1096,13 +1194,12 @@ ResetScriptSourceUploadQueue=ResetScriptSourceUploadQueue,
 StartUploadQueue=StartUploadQueue,
 UploadQueueMaxBytes=33554432,
 }
-end end function a.j():typeof(__modImpl())local b=a.cache.j if not b then b={c=__modImpl()}a.cache.j=b end return b.c end end do local function __modImpl()
+end end function a.k():typeof(__modImpl())local b=a.cache.k if not b then b={c=__modImpl()}a.cache.k=b end return b.c end end do local function __modImpl()
 
 return function(b)
 local c=b.ScriptMappingPipeline
 local d=b.HttpService
 local e=b.BridgeURL
-local WS_SCHEME2,HTTP_SCHEME2;do local _x=e:match("^([^:/]+)")or e;local _y=_x=="localhost"or _x=="127.0.0.1"or _x=="::1"or _x:match("^192%.168%.")or _x:match("^10%.")or _x:match("^172%.")or _x:match("^%d+%.%d+%.%d+%.%d+$");if _y then WS_SCHEME2,HTTP_SCHEME2="ws://","http://"else WS_SCHEME2,HTTP_SCHEME2="wss://","https://"end end
 local f=b.StripDecompilerBanner
 local g=b.base64_encode
 local h=b.BuiltInDecompile
@@ -1194,7 +1291,7 @@ local function FetchCachedScriptSourceBatch(t,u)
 if#u==0 then return true end
 
 local v,w=pcall(request,{
-Url=HTTP_SCHEME2..e.."/script-source-cache",
+Url="http://"..e.."/script-source-cache",
 Method="POST",
 Headers={
 ["Content-Type"]="application/json",Accept=
@@ -1321,7 +1418,7 @@ r.refreshToken=x
 
 local y,z=RunWithTimeout(5,function()
 return request{
-Url=HTTP_SCHEME2..e.."/decompile-plan?clientId="..d:UrlEncode(v),
+Url="http://"..e.."/decompile-plan?clientId="..d:UrlEncode(v),
 Method="GET",
 Headers={Accept=
 "application/json",
@@ -1372,7 +1469,7 @@ t.beginObservationSession=true
 task.defer(function()
 if not IsActiveMappingContext(u,v)then return end
 pcall(request,{
-Url=HTTP_SCHEME2..e.."/decompiler-observations",
+Url="http://"..e.."/decompiler-observations",
 Method="POST",
 Headers={
 ["Content-Type"]="application/json",Accept=
@@ -1447,7 +1544,7 @@ end
 
 local y,z=RunWithTimeout(q,function()
 return request{
-Url=HTTP_SCHEME2..e.."/decompile",
+Url="http://"..e.."/decompile",
 Method="POST",
 Headers={
 ["Content-Type"]="application/json",Accept=
@@ -1680,7 +1777,7 @@ RefreshDecompilerPlan=RefreshDecompilerPlan,
 ResetDecompilerClient=ResetDecompilerClient,
 TakeRetryServerOptions=TakeRetryServerOptions,
 }
-end end function a.k():typeof(__modImpl())local b=a.cache.k if not b then b={c=__modImpl()}a.cache.k=b end return b.c end end do local function __modImpl()
+end end function a.l():typeof(__modImpl())local b=a.cache.l if not b then b={c=__modImpl()}a.cache.l=b end return b.c end end do local function __modImpl()
 
 return function(b)
 local c=b.ScriptMappingPipeline
@@ -2159,7 +2256,7 @@ ResumeDeferredScriptMappings=ResumeDeferredScriptMappings,
 StartFailedScriptResync=StartFailedScriptResync,
 StartScriptMapping=StartScriptMapping,
 }
-end end function a.l():typeof(__modImpl())local b=a.cache.l if not b then b={c=__modImpl()}a.cache.l=b end return b.c end end do local function __modImpl()
+end end function a.m():typeof(__modImpl())local b=a.cache.m if not b then b={c=__modImpl()}a.cache.m=b end return b.c end end do local function __modImpl()
 
 return function(b,c)
 local d=b.LogService
@@ -2193,7 +2290,7 @@ local function formatLogMessage(p)
 local q=tostring(p or"")
 if#q>o then
 q=string.sub(q,1,o)
-.."â¦(+"..(#q-o).." chars omitted)"
+.."…(+"..(#q-o).." chars omitted)"
 end
 return q
 end
@@ -2251,7 +2348,7 @@ local f=table.pack(loadstring(e.source)())
 
 return f
 end)
-end end function a.m():typeof(__modImpl())local b=a.cache.m if not b then b={c=__modImpl()}a.cache.m=b end return b.c end end do local function __modImpl()
+end end function a.n():typeof(__modImpl())local b=a.cache.n if not b then b={c=__modImpl()}a.cache.n=b end return b.c end end do local function __modImpl()
 
 return function(b,c)
 local d=b.ScriptMappingPipeline
@@ -2346,7 +2443,7 @@ end
 
 return"-- Lines "..t.."-"..v.." of "..r.."\n"..table.concat(w,"\n")..x
 end)
-end end function a.n():typeof(__modImpl())local b=a.cache.n if not b then b={c=__modImpl()}a.cache.n=b end return b.c end end do local function __modImpl()
+end end function a.o():typeof(__modImpl())local b=a.cache.o if not b then b={c=__modImpl()}a.cache.o=b end return b.c end end do local function __modImpl()
 
 return function(b,c)
 local d=b.MarketplaceService
@@ -2491,7 +2588,6 @@ break
 end
 
 if k and not w:IsA(j)then
-
 if q<h then
 local x=buildTree(w,q+1)
 if x and x.Children and#x.Children>0 then
@@ -2536,194 +2632,227 @@ p.Note="Output capped at "..m.." nodes. Narrow with classFilter, lower maxDepth,
 end
 return p
 end)
-end end function a.o():typeof(__modImpl())local b=a.cache.o if not b then b={c=__modImpl()}a.cache.o=b end return b.c end end do local function __modImpl()
+end end function a.p():typeof(__modImpl())local b=a.cache.p if not b then b={c=__modImpl()}a.cache.p=b end return b.c end end do local function __modImpl()
 
 return function(b,c)
 c:BindToType("ensure-remote-spy",function(d)
-if getgenv().CobaltInitialized then
-return{status="ready",mode="cobalt",message="Cobalt remote spy is active."}
-end
+
 if getgenv().MCP_CustomRemoteSpy then
-return{status="ready",mode=getgenv().MCP_CustomRemoteSpy.type or"custom",message="Custom remote spy is active."}
+return{
+status="ready",
+mode=getgenv().MCP_CustomRemoteSpy.type or"custom",
+message="Custom remote spy is active.",
+}
 end
 local e=getgenv().MCP_RemoteMonitor
 if e then
 return{status="ready",message="Remote Monitor is ready."}
 end
-getgenv().MCP_RemoteMonitor={startedAt=os.time(),scans=0,lastScanAt=nil}
+getgenv().MCP_RemoteMonitor={
+startedAt=os.time(),
+scans=0,
+lastScanAt=nil,
+}
 return{status="ready",message="Read-only Remote Monitor is ready."}
 end)
 
 c:BindToType("get-remote-spy-logs",function(d)
-local nameFilter=d.remoteNameFilter or""
-local limit=math.max(1,math.min(tonumber(d.limit)or 10,100))
-local hasFilter=nameFilter~=""
-local summaryOnly=d.summaryOnly~=false
-local dirFilter=d.direction or"Both"
-local maxCPR=math.min(tonumber(d.maxCallsPerRemote)or 1,20)
+local e=d.remoteNameFilter or""
+local f=math.max(1,math.min(tonumber(d.limit)or 10,100))
+local g=e~=""
+local h=d.summaryOnly~=false
+local i=math.min(tonumber(d.maxCallsPerRemote)or 1,20)
 
--- 1. Cobalt
-if getgenv().CobaltInitialized then
-local cobalt=getgenv().Cobalt
-if cobalt and cobalt.shared and cobalt.shared.Logs then
-local cobaltLogs=cobalt.shared.Logs
-local results={}
-local function processCobaltCategory(category,direction)
-for _,log in pairs(category)do
-if#results>=limit then break end
-local ok,remoteName=pcall(function()return log.Instance.Name end)
-if not ok then remoteName="unknown" end
-if not hasFilter or string.find(string.lower(tostring(remoteName)),string.lower(nameFilter),1,true)then
-local ok2,fullPath=pcall(function()return log.Instance:GetFullName()end)
-local ok3,className=pcall(function()return log.Instance.ClassName end)
-local recentCalls=nil
-if not summaryOnly and#log.Calls>0 then
-recentCalls={}
-for i=math.max(1,#log.Calls-maxCPR+1),#log.Calls do
-local call=log.Calls[i]
-if call then
-local entry={Arguments=call.Arguments,Line=call.Line,Source=call.Source}
-if call.InvokeResult then entry.InvokeResult=call.InvokeResult end
-table.insert(recentCalls,entry)
-end
-end
-end
-table.insert(results,{RemoteName=tostring(remoteName),RemoteClass=ok3 and className or"RemoteEvent",Direction=direction,Method="cobalt",TotalCalls=#log.Calls,Ignored=log.Ignored or false,Blocked=log.Blocked or false,RecentCalls=recentCalls,Path=ok2 and fullPath or tostring(remoteName)})
-end
-end
-end
-if dirFilter=="Both"or dirFilter=="Outgoing" then processCobaltCategory(cobaltLogs.Outgoing or{},"Outgoing")end
-if dirFilter=="Both"or dirFilter=="Incoming" then processCobaltCategory(cobaltLogs.Incoming or{},"Incoming")end
-return{count=#results,results=results,mode="cobalt",message="Cobalt remote spy data."}
-end
+
+local j=getgenv().MCP_CustomRemoteSpy
+if j and type(j.getLogs)=="function"then
+local k,l=pcall(j.getLogs,d)
+if k and l then return l end
 end
 
--- 2. Custom MCP spy
-local customSpy=getgenv().MCP_CustomRemoteSpy
-if customSpy and type(customSpy.getLogs)=="function" then
-local ok,result=pcall(customSpy.getLogs,d)
-if ok and result then return result end
-end
 
--- 3. Hydroxide
-local hydroxide=getgenv().Hydroxide
-if hydroxide then
-local remotes=hydroxide.remotes or hydroxide.Remotes
-if remotes then
-local results={}
-for remote,calls in pairs(remotes)do
-if#results>=limit then break end
-local ok,name=pcall(function()return remote.Name end)
-if not ok then name="unknown" end
-if not hasFilter or string.find(string.lower(tostring(name)),string.lower(nameFilter),1,true)then
-local ok2,fullPath=pcall(function()return remote:GetFullName()end)
-local recentCalls=nil
-if not summaryOnly and type(calls)=="table" then
-recentCalls={}
-for i=math.max(1,#calls-maxCPR+1),#calls do table.insert(recentCalls,calls[i])end
-end
-table.insert(results,{RemoteName=tostring(name),RemoteClass=ok2 and remote.ClassName or"RemoteEvent",Direction="Outgoing",Method="hydroxide",TotalCalls=type(calls)=="table"and#calls or 0,Ignored=false,Blocked=false,RecentCalls=recentCalls,Path=ok2 and fullPath or tostring(name)})
+local k=getgenv().Hydroxide
+if k then
+local l=k.remotes or k.Remotes
+if l then
+local m={}
+for n,o in pairs(l)do
+if#m>=f then break end
+local p,q=pcall(function()return n.Name end)
+if not p then q="unknown"end
+if not g or string.find(string.lower(tostring(q)),string.lower(e),1,true)then
+local r,s=pcall(function()return n:GetFullName()end)
+local t
+if not h and type(o)=="table"then
+t={}
+for u=math.max(1,#o-i+1),#o do
+table.insert(t,o[u])
 end
 end
-return{count=#results,results=results,mode="hydroxide",message="Hydroxide remote spy data."}
+table.insert(m,{
+RemoteName=tostring(q),
+RemoteClass=r and n.ClassName or"RemoteEvent",
+Direction="Outgoing",
+Method="hydroxide",
+TotalCalls=type(o)=="table"and#o or 0,
+Ignored=false,
+Blocked=false,
+RecentCalls=t,
+Path=r and s or tostring(q),
+})
+end
+end
+return{count=#m,results=m,mode="hydroxide",message="Hydroxide remote spy data."}
 end
 end
 
--- 4. Generic spy
-local genericSpy=getgenv().RemoteSpy or getgenv().RS or getgenv().RemoteSpyLogs
-if genericSpy then
-local logs=genericSpy.Logs or genericSpy.logs or genericSpy.Remotes or genericSpy.remotes
-if logs and type(logs)=="table" then
-local results={}
-for _,entry in ipairs(logs)do
-if#results>=limit then break end
-local remoteName=entry.Name or entry.RemoteName or entry.name or"unknown"
-if not hasFilter or string.find(string.lower(tostring(remoteName)),string.lower(nameFilter),1,true)then
-table.insert(results,{RemoteName=tostring(remoteName),RemoteClass=entry.ClassName or entry.Class or"RemoteEvent",Direction=entry.Direction or entry.Type or"unknown",Method="generic_spy",TotalCalls=entry.TotalCalls or entry.Calls or 1,Ignored=entry.Ignored or false,Blocked=entry.Blocked or false,RecentCalls=summaryOnly and nil or entry.Args or entry.arguments or nil,Path=entry.Path or entry.FullName or tostring(remoteName)})
+
+local l=getgenv().RemoteSpy or getgenv().RS or getgenv().RemoteSpyLogs
+if l then
+local m=l.Logs or l.logs or l.Remotes or l.remotes
+if m and type(m)=="table"then
+local n={}
+for o,p in ipairs(m)do
+if#n>=f then break end
+local q=p.Name or p.RemoteName or p.name or"unknown"
+if not g or string.find(string.lower(tostring(q)),string.lower(e),1,true)then
+local r
+if not h then
+r=p.Args or p.arguments
+end
+table.insert(n,{
+RemoteName=tostring(q),
+RemoteClass=p.ClassName or p.Class or"RemoteEvent",
+Direction=p.Direction or p.Type or"unknown",
+Method="generic_spy",
+TotalCalls=p.TotalCalls or p.Calls or 1,
+Ignored=p.Ignored or false,
+Blocked=p.Blocked or false,
+RecentCalls=r,
+Path=p.Path or p.FullName or tostring(q),
+})
 end
 end
-return{count=#results,results=results,mode="generic_spy",message="Generic remote spy data."}
+return{count=#n,results=n,mode="generic_spy",message="Generic remote spy data."}
 end
 end
 
--- 5. Built-in inventory scanner
-local e=getgenv().MCP_RemoteMonitor
-if e then
-local results={}
-local function scanRemotes(parent,depth)
-if#results>=limit*3 then return end
-if depth>5 then return end
-for _,child in parent:GetChildren()do
-if#results>=limit*3 then break end
-if child:IsA"RemoteEvent"or child:IsA"RemoteFunction"or child:IsA"UnreliableRemoteEvent"then
-local name=child.Name
-if not hasFilter or string.find(string.lower(name),string.lower(nameFilter),1,true)then
-local fullName=""
-pcall(function()fullName=child:GetFullName()end)
-table.insert(results,{RemoteName=name,RemoteClass=child.ClassName,Direction="unknown",Method="basic_mode",TotalCalls=0,Ignored=false,Blocked=false,RecentCalls=nil,Path=fullName})
+
+local m=getgenv().MCP_RemoteMonitor
+if m then
+local n={}
+local function scanRemotes(o,p)
+if#n>=f*3 then return end
+if p>5 then return end
+for q,r in o:GetChildren()do
+if#n>=f*3 then break end
+if r:IsA"RemoteEvent"or r:IsA"RemoteFunction"or r:IsA"UnreliableRemoteEvent"then
+local s=r.Name
+if not g or string.find(string.lower(s),string.lower(e),1,true)then
+local t=""
+pcall(function()t=r:GetFullName()end)
+table.insert(n,{
+RemoteName=s,
+RemoteClass=r.ClassName,
+Direction="unknown",
+Method="basic_mode",
+TotalCalls=0,
+Ignored=false,
+Blocked=false,
+RecentCalls=nil,
+Path=t,
+})
 end
 end
-scanRemotes(child,depth+1)
+scanRemotes(r,p+1)
 end
 end
-for _,svc in{"ReplicatedStorage","Workspace","Players"}do
-pcall(function()scanRemotes(game:GetService(svc),0)end)
-end
-if#results>limit then
-local trimmed={}
-for i=1,limit do trimmed[i]=results[i]end
-results=trimmed
-end
-e.scans+=1
-e.lastScanAt=os.time()
-return{count=#results,results=results,mode="inventory",message="Read-only remote inventory. Call telemetry is unavailable on this executor."}
-end
-error("Remote Monitor is not initialised. Call ensure-remote-spy first.")
+
+for o,p in{"ReplicatedStorage","Workspace","Players"}do
+pcall(function()
+scanRemotes(game:GetService(p),0)
 end)
-end end function a.p():typeof(__modImpl())local b=a.cache.p if not b then b={c=__modImpl()}a.cache.p=b end return b.c end end do local function __modImpl()
+end
 
-local COBALT_URL="https://gitlab.com/upio/cobalt/-/releases/permalink/latest/downloads/Cobalt.luau"
-return function(b,c)
-c:BindToType("clear-remote-spy-logs",function(d)
+if#n>f then
+local o={}
+for p=1,f do o[p]=n[p]end
+n=o
+end
+
+m.scans+=1
+m.lastScanAt=os.time()
+return{
+count=#n,
+results=n,
+mode="inventory",
+message="Read-only remote inventory. Call telemetry is unavailable on this executor."
+}
+end
+error"Remote Monitor is not initialised. Call ensure-remote-spy first."
+end)
+end end function a.q():typeof(__modImpl())local b=a.cache.q if not b then b={c=__modImpl()}a.cache.q=b end return b.c end end do local function __modImpl()
+
+local b="https://gitlab.com/upio/cobalt/-/releases/permalink/latest/downloads/Cobalt.luau"
+
+return function(c,d)
+d:BindToType("clear-remote-spy-logs",function(e)
+
 if getgenv().CobaltInitialized then
-local cobalt=getgenv().Cobalt
-if cobalt and cobalt.shared and cobalt.shared.ClearLogs then
-pcall(cobalt.shared.ClearLogs)
+local f=getgenv().Cobalt
+if f and f.shared and f.shared.ClearLogs then
+pcall(f.shared.ClearLogs)
 return{status="ok",message="Cobalt logs cleared."}
 end
 return{status="no_op",message="Cobalt is active but ClearLogs not accessible."}
 end
-local customSpy=getgenv().MCP_CustomRemoteSpy
-if customSpy and type(customSpy.clear)=="function" then
-pcall(customSpy.clear)
+
+local f=getgenv().MCP_CustomRemoteSpy
+if f and type(f.clear)=="function"then
+pcall(f.clear)
 return{status="ok",message="Custom remote spy logs cleared."}
 end
 if getgenv().MCP_RemoteMonitor then
 return{status="no_op",message="Read-only Remote Monitor has no stored call payloads to clear."}
 end
-error("Remote Monitor is not initialised. Call ensure-remote-spy first.")
+error"Remote Monitor is not initialised. Call ensure-remote-spy first."
 end)
 
-c:BindToType("remote-spy",function(d)
-c.Callbacks["ensure-remote-spy"]{}
+d:BindToType("remote-spy",function(e)
+d.Callbacks["ensure-remote-spy"]{}
 
-local e=d.operation
-if e=="status"then
+local f=e.operation
+
+if f=="status"then
 if getgenv().CobaltInitialized then
-local cobalt=getgenv().Cobalt
-local outCount,inCount=0,0
-if cobalt and cobalt.shared and cobalt.shared.Logs then
-for _ in pairs(cobalt.shared.Logs.Outgoing or{})do outCount+=1 end
-for _ in pairs(cobalt.shared.Logs.Incoming or{})do inCount+=1 end
+local g=getgenv().Cobalt
+local h,i=0,0
+if g and g.shared and g.shared.Logs then
+for j in pairs(g.shared.Logs.Outgoing or{})do h+=1 end
+for j in pairs(g.shared.Logs.Incoming or{})do i+=1 end
 end
-return{status="ready",mode="cobalt",outgoingRemotes=outCount,incomingRemotes=inCount,message="Cobalt remote spy is active."}
+return{
+status="ready",
+mode="cobalt",
+outgoingRemotes=h,
+incomingRemotes=i,
+message="Cobalt remote spy is active.",
+}
 end
-local customSpy=getgenv().MCP_CustomRemoteSpy
-if customSpy then
-local spyType=customSpy.type or"custom"
-local statusInfo={}
-if type(customSpy.status)=="function" then pcall(function()statusInfo=customSpy.status()or{}end)end
-return{status="ready",mode=spyType,scans=statusInfo.scans or 0,lastScanAt=statusInfo.lastScanAt or nil,message="Custom remote spy ("..spyType..") is active."}
+local g=getgenv().MCP_CustomRemoteSpy
+if g then
+local h=g.type or"custom"
+local i={}
+if type(g.status)=="function"then
+pcall(function()i=g.status()or{}end)
+end
+return{
+status="ready",
+mode=h,
+scans=i.scans or 0,
+lastScanAt=i.lastScanAt or nil,
+message="Custom remote spy ("..h..") is active.",
+}
 end
 if getgenv().Hydroxide then
 return{status="ready",mode="hydroxide",scans=0,lastScanAt=nil,message="Hydroxide remote spy detected."}
@@ -2731,53 +2860,100 @@ end
 if getgenv().RemoteSpy or getgenv().RS then
 return{status="ready",mode="generic_spy",scans=0,lastScanAt=nil,message="Generic remote spy detected."}
 end
-local f=getgenv().MCP_RemoteMonitor
-return{status=if f then"ready"else"unavailable",mode="read_only_inventory",scans=if f then f.scans else 0,lastScanAt=if f then f.lastScanAt else nil,message="Remote Monitor lists public Remote instances without intercepting or changing game traffic."}
-elseif e=="list"then
-return c.Callbacks["get-remote-spy-logs"]{direction=d.direction,remoteNameFilter=d.nameFilter,limit=d.limit,maxCallsPerRemote=d.maxCallsPerRemote,summaryOnly=d.summaryOnly}
-elseif e=="clear"then
-return c.Callbacks["clear-remote-spy-logs"]{}
-elseif e=="inject"then
-local preset=d.preset
-local url=d.url
-local source=d.source
-if preset=="cobalt" then url=COBALT_URL end
-if url and not source then
-local ok,result=pcall(function()
-setthreadidentity(8)
-return game:HttpGet(url)
-end)
-if not ok then
-return{status="error",message="HttpGet failed for '"..tostring(url).."': "..tostring(result)}
-end
-source=result
-end
-if type(source)~="string"or source==""then
-error("inject requires 'source', 'url', or 'preset'.")
-end
-getgenv().MCP_CustomRemoteSpy=nil
-local ok,err=pcall(function()
-setthreadidentity(8)
-loadstring(source)()
-end)
-if not ok then
-return{status="error",message="Spy script failed to execute: "..tostring(err)}
-end
-if preset=="cobalt"or url==COBALT_URL then
-local isReady=getgenv().CobaltInitialized==true
-return{status=isReady and"injected"or"loading",mode="cobalt",message=isReady and"Cobalt remote spy injected and ready."or"Cobalt is loading. Call status in ~2s to confirm it's ready."}
-end
-local injected=getgenv().MCP_CustomRemoteSpy
-if injected then return{status="injected",mode=injected.type or"custom",message="Custom remote spy injected and active."}end
-if getgenv().CobaltInitialized then return{status="injected",mode="cobalt",message="Cobalt detected."}end
-if getgenv().Hydroxide then return{status="injected",mode="hydroxide",message="Script ran — Hydroxide detected."}end
-if getgenv().RemoteSpy or getgenv().RS then return{status="injected",mode="generic_spy",message="Script ran — generic remote spy detected."}end
-return{status="injected",mode="unknown",message="Script executed. No standard spy interface detected. Use 'list' to verify."}
+local h=getgenv().MCP_RemoteMonitor
+return{
+status=h and"ready"or"unavailable",
+mode="read_only_inventory",
+scans=h and h.scans or 0,
+lastScanAt=h and h.lastScanAt or nil,
+message="Remote Monitor lists public Remote instances without intercepting or changing game traffic.",
+}
+
+elseif f=="list"then
+return d.Callbacks["get-remote-spy-logs"]{
+direction=e.direction,
+remoteNameFilter=e.nameFilter,
+limit=e.limit,
+maxCallsPerRemote=e.maxCallsPerRemote,
+summaryOnly=e.summaryOnly,
+}
+
+elseif f=="clear"then
+return d.Callbacks["clear-remote-spy-logs"]{}
+
+elseif f=="inject"then
+local g=e.preset
+local h=e.url
+local i=e.source
+
+
+if g=="cobalt"then
+h=b
 end
 
-error("Invalid remote-spy operation: "..tostring(e))
+
+if h and not i then
+local j,k=pcall(function()
+setthreadidentity(8)
+return game:HttpGet(h)
 end)
-end end function a.q():typeof(__modImpl())local b=a.cache.q if not b then b={c=__modImpl()}a.cache.q=b end return b.c end end do local function __modImpl()
+if not j then
+return{status="error",message="HttpGet failed for '"..tostring(h).."': "..tostring(k)}
+end
+i=k
+end
+
+if type(i)~="string"or i==""then
+error"inject requires 'source', 'url', or 'preset'."
+end
+
+
+getgenv().MCP_CustomRemoteSpy=nil
+
+local j,k=pcall(function()
+setthreadidentity(8)
+loadstring(i)()
+end)
+if not j then
+return{status="error",message="Spy script failed to execute: "..tostring(k)}
+end
+
+
+if g=="cobalt"or h==b then
+local l=getgenv().CobaltInitialized==true
+return{
+status=l and"injected"or"loading",
+mode="cobalt",
+message=l
+and"Cobalt remote spy injected and ready."
+or"Cobalt is loading. Call status in ~2s to confirm it's ready.",
+}
+end
+
+
+local l=getgenv().MCP_CustomRemoteSpy
+if l then
+return{status="injected",mode=l.type or"custom",message="Custom remote spy injected and active."}
+end
+if getgenv().CobaltInitialized then
+return{status="injected",mode="cobalt",message="Cobalt detected."}
+end
+if getgenv().Hydroxide then
+return{status="injected",mode="hydroxide",message="Script ran — Hydroxide detected."}
+end
+if getgenv().RemoteSpy or getgenv().RS then
+return{status="injected",mode="generic_spy",message="Script ran — generic remote spy detected."}
+end
+return{
+status="injected",
+mode="unknown",
+message="Script executed. No standard spy interface detected. Use 'list' to verify.",
+}
+end
+
+error("Invalid remote-spy operation: "..tostring(f))
+end)
+end end function a.r():typeof(__modImpl())local b=a.cache.r if not b then b={c=__modImpl()}a.cache.r=b end return b.c end end do local function __modImpl()
 
 return function(b,c)
 local d=b.VirtualInputManager
@@ -2917,10 +3093,10 @@ message="Successfully clicked Button using method: "..j,
 method=j
 }
 end)
-end end function a.r():typeof(__modImpl())local b=a.cache.r if not b then b={c=__modImpl()}a.cache.r=b end return b.c end end do local function __modImpl()
+end end function a.s():typeof(__modImpl())local b=a.cache.s if not b then b={c=__modImpl()}a.cache.s=b end return b.c end end do local function __modImpl()
 
-return function(b,c)local d=
-b.HttpService
+return function(b,c)
+local d=b.HttpService
 local e=b.base64_encode
 
 c:BindToTypeRaw("client-screenshot",function(f)
@@ -2933,72 +3109,140 @@ h=math.max(20,math.min(h,100))
 local i
 local j="png"
 
-if type(screenshot)=="function"then
-local k,l=pcall(screenshot)
-if k and type(l)=="string"and#l>0 then
-i=l
-end
-elseif type(takescreenshot)=="function"then
-local k,l=pcall(takescreenshot)
-if k and type(l)=="string"and#l>0 then
-i=l
+
+local k=getgenv and getgenv().MCP_ScreenshotFn
+if type(k)=="function"then
+local l,m=pcall(k)
+if l and type(m)=="string"and#m>0 then
+i=m
 end
 end
+
+
+local l={screenshot,takescreenshot}
+for m,n in ipairs(l)do
+if not i and type(n)=="function"then
+local o,p=pcall(n)
+if o and type(p)=="string"and#p>0 then
+i=p
+end
+end
+end
+
+
+if not i and type(syn)=="table"and type(syn.screenshot)=="function"then
+local m,n=pcall(syn.screenshot)
+if m and type(n)=="string"and#n>0 then
+i=n
+end
+end
+
+
+local m={getscreenshot,capturescreen,delta_screenshot}
+for n,o in ipairs(m)do
+if not i and type(o)=="function"then
+local p,q=pcall(o)
+if p and type(q)=="string"and#q>0 then
+i=q
+end
+end
+end
+
 
 if not i and type(writefile)=="function"and type(readfile)=="function"then
-local k="mcp_screenshot_temp.png"
+local n="mcp_screenshot_temp.png"
 pcall(function()
-if type(screenshot)=="function"then
-local l=screenshot()
-if l then
-writefile(k,l)
-i=readfile(k)
+local o={screenshot,takescreenshot,getscreenshot,capturescreen}
+for p,q in ipairs(o)do
+if type(q)=="function"then
+local r=q()
+if r then
+writefile(n,r)
+i=readfile(n)
+break
+end
 end
 end
 end)
 pcall(function()
-if isfile and isfile(k)then
-delfile(k)
+if isfile and isfile(n)then
+delfile(n)
 end
 end)
 end
 
+
 if not i then
-local k,l=pcall(function()
+local n={"screenshot://capture","vsphone://screenshot","delta://screenshot"}
+for o,p in ipairs(n)do
+if not i then
+local q,r=pcall(function()
 if type(http_get)=="function"then
-return http_get"screenshot://capture"
+return http_get(p)
 end
 end)
-if k and type(l)=="string"and#l>100 then
-i=l
+if q and type(r)=="string"and#r>100 then
+i=r
+end
+end
 end
 end
 
 if not i then
-return d:JSONEncode({
-error="Client-side screenshot is not supported by this executor.",
+return d:JSONEncode{
+error="Client-side screenshot is not supported by this executor. Set getgenv().MCP_ScreenshotFn = function() return <base64> end before loading the connector to add custom screenshot support.",
 success=false
-})
+}
 end
 
-local k
+local n
 if i:match"^data:image/"then
-k=i
+n=i
 elseif i:match"^[A-Za-z0-9+/=]+$"then
-k="data:image/"..j..";base64,"..i
+n="data:image/"..j..";base64,"..i
 else
-k="data:image/"..j..";base64,"..e(i)
+n="data:image/"..j..";base64,"..e(i)
 end
 
-return d:JSONEncode({
-imageBase64=k,
+
+
+local o,p=pcall(function()
+return d:RequestAsync{
+Url="https://paste-void.lovable.app/api/upload-image",
+Method="POST",
+Headers={["Content-Type"]="application/json"},
+Body=d:JSONEncode{
+imageBase64=n,
+mimeType="image/"..j,
+}
+}
+end)
+
+if o and p and p.Success then
+local q,r=pcall(function()
+return d:JSONDecode(p.Body)
+end)
+if q and r and r.directUrl then
+return d:JSONEncode{
+imageUrl=r.directUrl,
+mimeType="image/"..j,
+success=true,
+width=g,
+source="client-upload"
+}
+end
+end
+
+
+return d:JSONEncode{
+imageBase64=n,
 mimeType="image/"..j,
 success=true,
 width=g,
 source="client"
-})
+}
 end)
-end end function a.s():typeof(__modImpl())local b=a.cache.s if not b then b={c=__modImpl()}a.cache.s=b end return b.c end end do local function __modImpl()
+end end function a.t():typeof(__modImpl())local b=a.cache.t if not b then b={c=__modImpl()}a.cache.t=b end return b.c end end do local function __modImpl()
 
 local b=game:GetService"Players"
 local c=game:GetService"Workspace"
@@ -3497,7 +3741,7 @@ return q
 end)(),
 }
 end)
-end end function a.t():typeof(__modImpl())local b=a.cache.t if not b then b={c=__modImpl()}a.cache.t=b end return b.c end end do local function __modImpl()
+end end function a.u():typeof(__modImpl())local b=a.cache.u if not b then b={c=__modImpl()}a.cache.u=b end return b.c end end do local function __modImpl()
 
 local b=game:GetService"Players"
 local c=game:GetService"Workspace"
@@ -4006,7 +4250,7 @@ table.insert(l,"pcall(function()")
 table.insert(l,"    local player = game.Players.LocalPlayer")
 table.insert(l,"    local char = player.Character")
 if m and n then
-if char then
+table.insert(l,"    if char then")
 table.insert(l,"    local hrp = char:FindFirstChild('HumanoidRootPart')")
 table.insert(l,"    if hrp then")
 table.insert(l,"        local mt = getrawmetatable(hrp)")
@@ -4024,7 +4268,7 @@ table.insert(l,"            return oldIndex(self, key)")
 table.insert(l,"        end))")
 if p then table.insert(l,"        setreadonly(mt, true)")end
 table.insert(l,"    end")
-end
+table.insert(l,"    end")
 end
 table.insert(l,"end)")
 end
@@ -4082,7 +4326,51 @@ warning="Review the bypass code before executing. Some anti-cheat systems are se
 }
 end)
 
-end end function a.u():typeof(__modImpl())local b=a.cache.u if not b then b={c=__modImpl()}a.cache.u=b end return b.c end end do local function __modImpl()
+end end function a.v():typeof(__modImpl())local b=a.cache.v if not b then b={c=__modImpl()}a.cache.v=b end return b.c end end do local function __modImpl()
+
+return function(b,c)
+local d=b.AntiAFK
+
+c:BindToType("anti-afk",function(e)
+if type(d)~="table"then
+return{
+action=e.action or"status",
+active=false,
+error="Anti-AFK controller is unavailable on this connector.",
+}
+end
+
+local f=e.action or"status"
+
+if f=="enable"then
+
+getgenv().MCP_DisableAntiAFK=nil
+local g=d.Ensure()
+return{
+action="enable",
+active=g,
+message=g
+and"Anti-AFK enabled: Player.Idled handler connected and ready."
+or"Anti-AFK could not be enabled (no LocalPlayer available).",
+}
+elseif f=="disable"then
+d.Disable()
+getgenv().MCP_DisableAntiAFK=true
+return{
+action="disable",
+active=false,
+message="Anti-AFK disabled: Player.Idled handler disconnected.",
+}
+end
+
+local g=d.Status()
+g.action="status"
+g.message=g.active
+and"Anti-AFK is active: the Player.Idled handler is connected."
+or"Anti-AFK is inactive: the Player.Idled handler is not connected."
+return g
+end)
+end end function a.w():typeof(__modImpl())local b=a.cache.w if not b then b={c=__modImpl()}a.cache.w=b end return b.c end end do local function __modImpl()
 
 return function(b)
 local c=b.CreateBridge
@@ -4094,7 +4382,6 @@ local h=b.ResetScriptMappingState
 local i=b.StartScriptMapping
 local j=b.StartFailedScriptResync
 local k=b.ResumeDeferredScriptMappings
-
 local l=1
 local m=30
 while true do
@@ -4130,8 +4417,7 @@ g()
 end
 end
 
-local q={a.m()
-,a.n()
+local q={a.n()
 ,a.o()
 ,a.p()
 ,a.q()
@@ -4139,6 +4425,8 @@ local q={a.m()
 ,a.s()
 ,a.t()
 ,a.u()
+,a.v()
+,a.w()
 ,
 }
 for r,s in q do
@@ -4155,11 +4443,11 @@ end
 task.wait(l)
 l=math.min(l*1.5,m)
 end
-end end function a.v():typeof(__modImpl())local b=a.cache.v if not b then b={c=__modImpl()}a.cache.v=b end return b.c end end end
+end end function a.x():typeof(__modImpl())local b=a.cache.x if not b then b={c=__modImpl()}a.cache.x=b end return b.c end end end
 
 if getgenv().MCP_Loaded==true then
-local __ab=getgenv().MCP_ActiveBridge
-if __ab~=nil and __ab.Connected==true then
+local b=getgenv().MCP_ActiveBridge
+if b~=nil and b.Connected==true then
 return
 end
 end
@@ -4174,290 +4462,285 @@ if not game:IsLoaded()then
 game.Loaded:Wait()
 end
 
+local c=a.a()
+
 if getgenv().MCP_DisableAntiAFK~=true then
-local c=game:GetService"VirtualUser"
-local d=game:GetService"Players"
-local e=d.LocalPlayer
-if e then
-e.Idled:Connect(function()
-pcall(function()
-c:CaptureController()
-c:ClickButton2(Vector2.new())
-end)
-end)
-end
+c.Ensure()
 end
 
-local c=cloneref or function(c)return c end
+local d=cloneref or function(d)return d end
 
-local d:RobloxReplicatedStorage=c(game:GetService"RobloxReplicatedStorage")
-local e:VirtualInputManager=c(Instance.new"VirtualInputManager")
-local f:MarketplaceService=c(game:GetService"MarketplaceService")
-local g:CoreGui=c(game:GetService"CoreGui")
-local h:CorePackages=c(game:GetService"CorePackages")
-local i:ScriptContext=c(game:GetService"ScriptContext")
-local j:HttpService=c(game:GetService"HttpService")
-local k:LogService=c(game:GetService"LogService")
-local l:Players=c(game:GetService"Players")
+local e:RobloxReplicatedStorage=d(game:GetService"RobloxReplicatedStorage")
+local f:VirtualInputManager=d(Instance.new"VirtualInputManager")
+local g:MarketplaceService=d(game:GetService"MarketplaceService")
+local h:CoreGui=d(game:GetService"CoreGui")
+local i:CorePackages=d(game:GetService"CorePackages")
+local j:ScriptContext=d(game:GetService"ScriptContext")
+local k:HttpService=d(game:GetService"HttpService")
+local l:LogService=d(game:GetService"LogService")
+local m:Players=d(game:GetService"Players")
 
-local m
+local n
 do
 
-local n='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 
-m=base64encode or function(o)
-return((o:gsub('.',function(p)
-local q,r='',p:byte()
-for s=8,1,-1 do q=q..(r%2^s-r%2^(s-1)>0 and'1'or'0')end
-return q
-end)..'0000'):gsub('%d%d%d?%d?%d?%d?',function(p)
-if(#p<6)then return''end
-local q=0
-for r=1,6 do q=q+(p:sub(r,r)=='1'and 2^(6-r)or 0)end
-return n:sub(q+1,q+1)
-end)..({'','==','='})[#o%3+1])
+
+local o='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+
+n=base64encode or function(p)
+return((p:gsub('.',function(q)
+local r,s='',q:byte()
+for t=8,1,-1 do r=r..(s%2^t-s%2^(t-1)>0 and'1'or'0')end
+return r
+end)..'0000'):gsub('%d%d%d?%d?%d?%d?',function(q)
+if(#q<6)then return''end
+local r=0
+for s=1,6 do r=r+(q:sub(s,s)=='1'and 2^(6-s)or 0)end
+return o:sub(r+1,r+1)
+end)..({'','==','='})[#p%3+1])
 end
 end
 
-local n=type(getscripthash)=="function"and getscripthash or nil
-local o=type(decompile)=="function"and decompile or nil
 
-local p=loadstring(game:HttpGet"https://raw.githubusercontent.com/chadhyatt/LuaEncode/refs/heads/master/src/LuaEncode.lua")()
+local o=type(getscripthash)=="function"and getscripthash or nil
+local p=type(decompile)=="function"and decompile or nil
 
-local q=8
-local r=60
-local s=500
+local q=loadstring(game:HttpGet"https://raw.githubusercontent.com/chadhyatt/LuaEncode/refs/heads/master/src/LuaEncode.lua")()
 
-local function SanitizeForOutput(t,u,v)
-u=u or 0
-local w=typeof(t)
+local r=8
+local s=60
+local t=500
 
-if w=="Instance"then
-local x,y=pcall(function()return t:GetFullName()end)
-return x and y or tostring(t)
-elseif w=="string"then
-if#t>s then
-return string.sub(t,1,s)
-.."â¦(+"..(#t-s).." chars omitted)"
+local function SanitizeForOutput(u,v,w)
+v=v or 0
+local x=typeof(u)
+
+if x=="Instance"then
+local y,z=pcall(function()return u:GetFullName()end)
+return y and z or tostring(u)
+elseif x=="string"then
+if#u>t then
+return string.sub(u,1,t)
+.."â¦(+"..(#u-t).." chars omitted)"
 end
-return t
-elseif w=="number"or w=="boolean"or w=="nil"then
-return t
-elseif w~="table"then
-
-return tostring(t)
+return u
+elseif x=="number"or x=="boolean"or x=="nil"then
+return u
+elseif x~="table"then
+return tostring(u)
 end
 
-if u>=q then
+if v>=r then
 return"<table: max depth reached>"
 end
 
-v=v or{}
-if v[t]then
+w=w or{}
+if w[u]then
 return"<cyclic table>"
 end
-v[t]=true
+w[u]=true
 
-local x={}
-local y=0
+local y={}
 local z=0
-for A,B in pairs(t)do
-if y>=r then
-z+=1
+local A=0
+for B,C in pairs(u)do
+if z>=s then
+A+=1
 continue
 end
-y+=1
-local C=A
-if typeof(A)~="string"and typeof(A)~="number"then
-C=tostring(A)
+z+=1
+local D=B
+if typeof(B)~="string"and typeof(B)~="number"then
+D=tostring(B)
 end
-x[C]=SanitizeForOutput(B,u+1,v)
+y[D]=SanitizeForOutput(C,v+1,w)
 end
-if z>0 then
-x.__omitted=z.." more entries omitted"
-end
-
-v[t]=nil
-return x
+if A>0 then
+y.__omitted=A.." more entries omitted"
 end
 
-local function StripDecompilerBanner(t)
-if typeof(t)~="string"then return t end
-return(string.gsub(t,"^%s*%-%-[^\n]*[Dd]ecompiled[^\n]*\n","",1))
+w[u]=nil
+return y
 end
 
-local t=getnilinstances or function()return{}end
+local function StripDecompilerBanner(u)
+if typeof(u)~="string"then return u end
+return(string.gsub(u,"^%s*%-%-[^\n]*[Dd]ecompiled[^\n]*\n","",1))
+end
 
-local u=(
+local u=getnilinstances or function()return{}end
+
+local v=(
 typeof(WebSocket)~="nil"and
 typeof(WebSocket.connect)=="function"
 )and(getgenv().DisableWebSocket~=true)
 
 local function GenerateSessionGuid()
-local v,w=pcall(function()
-return j:GenerateGUID(false)
+local w,x=pcall(function()
+return k:GenerateGUID(false)
 end)
-if v and type(w)=="string"and w~=""then
-return w
+if w and type(x)=="string"and x~=""then
+return x
 end
 return tostring(os.clock()).."-"..tostring(math.random(1,1000000000))
 end
 
 local function GetClientIdentityKey()
-local v=l.LocalPlayer
+local w=m.LocalPlayer
 return table.concat({
 tostring(game.PlaceId or 0),
 tostring(game.JobId or""),
-tostring(v and v.UserId or 0),
+tostring(w and w.UserId or 0),
 },":")
 end
 
 local function GetStableClientSessionId()
-local v=GetClientIdentityKey()
-if type(getgenv().MCP_ClientSessionId)~="string"or getgenv().MCP_ClientIdentityKey~=v then
+local w=GetClientIdentityKey()
+if type(getgenv().MCP_ClientSessionId)~="string"or getgenv().MCP_ClientIdentityKey~=w then
 getgenv().MCP_ClientSessionId=GenerateSessionGuid()
-getgenv().MCP_ClientIdentityKey=v
+getgenv().MCP_ClientIdentityKey=w
 end
 return getgenv().MCP_ClientSessionId
 end
 
 local function GetRegistrationInfo()
-local v=l.LocalPlayer
-local w="Unknown"
+local w=m.LocalPlayer
+local x="Unknown"
 pcall(function()
-local x=f:GetProductInfo(game.PlaceId)
-w=x.Name
+local y=g:GetProductInfo(game.PlaceId)
+x=y.Name
 end)
 return{
 type="register",
-username=v and v.Name or"Unknown",
-userId=v and v.UserId or 0,
+username=w and w.Name or"Unknown",
+userId=w and w.UserId or 0,
 placeId=game.PlaceId,
 jobId=game.JobId,
-placeName=w,
+placeName=x,
 sessionId=GetStableClientSessionId(),
 }
 end
 
-local v=a.a(){
-HttpService=j,
+local w=a.b(){
+HttpService=k,
 BridgeURL=b,
-WebSocketAvailable=u,
+WebSocketAvailable=v,
 GetRegistrationInfo=GetRegistrationInfo,
 SanitizeForOutput=SanitizeForOutput,
-LuaEncode=p,
+LuaEncode=q,
 }
-local w=v.CreateBridge
+local x=w.CreateBridge
 
-local x=a.b()
 local y=a.c()
 local z=a.d()
 local A=a.e()
 local B=a.f()
-local C=y.new()
-local D=math.max(
+local C=a.g()
+local D=z.new()
+local E=math.max(
 1,
 math.min(math.floor(tonumber(getgenv().MCP_ScriptMappingWorkers)or 24),64)
 )
-local E=a.g().new(
-C,
-D
+local F=a.h().new(
+D,
+E
 )
-local F=math.max(
+local G=math.max(
 5,
 math.min(tonumber(getgenv().MCP_FailedScriptResyncInterval)or 30,600)
 )
-local G=a.h().new(C,{
-IntervalSeconds=F,
-MaxDelaySeconds=math.max(F,300),
+local H=a.i().new(D,{
+IntervalSeconds=G,
+MaxDelaySeconds=math.max(G,300),
 BatchSize=math.max(
 1,
 math.min(math.floor(tonumber(getgenv().MCP_FailedScriptResyncBatchSize)or 8),32)
 ),
 })
-local H=a.i().new(
-C,
-G
+local I=a.j().new(
+D,
+H
 )
-local I=a.j(){
-ScriptMappingPipeline=C,
-HttpService=j,
-BridgeURL=b,
-JobStatus=H,
-}
 local J=a.k(){
-ScriptMappingPipeline=C,
-HttpService=j,
+ScriptMappingPipeline=D,
+HttpService=k,
 BridgeURL=b,
-StripDecompilerBanner=StripDecompilerBanner,
-base64_encode=m,
-BuiltInDecompile=o,
-GetScriptHash=n,
-DecompilerAttemptState=A,
-PreparedScript=B,
-Concurrency=E,
+JobStatus=I,
 }
 local K=a.l(){
-ScriptMappingPipeline=C,
-WorkerPool=x,
-UploadSession=z,
-GenerateSessionGuid=GenerateSessionGuid,
-CoreGui=g,
-CorePackages=h,
-ScriptContext=i,
-getnilinstances=t,
-WorkerCount=D,
-Concurrency=E,
-JobStatus=H,
-FailedResync=G,
-UploadClient=I,
-DecompilerClient=J,
+ScriptMappingPipeline=D,
+HttpService=k,
+BridgeURL=b,
+StripDecompilerBanner=StripDecompilerBanner,
+base64_encode=n,
+BuiltInDecompile=p,
+GetScriptHash=o,
+DecompilerAttemptState=B,
+PreparedScript=C,
+Concurrency=F,
 }
-local L=I.StartUploadQueue
+local L=a.m(){
+ScriptMappingPipeline=D,
+WorkerPool=y,
+UploadSession=A,
+GenerateSessionGuid=GenerateSessionGuid,
+CoreGui=h,
+CorePackages=i,
+ScriptContext=j,
+getnilinstances=u,
+WorkerCount=E,
+Concurrency=F,
+JobStatus=I,
+FailedResync=H,
+UploadClient=J,
+DecompilerClient=K,
+}
+local M=J.StartUploadQueue
 local function PublishScriptMappingStatus()
-H:Publish()
+I:Publish()
 end
-local M=K.StartScriptMapping
-local N=K.StartFailedScriptResync
-local O=K.ResetScriptMappingState
-local P=K.ResumeDeferredScriptMappings
-local Q=K.GetScriptByDebugId
-local R=K.QueueMappedScriptSource
-local S=K.DecompileScriptSource
+local N=L.StartScriptMapping
+local O=L.StartFailedScriptResync
+local P=L.ResetScriptMappingState
+local Q=L.ResumeDeferredScriptMappings
+local R=L.GetScriptByDebugId
+local S=L.QueueMappedScriptSource
+local T=L.DecompileScriptSource
 
-local function WaitForBridgeClientId(T)
-local U=os.clock()+5
+local function WaitForBridgeClientId(U)
+local V=os.clock()+5
 repeat
-if T.ClientId then
-return T.ClientId
+if U.ClientId then
+return U.ClientId
 end
-if not T.Connected then
+if not U.Connected then
 return nil
 end
 task.wait(0.05)
-until os.clock()>U
+until os.clock()>V
 
 return nil
-end a.v()
+end a.x()
 
 {
-CreateBridge=w,
+CreateBridge=x,
 WaitForBridgeClientId=WaitForBridgeClientId,
-ScriptMappingPipeline=C,
-StartUploadQueue=L,
+ScriptMappingPipeline=D,
+StartUploadQueue=M,
 PublishScriptMappingStatus=PublishScriptMappingStatus,
-ResetScriptMappingState=O,
-StartScriptMapping=M,
-StartFailedScriptResync=N,
-ResumeDeferredScriptMappings=P,
-GetScriptByDebugId=Q,
-DecompileScriptSource=S,
-QueueMappedScriptSource=R,
-LogService=k,
-MarketplaceService=f,
-RobloxReplicatedStorage=d,
-VirtualInputManager=e,
-LuaEncode=p,
-HttpService=j,
-base64_encode=m,
+ResetScriptMappingState=P,
+StartScriptMapping=N,
+StartFailedScriptResync=O,
+ResumeDeferredScriptMappings=Q,
+GetScriptByDebugId=R,
+DecompileScriptSource=T,
+QueueMappedScriptSource=S,
+LogService=l,
+MarketplaceService=g,
+RobloxReplicatedStorage=e,
+VirtualInputManager=f,
+LuaEncode=q,
+HttpService=k,
+base64_encode=n,
+AntiAFK=c,
 }

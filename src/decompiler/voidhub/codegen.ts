@@ -18,7 +18,7 @@ export interface GeneratedProto {
     source: string;
 }
 
-function renderStatements(statements: Statement[], depth: number): string[] {
+function renderStatements(statements: Statement[], depth: number, gotoTargets: ReadonlySet<number>): string[] {
     const pad = INDENT.repeat(depth);
     const out: string[] = [];
     for (const statement of statements) {
@@ -27,7 +27,9 @@ function renderStatements(statements: Statement[], depth: number): string[] {
                 out.push(`${pad}-- ${statement.text}`);
                 break;
             case "label":
-                out.push(`${pad}::pc${statement.pc}::`);
+                // Only emit labels that some goto actually references.
+                if (gotoTargets.has(statement.pc))
+                    out.push(`${pad}::pc${statement.pc}::`);
                 break;
             case "goto":
                 out.push(`${pad}goto pc${statement.target}`);
@@ -37,36 +39,52 @@ function renderStatements(statements: Statement[], depth: number): string[] {
                 break;
             case "if":
                 out.push(`${pad}if ${statement.condition} then`);
-                out.push(...renderStatements(statement.body, depth + 1));
+                out.push(...renderStatements(statement.body, depth + 1, gotoTargets));
                 if (statement.elseBody && statement.elseBody.length > 0) {
                     out.push(`${pad}else`);
-                    out.push(...renderStatements(statement.elseBody, depth + 1));
+                    out.push(...renderStatements(statement.elseBody, depth + 1, gotoTargets));
                 }
                 out.push(`${pad}end`);
                 break;
             case "while":
                 out.push(`${pad}while ${statement.condition} do`);
-                out.push(...renderStatements(statement.body, depth + 1));
+                out.push(...renderStatements(statement.body, depth + 1, gotoTargets));
                 out.push(`${pad}end`);
                 break;
             case "repeat":
                 out.push(`${pad}repeat`);
-                out.push(...renderStatements(statement.body, depth + 1));
+                out.push(...renderStatements(statement.body, depth + 1, gotoTargets));
                 out.push(`${pad}until ${statement.condition}`);
                 break;
             case "numericFor":
                 out.push(`${pad}for r${statement.register} = ${statement.from}, ${statement.to}${statement.step !== "r?" ? `, ${statement.step}` : ""} do`);
-                out.push(...renderStatements(statement.body, depth + 1));
+                out.push(...renderStatements(statement.body, depth + 1, gotoTargets));
                 out.push(`${pad}end`);
                 break;
             case "genericFor":
                 out.push(`${pad}for ${statement.registers.map((r) => `r${r}`).join(", ")} in ${statement.iterator} do`);
-                out.push(...renderStatements(statement.body, depth + 1));
+                out.push(...renderStatements(statement.body, depth + 1, gotoTargets));
                 out.push(`${pad}end`);
                 break;
         }
     }
     return out;
+}
+
+/** Collect every pc a goto statement references, at any nesting depth. */
+function collectGotoTargets(statements: readonly Statement[], into: Set<number>): void {
+    for (const statement of statements) {
+        if (statement.kind === "goto")
+            into.add(statement.target);
+        else if (statement.kind === "if") {
+            collectGotoTargets(statement.body, into);
+            collectGotoTargets(statement.elseBody ?? [], into);
+        }
+        else if (statement.kind === "while" || statement.kind === "repeat"
+            || statement.kind === "numericFor" || statement.kind === "genericFor") {
+            collectGotoTargets(statement.body, into);
+        }
+    }
 }
 
 function renderProto(chunk: LuauChunk, proto: LuauProto, structured: StructuredProto, isMain: boolean): string {
@@ -79,8 +97,10 @@ function renderProto(chunk: LuauChunk, proto: LuauProto, structured: StructuredP
     const header = isMain
         ? `-- main function (vararg: ${proto.isVararg ? "yes" : "no"}, params: ${proto.numParams})`
         : `local function ${name}(${params.join(", ")})`;
+    const gotoTargets = new Set<number>();
+    collectGotoTargets(structured.statements, gotoTargets);
     const lines: string[] = [header];
-    lines.push(...renderStatements(structured.statements, 1));
+    lines.push(...renderStatements(structured.statements, 1, gotoTargets));
     if (!isMain)
         lines.push("end");
 
