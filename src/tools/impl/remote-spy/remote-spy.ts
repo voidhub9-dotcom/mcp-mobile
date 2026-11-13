@@ -4,12 +4,16 @@ import { sendFireAndForget, toolTextResponse } from "../../factory.js";
 import { exportTextToPasteVoid, PASTE_VOID_TEXT_ENDPOINT } from "../../../shared/paste-void.js";
 
 function buildCaptureScript(duration: number, nameFilter: string | undefined): string {
-    const filter = nameFilter ? nameFilter.replace(/'/g, "\\'") : "";
+    // Escape the filter for a double-quoted Lua string literal.
+    const filter = nameFilter
+        ? nameFilter.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "\\r")
+        : "";
+    const safeDuration = Math.min(Math.max(Number.isFinite(duration) ? duration : 10, 1), 600);
     return `
 setthreadidentity(8)
 local logs = {}
 local startTime = os.clock()
-local DURATION = ${duration}
+local DURATION = ${safeDuration}
 local NAME_FILTER = ${nameFilter ? `"${filter}"` : "nil"}
 
 local function escStr(s)
@@ -52,11 +56,15 @@ mt.__namecall = newcclosure(function(self, ...)
         local name = tostring(self.Name or self)
         local match = not NAME_FILTER or name:lower():find(NAME_FILTER:lower(), 1, true)
         if match and #logs < 500 then
+            -- select('#', ...) keeps nil holes; {...} plus argCount lets the
+            -- serializer preserve them instead of truncating at the first nil.
+            local args = {...}
             table.insert(logs, {
                 name = name,
                 method = method,
                 t = math.floor((os.clock() - startTime) * 1000),
-                args = {...}
+                args = args,
+                argCount = select('#', ...)
             })
         end
     end
@@ -74,8 +82,8 @@ task.delay(DURATION, function()
     local entries = {}
     for _, log in ipairs(logs) do
         local argParts = {}
-        for _, a in ipairs(log.args) do
-            table.insert(argParts, serialize(a))
+        for i = 1, log.argCount do
+            table.insert(argParts, serialize(log.args[i]))
         end
         table.insert(entries, string.format(
             '{"name":%s,"method":%s,"t":%d,"args":[%s]}',
@@ -122,9 +130,11 @@ export default function register(server: McpServer): void {
         inputSchema: z.object({
             duration: z
                 .number()
+                .min(1)
+                .max(600)
                 .optional()
                 .default(10)
-                .describe("Seconds to capture remote calls (default: 10)"),
+                .describe("Seconds to capture remote calls (default: 10, max: 600)"),
             nameFilter: z
                 .string()
                 .optional()

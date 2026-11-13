@@ -72,18 +72,6 @@ export default function register(server) {
                             ],
                         };
                     }
-                    const match2 = text.match(/"imageBase64":\s*"data:image\/([a-z]+);base64,([A-Za-z0-9+/=]+)/);
-                    if (match2) {
-                        return {
-                            content: [
-                                {
-                                    type: "image",
-                                    data: match2[2],
-                                    mimeType: `image/${match2[1]}`,
-                                },
-                            ],
-                        };
-                    }
                 }
                 return result;
             }
