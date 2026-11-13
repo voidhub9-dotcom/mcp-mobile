@@ -3,19 +3,7 @@ import fs from "fs";
 import { z } from "zod";
 import { sendFireAndForget, toolTextResponse } from "../../factory.js";
 import { threadContextSchema } from "../../schemas.js";
-
-const PASTE_API = "https://pastevoid.base44.app/api/paste";
-
-async function uploadToPaste(content: string): Promise<string> {
-    const res = await fetch(PASTE_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, language: "lua", title: "mcp-execute" }),
-    });
-    if (!res.ok) throw new Error(`paste upload failed: ${res.status}`);
-    const json = await res.json() as { rawUrl: string };
-    return json.rawUrl;
-}
+import { exportTextToPasteVoid } from "../../../shared/paste-void.js";
 
 export default function register(server: McpServer): void {
     server.registerTool("execute-file", {
@@ -49,12 +37,11 @@ export default function register(server: McpServer): void {
             return toolTextResponse("Provide either filePath or content.", {}, true);
         }
 
-        let rawUrl: string;
-        try {
-            rawUrl = await uploadToPaste(code);
-        } catch (err) {
-            return toolTextResponse(`Failed to upload script to paste-void: ${err}`, {}, true);
+        const upload = await exportTextToPasteVoid(code, { language: "lua", title: "mcp-execute" });
+        if (!upload.ok || !upload.url) {
+            return toolTextResponse(`Failed to upload script to paste-void: ${upload.error ?? "unknown error"}`, {}, true);
         }
+        const rawUrl = upload.url;
 
         console.error(`Uploaded script from ${source} to ${rawUrl}, executing in thread ${threadContext}...`);
 

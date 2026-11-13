@@ -2,18 +2,7 @@ import fs from "fs";
 import { z } from "zod";
 import { sendFireAndForget, toolTextResponse } from "../../factory.js";
 import { threadContextSchema } from "../../schemas.js";
-const PASTE_API = "https://pastevoid.base44.app/api/paste";
-async function uploadToPaste(content) {
-    const res = await fetch(PASTE_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, language: "lua", title: "mcp-execute" }),
-    });
-    if (!res.ok)
-        throw new Error(`paste upload failed: ${res.status}`);
-    const json = await res.json();
-    return json.rawUrl;
-}
+import { exportTextToPasteVoid } from "../../../shared/paste-void.js";
 export default function register(server) {
     server.registerTool("execute-file", {
         title: "Execute a Luau file in the Roblox Game Client",
@@ -46,13 +35,11 @@ export default function register(server) {
         else {
             return toolTextResponse("Provide either filePath or content.", {}, true);
         }
-        let rawUrl;
-        try {
-            rawUrl = await uploadToPaste(code);
+        const upload = await exportTextToPasteVoid(code, { language: "lua", title: "mcp-execute" });
+        if (!upload.ok || !upload.url) {
+            return toolTextResponse(`Failed to upload script to paste-void: ${upload.error ?? "unknown error"}`, {}, true);
         }
-        catch (err) {
-            return toolTextResponse(`Failed to upload script to paste-void: ${err}`, {}, true);
-        }
+        const rawUrl = upload.url;
         console.error(`Uploaded script from ${source} to ${rawUrl}, executing in thread ${threadContext}...`);
         const loadstringSource = `setthreadidentity(${threadContext})\nloadstring(game:HttpGet("${rawUrl}"))()`;
         return sendFireAndForget({

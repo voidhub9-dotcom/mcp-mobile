@@ -2,6 +2,7 @@ import { z } from "zod";
 import { sendAndWait, clientStampPrefix } from "../../factory.js";
 import { maxOutputCharsSchema } from "../../schemas.js";
 import { isSupported as osScreenshotSupported, performScreenshot } from "../../../platform/windows-screenshot.js";
+import { exportImageToPasteVoid } from "../../../shared/paste-void.js";
 function parseImageFromText(text) {
     const patterns = [
         /data:image\/([a-z]+);base64,([A-Za-z0-9+/=]+)/,
@@ -49,38 +50,6 @@ function parseCaptureErrorFromResult(result) {
     }
     catch {
         return false;
-    }
-}
-/** Upload a base64 image to paste-void; returns the hosted URL. */
-async function exportImageToPasteVoid(base64, mimeType) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
-    try {
-        const response = await fetch("https://pastevoid.base44.app/api/upload-image", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ image: `data:${mimeType};base64,${base64}` }),
-            signal: controller.signal,
-        });
-        const body = await response.text();
-        if (!response.ok)
-            return { ok: false, error: `paste-void returned HTTP ${response.status}` };
-        const parsed = body ? JSON.parse(body) : {};
-        if (parsed && typeof parsed === "object") {
-            const record = parsed;
-            for (const key of ["rawUrl", "url", "link", "imageUrl"]) {
-                const candidate = record[key];
-                if (typeof candidate === "string" && /^https?:\/\//.test(candidate))
-                    return { ok: true, url: candidate };
-            }
-        }
-        return { ok: false, error: "paste-void response did not include a URL" };
-    }
-    catch (error) {
-        return { ok: false, error: error instanceof Error ? error.message : String(error) };
-    }
-    finally {
-        clearTimeout(timer);
     }
 }
 export default function register(server) {

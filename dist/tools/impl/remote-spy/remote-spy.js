@@ -1,17 +1,6 @@
 import { z } from "zod";
 import { sendFireAndForget, toolTextResponse } from "../../factory.js";
-const PASTE_API = "https://pastevoid.base44.app/api/paste";
-async function uploadToPaste(content, title) {
-    const res = await fetch(PASTE_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, language: "lua", title }),
-    });
-    if (!res.ok)
-        throw new Error(`paste upload failed: ${res.status}`);
-    const json = await res.json();
-    return json.rawUrl;
-}
+import { exportTextToPasteVoid, PASTE_VOID_TEXT_ENDPOINT } from "../../../shared/paste-void.js";
 function buildCaptureScript(duration, nameFilter) {
     const filter = nameFilter ? nameFilter.replace(/'/g, "\\'") : "";
     return `
@@ -94,7 +83,7 @@ task.delay(DURATION, function()
     local jsonBody = '[' .. table.concat(entries, ',') .. ']'
 
     local uploadOk, result = pcall(request, {
-        Url = "${PASTE_API}",
+        Url = "${PASTE_VOID_TEXT_ENDPOINT}",
         Method = "POST",
         Headers = { ["Content-Type"] = "application/json" },
         Body = '{"content":' .. serialize(jsonBody) .. ',"language":"json","title":"remote-spy-capture"}'
@@ -139,13 +128,11 @@ export default function register(server) {
         }),
     }, async ({ duration, nameFilter }) => {
         const script = buildCaptureScript(duration, nameFilter);
-        let rawUrl;
-        try {
-            rawUrl = await uploadToPaste(script, "mcp-remote-spy");
+        const upload = await exportTextToPasteVoid(script, { language: "lua", title: "mcp-remote-spy" });
+        if (!upload.ok || !upload.url) {
+            return toolTextResponse(`Failed to upload capture script to paste-void: ${upload.error ?? "unknown error"}`, {}, true);
         }
-        catch (err) {
-            return toolTextResponse(`Failed to upload capture script to paste-void: ${err}`, {}, true);
-        }
+        const rawUrl = upload.url;
         const loadstringSource = `setthreadidentity(8)\nloadstring(game:HttpGet("${rawUrl}"))()`;
         return sendFireAndForget({
             type: "execute",
