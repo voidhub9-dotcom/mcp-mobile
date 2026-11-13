@@ -12,7 +12,7 @@ RUN npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts
 COPY . .
 
 # Build
-RUN npx tsc && node scripts/copy-assets.mjs 2>/dev/null || true
+RUN npx tsc && node scripts/copy-assets.mjs
 
 # Environment defaults
 ENV PORT=16384

@@ -2,7 +2,7 @@ services:
   - type: web
     name: roblox-mcp-mobile
     env: node
-    buildCommand: npm install --ignore-scripts && npx tsc && node scripts/copy-assets.mjs 2>/dev/null || true
+    buildCommand: npm install --ignore-scripts && npx tsc && node scripts/copy-assets.mjs
     startCommand: node dist/index.js --http
     envVars:
       - key: NODE_ENV

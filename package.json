@@ -13,7 +13,6 @@
     "mobile-connector.luau",
     "mobile-probe.luau",
     "README.md",
-    "MOBILE-README.md",
     "docs",
     "termux-setup.sh",
     "termux-start.sh",
@@ -36,11 +35,11 @@
     "start:http": "node dist/index.js --http",
     "start:mobile": "node dist/index.js --http",
     "update": "bun scripts/install-harnesses.mjs --update",
-    "prepare": "bun run build"
+    "prepare": "npm run build"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "packageManager": "bun@1.3.13",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.1",
