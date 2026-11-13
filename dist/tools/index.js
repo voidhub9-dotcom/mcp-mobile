@@ -30,6 +30,7 @@ import registerTypeTextBox from "./impl/gui/type-text-box.js";
 import registerClickButton from "./impl/gui/click-button.js";
 import registerScreenshotWindow from "./impl/windows/screenshot-window.js";
 import registerListRobloxWindows from "./impl/windows/list-roblox-windows.js";
+import registerResearchGame from "./impl/research/research-game.js";
 export function registerAllTools(server) {
     registerSetActiveClient(server);
     registerListClients(server);
@@ -63,4 +64,5 @@ export function registerAllTools(server) {
     registerClickButton(server);
     registerScreenshotWindow(server);
     registerListRobloxWindows(server);
+    registerResearchGame(server);
 }
