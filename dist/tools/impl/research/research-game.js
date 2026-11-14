@@ -324,10 +324,12 @@ export async function scriptBloxSearch(query, max = 25) {
             const script = entry;
             const title = typeof script.title === "string" ? script.title : "";
             const slug = typeof script.slug === "string" ? script.slug : "";
-            if (!title || !slug)
+            const id = typeof script._id === "string" ? script._id : "";
+            if (!title || !slug || !id)
                 continue;
             const game = (typeof script.game === "object" && script.game !== null ? script.game : {});
             out.push({
+                id,
                 title: title.slice(0, 200),
                 slug,
                 gameName: typeof game.name === "string" ? game.name : "",
@@ -338,6 +340,30 @@ export async function scriptBloxSearch(query, max = 25) {
             });
         }
         return out;
+    }
+    catch {
+        return [];
+    }
+}
+/**
+ * Fetch a single script's posted feature list from the ScriptBlox detail API.
+ * Posts describe their features as section headers plus "- " bullet lines,
+ * e.g. "Auto Play\n- Auto Receive\n- Auto Set". Returns the cleaned lines.
+ */
+export async function fetchScriptBloxFeatures(scriptId) {
+    const text = await fetchText(`https://scriptblox.com/api/script/${encodeURIComponent(scriptId)}`);
+    if (!text)
+        return [];
+    try {
+        const parsed = JSON.parse(text);
+        const features = parsed.script?.features;
+        if (typeof features !== "string" || features.trim().length === 0)
+            return [];
+        return features
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 1 && line.length <= 200)
+            .slice(0, 20);
     }
     catch {
         return [];
@@ -455,7 +481,7 @@ export function compileFeatureMap(input) {
     if (scripts && scripts.length > 0) {
         lines.push("## Community script features (ScriptBlox)");
         lines.push("");
-        lines.push("Script titles describe what the game lets you do — treat them as a feature list.");
+        lines.push("Script posts list what the game lets you do — the feature lists below are copied from each post.");
         for (const script of scripts.slice(0, 10)) {
             const flags = [
                 script.verified ? "verified" : null,
@@ -463,6 +489,8 @@ export function compileFeatureMap(input) {
                 `${script.views.toLocaleString("en-US")} views`,
             ].filter(Boolean).join(", ");
             lines.push(`- ${script.title} (${flags}) — https://scriptblox.com/script/${script.slug}`);
+            for (const feature of script.featureLines ?? [])
+                lines.push(`  ${feature.replace(/^[-*•]\s*/, "")}`);
         }
         lines.push("");
     }
@@ -547,15 +575,18 @@ export default function register(server) {
         if (!name)
             return toolTextResponse("Could not resolve the game name. Provide gameName explicitly.", {}, true);
         // Community scripts describe the game's features directly. Search
-        // ScriptBlox for this game and keep only scripts that target it.
+        // ScriptBlox for this game, keep only scripts that target it, and
+        // pull each post's full feature list from its detail page.
         const scriptSearchName = sanitizeForSearch(name) || name;
-        const scriptCandidates = [
-            ...await scriptBloxSearch(scriptSearchName),
-        ];
-        const gameScripts = filterScriptsForGame(scriptCandidates, {
+        const scriptCandidates = await scriptBloxSearch(scriptSearchName);
+        const matchedScripts = filterScriptsForGame(scriptCandidates, {
             gameName: name,
             rootPlaceId,
         });
+        const gameScripts = await Promise.all(matchedScripts.slice(0, 4).map(async (script) => ({
+            ...script,
+            featureLines: await fetchScriptBloxFeatures(script.id),
+        })));
         // Multi-site web research via Bing, with DuckDuckGo and Mojeek as
         // fallbacks when Bing blocks or challenges the host. Emoji and other
         // non-ASCII in game names confuse search engines, so queries use a

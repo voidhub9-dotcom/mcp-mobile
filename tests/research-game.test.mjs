@@ -8,6 +8,7 @@ import {
     filterScriptsForGame,
     scriptBloxSearch,
     fetchUniverseInfo,
+    fetchScriptBloxFeatures,
     decodeBingRedirect,
     parseBingResults,
     extractFeatureLines,
@@ -218,9 +219,9 @@ test("filterRelevantResults requires a Roblox hint for single-token names", () =
 
 test("filterScriptsForGame keeps game scripts and drops universal hubs", () => {
     const scripts = [
-        { title: "Axon Hub | 100+ Games", slug: "hub", gameName: "Script hub", gameId: -1, views: 301069, verified: true, isPatched: false },
-        { title: "AUTO RECEIVE, LAND PREDICTOR, PERFECT SERVE", slug: "arcane-vb", gameName: "[UPD] Volleyball Legends", gameId: 73956553001240, views: 405, verified: false, isPatched: false },
-        { title: "OP Ball Hitbox Expander", slug: "hitbox", gameName: "[UPD] Volleyball Legends", gameId: 73956553001240, views: 5050, verified: false, isPatched: true },
+        { title: "Axon Hub | 100+ Games", slug: "hub", id: "hub1", gameName: "Script hub", gameId: -1, views: 301069, verified: true, isPatched: false },
+        { title: "AUTO RECEIVE, LAND PREDICTOR, PERFECT SERVE", slug: "arcane-vb", id: "vb1", gameName: "[UPD] Volleyball Legends", gameId: 73956553001240, views: 405, verified: false, isPatched: false },
+        { title: "OP Ball Hitbox Expander", slug: "hitbox", id: "vb2", gameName: "[UPD] Volleyball Legends", gameId: 73956553001240, views: 5050, verified: false, isPatched: true },
     ];
     const kept = filterScriptsForGame(scripts, { gameName: "Volleyball Legends", rootPlaceId: 73956553001240 });
     assert.equal(kept.length, 2);
@@ -230,8 +231,8 @@ test("filterScriptsForGame keeps game scripts and drops universal hubs", () => {
 
 test("filterScriptsForGame falls back to name-token matching without a root place", () => {
     const scripts = [
-        { title: "Auto Farm for Brookhaven", slug: "bh-farm", gameName: "Brookhaven RP", gameId: 123, views: 10, verified: false, isPatched: false },
-        { title: "Some Other Game Script", slug: "other", gameName: "Adopt Me", gameId: 456, views: 10, verified: false, isPatched: false },
+        { title: "Auto Farm for Brookhaven", slug: "bh-farm", id: "bh1", gameName: "Brookhaven RP", gameId: 123, views: 10, verified: false, isPatched: false },
+        { title: "Some Other Game Script", slug: "other", id: "other1", gameName: "Adopt Me", gameId: 456, views: 10, verified: false, isPatched: false },
     ];
     const kept = filterScriptsForGame(scripts, { gameName: "Brookhaven" });
     assert.equal(kept.length, 1);
@@ -243,6 +244,7 @@ test("scriptBloxSearch parses the ScriptBlox API response", async (t) => {
         result: {
             scripts: [
                 {
+                    _id: "abc123",
                     title: "AUTO RECEIVE, LAND PREDICTOR",
                     slug: "Arcane-Volleyball-1",
                     game: { name: "[UPD] Volleyball Legends", gameId: 73956553001240 },
@@ -281,4 +283,43 @@ test("compileFeatureMap includes the ScriptBlox section", () => {
     assert.match(map, /## Community script features \(ScriptBlox\)/);
     assert.match(map, /AUTO RECEIVE, LAND PREDICTOR/);
     assert.match(map, /https:\/\/scriptblox\.com\/script\/Arcane-Volleyball-1/);
+});
+
+test("fetchScriptBloxFeatures reads the posted feature list from the detail API", async (t) => {
+    const calls = stubFetch(t, () => textResponse(JSON.stringify({
+        script: { features: "Auto Play\n- Auto Receive\n- Auto Set\n\nReach\n- Hitbox Expander" },
+    })));
+    const features = await fetchScriptBloxFeatures("6af66cffc530fe73c1470d0d");
+    assert.deepEqual(features, ["Auto Play", "- Auto Receive", "- Auto Set", "Reach", "- Hitbox Expander"]);
+    assert.match(calls[0].url, /scriptblox\.com\/api\/script\/6af66cffc530fe73c1470d0d/);
+});
+
+test("compileFeatureMap renders each post's feature lines under its script", () => {
+    const map = compileFeatureMap({
+        gameName: "Volleyball Legends",
+        searchResults: [],
+        wikiPages: [],
+        scripts: [
+            {
+                title: "AUTO RECEIVE, LAND PREDICTOR, PERFECT SERVE",
+                slug: "Arcane-Volleyball-1",
+                id: "vb1",
+                gameName: "[UPD] Volleyball Legends",
+                gameId: 73956553001240,
+                views: 405,
+                verified: false,
+                isPatched: false,
+                featureLines: ["Auto Play", "- Auto Receive, choose what to receive with", "- Auto Spike and Auto Spike Jump"],
+            },
+        ],
+    });
+    assert.match(map, /## Community script features \(ScriptBlox\)/);
+    assert.match(map, /Auto Play\n  Auto Receive, choose what to receive with\n  Auto Spike and Auto Spike Jump/);
+});
+
+test("fetchScriptBloxFeatures returns empty on failure or missing features", async (t) => {
+    stubFetch(t, () => textResponse(JSON.stringify({ script: {} })));
+    assert.deepEqual(await fetchScriptBloxFeatures("nope"), []);
+    stubFetch(t, () => ({ ok: false, status: 500, text: async () => "" }));
+    assert.deepEqual(await fetchScriptBloxFeatures("nope"), []);
 });
