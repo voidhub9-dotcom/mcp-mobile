@@ -3741,6 +3741,52 @@ return q
 end)(),
 }
 end)
+
+f:BindToType("get-ai-script-context",function(g)
+g=type(g)=="table"and g or{}
+local h=type(g.goal)=="string"and string.sub(g.goal,1,500)or""
+local i=g.includeUi~=false
+local j=g.includeSystems~=false
+local k=math.max(5,math.min(tonumber(g.maxUiElements)or 20,40))
+local l=math.max(5,math.min(tonumber(g.maxSystems)or 30,60))
+
+local function observe(m,n)
+local o=f.Callbacks and f.Callbacks[m]
+if type(o)~="function"then
+return{error="Observation callback unavailable: "..m}
+end
+local p,q=pcall(o,n)
+if p then return q end
+return{error="Observation failed: "..tostring(q)}
+end
+
+local m=observe("get-game-info",{includeDescription=false})
+local n=observe("get-player-state",{})
+local o=i and observe("get-game-guis",{
+includeHidden=false,
+maxDepth=3,
+limit=k,
+})or nil
+local p=j and observe("find-game-systems",{
+limit=l,
+})or nil
+
+return{
+kind="read-only-ai-script-context",
+capturedAt=os.time(),
+requestedGoal=h~=""and h or nil,
+game=m,
+player=n,
+interface=o,
+systems=p,
+authoringGuidance={
+"Base script suggestions on the observed names, paths, values, and UI elements in this snapshot.",
+"Treat observed instances as evidence, not guarantees: validate availability and type before using them.",
+"Prefer a small read-only probe before any game-state-changing action.",
+"Do not suggest security, anti-cheat, access-control, or remote-validation bypasses.",
+},
+}
+end)
 end end function a.u():typeof(__modImpl())local b=a.cache.u if not b then b={c=__modImpl()}a.cache.u=b end return b.c end end do local function __modImpl()
 
 local b=game:GetService"Players"

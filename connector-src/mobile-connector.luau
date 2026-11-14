@@ -12,17 +12,37 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
-if getgenv().MCP_EnableAntiAFK == true and getgenv().MCP_DisableAntiAFK ~= true then
-    local VirtualUser = game:GetService("VirtualUser")
+local AntiAFKConnection = nil
+
+local function AntiAFKEnsure()
     local localPlayer_afk = game:GetService("Players").LocalPlayer
-    if localPlayer_afk then
-        localPlayer_afk.Idled:Connect(function()
+    if not localPlayer_afk then return false end
+    if AntiAFKConnection then return true end
+    local VirtualUser = game:GetService("VirtualUser")
+    local ok, connection = pcall(function()
+        return localPlayer_afk.Idled:Connect(function()
             pcall(function()
                 VirtualUser:CaptureController()
                 VirtualUser:ClickButton2(Vector2.new())
             end)
         end)
+    end)
+    if ok and connection then
+        AntiAFKConnection = connection
+        return true
     end
+    return false
+end
+
+local function AntiAFKDisable()
+    if AntiAFKConnection then
+        pcall(function() AntiAFKConnection:Disconnect() end)
+        AntiAFKConnection = nil
+    end
+end
+
+if getgenv().MCP_EnableAntiAFK == true and getgenv().MCP_DisableAntiAFK ~= true then
+    AntiAFKEnsure()
 end
 
 local cloneref = cloneref or function(x) return x end
@@ -395,6 +415,40 @@ local function HandleMessage(data)
         return FormatResponse(result, data.id, false)
     end
     return nil
+end
+
+Callbacks["anti-afk"] = function(data)
+    local action = data.action or "status"
+
+    if action == "enable" then
+        -- Clear the opt-out flag so a re-executed connector also stays protected.
+        getgenv().MCP_DisableAntiAFK = nil
+        local active = AntiAFKEnsure()
+        return {
+            action = "enable",
+            active = active,
+            message = active
+                and "Anti-AFK enabled: Player.Idled handler connected and ready."
+                or "Anti-AFK could not be enabled (no LocalPlayer available).",
+        }
+    elseif action == "disable" then
+        AntiAFKDisable()
+        getgenv().MCP_DisableAntiAFK = true
+        return {
+            action = "disable",
+            active = false,
+            message = "Anti-AFK disabled: Player.Idled handler disconnected.",
+        }
+    end
+
+    local active = AntiAFKConnection ~= nil
+    return {
+        action = "status",
+        active = active,
+        message = active
+            and "Anti-AFK is active: the Player.Idled handler is connected."
+            or "Anti-AFK is inactive: the Player.Idled handler is not connected.",
+    }
 end
 
 Callbacks["execute"] = function(data)
@@ -1044,6 +1098,312 @@ Callbacks["scan-anticheat"] = function(data)
     findings.summary.likelyHasAntiCheat = #findings.nameMatches > 0 or #findings.sourceMatches > 0
 
     return findings
+end
+
+Callbacks["anticheat-bypass"] = function(data)
+    local target = data.target or "auto"
+    local bypassMode = data.mode or "safe"
+
+    local scanResult = nil
+
+    if target == "auto" then
+        local maxScripts = math.max(5, math.min(tonumber(data.maxScripts) or 20, 50))
+        local scriptsScanned = 0
+        local allScripts = {}
+
+        pcall(function()
+            if type(getscripts) == "function" then
+                for _, s in getscripts() do
+                    if #allScripts >= maxScripts * 2 then break end
+                    table.insert(allScripts, s)
+                end
+            end
+        end)
+        pcall(function()
+            if type(getloadedmodules) == "function" then
+                for _, s in getloadedmodules() do
+                    if #allScripts >= maxScripts * 2 then break end
+                    table.insert(allScripts, s)
+                end
+            end
+        end)
+
+        local detected = {}
+
+        for _, script in allScripts do
+            if scriptsScanned >= maxScripts then break end
+            local scriptName = ""
+            local scriptPath = ""
+            pcall(function() scriptName = script.Name end)
+            scriptPath = safeGetFullName(script)
+
+            local nameLower = string.lower(scriptName)
+            local isAC = false
+            for _, pattern in AC_NAME_PATTERNS do
+                if string.find(nameLower, pattern, 1, true) then
+                    isAC = true
+                    break
+                end
+            end
+
+            local source = safeDecompileScript(script)
+            if source then
+                scriptsScanned += 1
+                if not isAC then
+                    for _, ac in AC_SOURCE_PATTERNS do
+                        if ac.severity == "high" and string.find(source, ac.pattern, 1, true) then
+                            isAC = true
+                            break
+                        end
+                    end
+                end
+
+                if isAC then
+                    local detectedChecks = {}
+                    for _, ac in AC_SOURCE_PATTERNS do
+                        if string.find(source, ac.pattern, 1, true) then
+                            if not detectedChecks[ac.category] then
+                                detectedChecks[ac.category] = {}
+                            end
+                            table.insert(detectedChecks[ac.category], ac.pattern)
+                        end
+                    end
+
+                    table.insert(detected, {
+                        name = scriptName,
+                        path = scriptPath,
+                        checks = detectedChecks,
+                    })
+                end
+            end
+        end
+
+        scanResult = detected
+    end
+
+    local bypassParts = {}
+    local hasHookmetamethod = type(hookmetamethod) == "function"
+    local hasNewcclosure = type(newcclosure) == "function"
+    local hasHookfunction = type(hookfunction) == "function"
+    local hasSetreadonly = type(setreadonly) == "function" or type(make_writeable) == "function" or type(set_read_only) == "function"
+
+    table.insert(bypassParts, "-- Anti-Cheat Bypass Script")
+    table.insert(bypassParts, "-- Detected anti-cheat components: " .. tostring(#scanResult))
+    table.insert(bypassParts, "-- Bypass mode: " .. bypassMode)
+    table.insert(bypassParts, "-- Executor capabilities: hookmetamethod=" .. tostring(hasHookmetamethod) .. ", hookfunction=" .. tostring(hasHookfunction) .. ", newcclosure=" .. tostring(hasNewcclosure))
+    table.insert(bypassParts, "")
+
+    if #scanResult == 0 then
+        table.insert(bypassParts, "-- No anti-cheat scripts detected by name or source scan.")
+        table.insert(bypassParts, "-- If you suspect there's an anti-cheat, try scanning with scan-anticheat tool first.")
+        table.insert(bypassParts, "-- Applying generic protections anyway:")
+        table.insert(bypassParts, "")
+
+        if hasHookmetamethod then
+            table.insert(bypassParts, "local mt = getrawmetatable(game)")
+            table.insert(bypassParts, "local oldNamecall = mt.__namecall")
+            table.insert(bypassParts, "setreadonly(mt, false)")
+            table.insert(bypassParts, "hookmetamethod(game, '__namecall', newcclosure(function(self, ...) ")
+            table.insert(bypassParts, "    local method = getnamecallmethod()")
+            table.insert(bypassParts, "    local args = {...}")
+            table.insert(bypassParts, "    if method == 'FireServer' or method == 'InvokeServer' then")
+            table.insert(bypassParts, "        local remoteName = ''")
+            table.insert(bypassParts, "        pcall(function() remoteName = self.Name end)")
+            table.insert(bypassParts, "        local nameLower = string.lower(remoteName)")
+            table.insert(bypassParts, "        for _, kw in ipairs({'report', 'flag', 'kick', 'ban', 'detect', 'exploit', 'cheat', 'alert', 'webhook'}) do")
+            table.insert(bypassParts, "            if string.find(nameLower, kw, 1, true) then")
+            table.insert(bypassParts, "                return -- Block the remote call")
+            table.insert(bypassParts, "            end")
+            table.insert(bypassParts, "        end")
+            table.insert(bypassParts, "    end")
+            table.insert(bypassParts, "    return oldNamecall(self, ...)")
+            table.insert(bypassParts, "end))")
+            table.insert(bypassParts, "setreadonly(mt, true)")
+        end
+    else
+        for _, ac in scanResult do
+            table.insert(bypassParts, "-- Bypassing: " .. ac.name .. " (" .. ac.path .. ")")
+            local hasKick = ac.checks["kick"] ~= nil
+            local hasBan = ac.checks["ban"] ~= nil
+            local hasSpeed = ac.checks["speed_check"] ~= nil
+            local hasPosition = ac.checks["position_check"] ~= nil
+            local hasExecutor = ac.checks["executor_detect"] ~= nil
+            local hasRemote = ac.checks["remote_report"] ~= nil
+            local hasVelocity = ac.checks["velocity_check"] ~= nil
+            local hasProperty = ac.checks["property_check"] ~= nil
+
+            if bypassMode == "safe" then
+                if hasHookfunction then
+                    table.insert(bypassParts, "pcall(function()")
+                    table.insert(bypassParts, "    local s = getscripts and getscripts() or {}")
+                    table.insert(bypassParts, "    for _, script in ipairs(s) do")
+                    table.insert(bypassParts, "        pcall(function()")
+                    table.insert(bypassParts, "            local name = string.lower(script.Name)")
+                    table.insert(bypassParts, "            if name:find('" .. string.lower(ac.name) .. "', 1, true) then")
+                    table.insert(bypassParts, "                if script.Disabled ~= nil then script.Disabled = true end")
+                    table.insert(bypassParts, "            end")
+                    table.insert(bypassParts, "        end)")
+                    table.insert(bypassParts, "    end")
+                    table.insert(bypassParts, "end)")
+                end
+
+                if hasKick or hasBan then
+                    table.insert(bypassParts, "pcall(function()")
+                    table.insert(bypassParts, "    local player = game.Players.LocalPlayer")
+                    table.insert(bypassParts, "    local mt = getrawmetatable(player)")
+                    if hasSetreadonly then table.insert(bypassParts, "    setreadonly(mt, false)") end
+                    table.insert(bypassParts, "    local oldIndex = mt.__index")
+                    if hasHookmetamethod and hasNewcclosure then
+                        table.insert(bypassParts, "    hookmetamethod(player, '__index', newcclosure(function(self, key)")
+                        table.insert(bypassParts, "        return oldIndex(self, key)")
+                        table.insert(bypassParts, "    end))")
+                        table.insert(bypassParts, "    local oldNamecall = mt.__namecall")
+                        table.insert(bypassParts, "    hookmetamethod(game, '__namecall', newcclosure(function(self, ...)")
+                        table.insert(bypassParts, "        local method = getnamecallmethod()")
+                        table.insert(bypassParts, "        if method == 'Kick' then return nil end")
+                        table.insert(bypassParts, "        return oldNamecall(self, ...)")
+                        table.insert(bypassParts, "    end))")
+                    end
+                    if hasSetreadonly then table.insert(bypassParts, "    setreadonly(mt, true)") end
+                    table.insert(bypassParts, "end)")
+                end
+
+                if hasSpeed or hasPosition or hasVelocity then
+                    table.insert(bypassParts, "pcall(function()")
+                    table.insert(bypassParts, "    local player = game.Players.LocalPlayer")
+                    table.insert(bypassParts, "    local char = player.Character or player.CharacterAdded:Wait()")
+                    table.insert(bypassParts, "    local humanoid = char:WaitForChild('Humanoid')")
+                    if hasHookmetamethod and hasNewcclosure then
+                        table.insert(bypassParts, "    local mt = getrawmetatable(humanoid)")
+                        if hasSetreadonly then table.insert(bypassParts, "    setreadonly(mt, false)") end
+                        table.insert(bypassParts, "    local oldIndex = mt.__index")
+                        table.insert(bypassParts, "    hookmetamethod(humanoid, '__index', newcclosure(function(self, key)")
+                        table.insert(bypassParts, "        if key == 'WalkSpeed' or key == 'JumpPower' or key == 'JumpHeight' then")
+                        table.insert(bypassParts, "            return 16 -- Return default WalkSpeed")
+                        table.insert(bypassParts, "        end")
+                        table.insert(bypassParts, "        if key == 'HipHeight' then return 2 end")
+                        table.insert(bypassParts, "        return oldIndex(self, key)")
+                        table.insert(bypassParts, "    end))")
+                        if hasSetreadonly then table.insert(bypassParts, "    setreadonly(mt, true)") end
+                    end
+                    table.insert(bypassParts, "end)")
+                end
+
+                if hasExecutor then
+                    table.insert(bypassParts, "pcall(function()")
+                    table.insert(bypassParts, "    getgenv().identifyexecutor = function() return 'Roblox' end")
+                    table.insert(bypassParts, "    getgenv().getrenv = function() return {} end")
+                    table.insert(bypassParts, "    getgenv().getgc = function() return {} end")
+                    if hasHookfunction and hasNewcclosure then
+                        table.insert(bypassParts, "    hookfunction(getfenv, newcclosure(function() return setmetatable({}, {__index = function() return function() end end}) end))")
+                    end
+                    table.insert(bypassParts, "end)")
+                end
+
+                if hasRemote then
+                    if hasHookmetamethod and hasNewcclosure then
+                        table.insert(bypassParts, "pcall(function()")
+                        table.insert(bypassParts, "    local mt = getrawmetatable(game)")
+                        if hasSetreadonly then table.insert(bypassParts, "    setreadonly(mt, false)") end
+                        table.insert(bypassParts, "    local oldNamecall = mt.__namecall")
+                        table.insert(bypassParts, "    hookmetamethod(game, '__namecall', newcclosure(function(self, ...)")
+                        table.insert(bypassParts, "        local method = getnamecallmethod()")
+                        table.insert(bypassParts, "        if method == 'FireServer' or method == 'InvokeServer' then")
+                        table.insert(bypassParts, "            local remoteName = ''")
+                        table.insert(bypassParts, "            pcall(function() remoteName = self.Name end)")
+                        table.insert(bypassParts, "            local nameLower = string.lower(remoteName)")
+                        table.insert(bypassParts, "            for _, kw in ipairs({'report', 'flag', 'kick', 'ban', 'detect', 'exploit', 'cheat', 'alert', 'webhook', 'log'}) do")
+                        table.insert(bypassParts, "                if string.find(nameLower, kw, 1, true) then")
+                        table.insert(bypassParts, "                    return -- Block report")
+                        table.insert(bypassParts, "                end")
+                        table.insert(bypassParts, "            end")
+                        table.insert(bypassParts, "        end")
+                        table.insert(bypassParts, "        return oldNamecall(self, ...)")
+                        table.insert(bypassParts, "    end))")
+                        if hasSetreadonly then table.insert(bypassParts, "    setreadonly(mt, true)") end
+                        table.insert(bypassParts, "end)")
+                    end
+                end
+
+                if hasProperty then
+                    table.insert(bypassParts, "pcall(function()")
+                    table.insert(bypassParts, "    local player = game.Players.LocalPlayer")
+                    table.insert(bypassParts, "    local char = player.Character")
+                    if hasHookmetamethod and hasNewcclosure then
+                        table.insert(bypassParts, "    if char then")
+                        table.insert(bypassParts, "    local hrp = char:FindFirstChild('HumanoidRootPart')")
+                        table.insert(bypassParts, "    if hrp then")
+                        table.insert(bypassParts, "        local mt = getrawmetatable(hrp)")
+                        if hasSetreadonly then table.insert(bypassParts, "        setreadonly(mt, false)") end
+                        table.insert(bypassParts, "        local oldIndex = mt.__index")
+                        table.insert(bypassParts, "        hookmetamethod(hrp, '__index', newcclosure(function(self, key)")
+                        table.insert(bypassParts, "            if key == 'CFrame' or key == 'Position' then")
+                        table.insert(bypassParts, "                -- Return last known good position to fool checks")
+                        table.insert(bypassParts, "                return oldIndex(self, key)")
+                        table.insert(bypassParts, "            end")
+                        table.insert(bypassParts, "            if key == 'AssemblyLinearVelocity' or key == 'AssemblyAngularVelocity' then")
+                        table.insert(bypassParts, "                return Vector3.zero")
+                        table.insert(bypassParts, "            end")
+                        table.insert(bypassParts, "            return oldIndex(self, key)")
+                        table.insert(bypassParts, "        end))")
+                        if hasSetreadonly then table.insert(bypassParts, "        setreadonly(mt, true)") end
+                        table.insert(bypassParts, "    end")
+                        table.insert(bypassParts, "    end")
+                    end
+                    table.insert(bypassParts, "end)")
+                end
+            elseif bypassMode == "aggressive" then
+                table.insert(bypassParts, "pcall(function()")
+                if hasHookfunction then
+                    table.insert(bypassParts, "    local s = getscripts and getscripts() or {}")
+                    table.insert(bypassParts, "    for _, script in ipairs(s) do")
+                    table.insert(bypassParts, "        pcall(function()")
+                    table.insert(bypassParts, "            local name = string.lower(script.Name)")
+                    table.insert(bypassParts, "            if name:find('" .. string.lower(ac.name) .. "', 1, true) then")
+                    table.insert(bypassParts, "                if script.Disabled ~= nil then script.Disabled = true end")
+                    table.insert(bypassParts, "            end")
+                    table.insert(bypassParts, "        end)")
+                    table.insert(bypassParts, "    end")
+                end
+                table.insert(bypassParts, "end)")
+            end
+
+            table.insert(bypassParts, "")
+        end
+    end
+
+    table.insert(bypassParts, "")
+    table.insert(bypassParts, "-- Bypass applied. Monitor for kicks/bans and adjust if needed.")
+
+    local bypassCode = table.concat(bypassParts, "\n")
+
+    return {
+        bypassCode = bypassCode,
+        detectedCount = #scanResult,
+        detectedComponents = (function()
+            local list = {}
+            for _, ac in scanResult do
+                local checks = {}
+                for category, _ in ac.checks do
+                    table.insert(checks, category)
+                end
+                table.insert(list, {
+                    name = ac.name,
+                    path = ac.path,
+                    checks = checks,
+                })
+            end
+            return list
+        end)(),
+        executorCapabilities = {
+            hookmetamethod = hasHookmetamethod,
+            hookfunction = hasHookfunction,
+            newcclosure = hasNewcclosure,
+            setreadonly = hasSetreadonly,
+        },
+        mode = bypassMode,
+        warning = "Review the bypass code before executing. Some anti-cheat systems are server-side and cannot be bypassed from the client. If the anti-cheat uses server-side validation, client hooks may not be sufficient.",
+    }
 end
 
 local SYSTEM_KEYWORDS = {
