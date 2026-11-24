@@ -57,6 +57,17 @@ A live status dashboard is available at `http://localhost:16384/` when the serve
 
 Under **Settings → Decompiler fallbacks**, choose **Add provider → Custom provider** to add an HTTP decompiler to the fallback chain. You can add multiple custom providers; each keeps an independent workflow, fallback position, endpoint, authentication, headers, timeout, and health state. The custom-provider editor uses a pannable, zoomable node canvas: add blocks, drag them into place, and connect their ports to define the bytecode-to-source path. Bytecode and Source are permanent boundary blocks. Use Set Variable to name the current raw or base64 value, then reference it in the Request headers or body with `{{variable_name}}`; the optional API key is available as `{{api_key}}`. Type `{{` for autocomplete, use the arrow keys to choose a variable, and press Enter or Tab to insert it. Undo and redo are available from the toolbar or with Command/Ctrl+Z, Command/Ctrl+Shift+Z, and Ctrl+Y. The Request response port can connect directly to Source for plain text or through Parse JSON for a configurable dot-path field.
 
+## Server Hop (`server-hop`)
+
+The `server-hop` tool rides the existing `get-data-by-code` bridge type, so both the desktop and mobile connectors serve it without any connector artifact changes. The hop itself runs inside the Roblox client:
+
+1. The client fetches the public server list from the Roblox games API (`games.roblox.com/v1/games/<placeId>/servers/Public`, up to `maxPages` pages of 100), with the legacy `getgameinstancesjson` endpoint as a fallback when the modern API returns nothing.
+2. The current `jobId` (plus any `excludeJobIds`) is filtered out, and a destination is picked by `mode`: `random`, `lowest-players`, or `lowest-ping`. With an explicit `jobId` the list scan is skipped entirely.
+3. Before teleporting, the connector loader is queued with `queue_on_teleport` when the executor provides it. The queued script resets `MCP_Loaded`, picks the right connector (`/script.luau` when the desktop bridge marker `MCP_ActiveBridge` is present, otherwise `/mobile-connector.luau`), and reloads it in the destination server so remote control survives the hop.
+4. `TeleportService:TeleportToPlaceInstance` (or `TeleportService:Teleport` for a cross-game hop with no listed servers) initiates the move, and the result table (chosen server, players, ping, reconnect status) is returned to the agent.
+
+Known limits: teleports only work from a live session (after a hard kick the client has no character to teleport, so `rejoin` reports that case instead of teleporting), and executors without `queue_on_teleport` rely on an autoexec loader to reconnect (the tool result says which path was taken).
+
 ## Security
 
 **This server allows arbitrary code execution.** Any connected AI client can run Lua code in your Roblox session, take screenshots, and read client data.

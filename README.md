@@ -29,6 +29,7 @@ Use it to see connected Roblox clients, inspect scripts, run tools, view server 
 - **Game Understanding** — Player state snapshot, game GUI inspection, activity tracing, and game system discovery for writing automation scripts.
 - **Anti-Cheat Tools** — Scan games for anti-cheat systems with detailed severity-level reports.
 - **Anti-AFK** — Automatically prevents idle disconnections by responding to the `Player.Idled` event. Keeps you in the game. Control it on demand with the `anti-afk` MCP tool (`enable` / `disable` / `status`).
+- **Server Hop** — Hop the connected client to another public server (`random`, `lowest-players`, `lowest-ping`, or an exact `jobId`), into a different game entirely (`placeId`), or back into the current server (`rejoin`). The connector queues itself via `queue_on_teleport` so the bridge auto-reloads in the destination server and the agent keeps remote control while you are away. See [Server Hop](#server-hop).
 - **Claude Remote Connector Support** — Works as a secure custom connector in Claude's web interface. See the [Claude Remote Connector Guide](docs/claude-connector.md).
 - **Custom AI Chat** — Built-in chat interface at `/ai` supporting any Anthropic-compatible API with api-key, bearer token, or custom header auth. Screenshot images are passed to the AI as vision content.
 - **Mobile Support** — Works with mobile executors (Delta, CodeX, VegaX, etc.) with fallbacks for missing APIs. See the [Mobile Setup Guide](docs/setup-mobile.md) or [Mobile-Only Setup Guide](docs/setup-mobile-only.md).
@@ -175,6 +176,23 @@ If you have a PC, see the [Mobile Setup Guide](docs/setup-mobile.md).
 ```lua
 loadstring(game:HttpGet("http://YOUR_PC_IP:16384/mobile-connector.luau"))("YOUR_PC_IP:16384")
 ```
+
+## Server Hop
+
+The `server-hop` MCP tool lets an AI agent move your Roblox client between servers, or into a different game entirely, without anyone touching the device. Built for unattended remote control (cloud deployment + phone executor):
+
+- **hop** — leave the current server for another public server. Pick by `mode`: `random`, `lowest-players`, or `lowest-ping`, or pass an exact `jobId`. Pass a `placeId` to hop into a different game.
+- **list** — preview candidate servers (players, ping, fps) without hopping.
+- **rejoin** — teleport back into the current server.
+
+```text
+server-hop { action: "hop", mode: "lowest-players" }        // emptiest server of the current game
+server-hop { action: "hop", placeId: 2753915549 }            // hop into a different game
+server-hop { action: "list" }                               // preview servers first
+server-hop { action: "rejoin" }                             // back into the current server
+```
+
+The public server list comes straight from the Roblox games API inside the client (up to `maxPages` x 100 servers scanned). After the teleport, the connector reloads itself via `queue_on_teleport` (when the executor supports it, e.g. Delta) so the bridge reconnects automatically and the agent keeps full tool access in the new server. If the executor lacks `queue_on_teleport`, keep the loader in your autoexec folder so it reconnects on its own.
 
 ## Claude (claude.ai) Custom Connector
 
