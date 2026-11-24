@@ -28,23 +28,52 @@ plus everything else a non-root Termux shell can do.
 
 ```bash
 pkg install curl -y
-curl -fsSL https://<your-deployment>.up.railway.app/termux/agent.sh -o agent.sh
-export MCP_AGENT_TOKEN=<the same token>
-bash agent.sh          # foreground
+mkdir -p ~/.mcp-agent
+# save your token once so foreground, background, and boot starts all find it
+echo 'MCP_AGENT_TOKEN=<the same token>' > ~/.mcp-agent/env
+curl -fsSL https://<your-deployment>.up.railway.app/termux/agent.sh \
+  -o ~/.mcp-agent/agent.sh
+bash ~/.mcp-agent/agent.sh    # foreground test run
 ```
 
-Keep it alive across sessions:
+When it looks good, background it:
 
 ```bash
-mkdir -p ~/.mcp-agent
-nohup bash agent.sh >> ~/.mcp-agent/agent.log 2>&1 &
+nohup bash ~/.mcp-agent/agent.sh >> ~/.mcp-agent/agent.log 2>&1 &
 ```
 
-Optional environment variables:
+Optional environment variables (env vars win over `~/.mcp-agent/env`):
 
 - `MCP_AGENT_BRIDGE` — bridge base URL (defaults to the public deployment)
 - `MCP_AGENT_NAME` — friendly name shown in `list-clients` (defaults to device model)
 - `MCP_AGENT_TOKEN` — the shared secret (required)
+
+## Staying alive
+
+Android is the enemy of long-running background processes. The agent already
+acquires a wake lock (`termux-wake-lock`) and writes its pid to
+`~/.mcp-agent/agent.pid`; the rest is phone configuration:
+
+1. **Do not swipe Termux from recents**, just press Home. Swiping kills the
+   process tree; backgrounding keeps the `nohup` agent alive.
+2. **Exclude Termux from battery optimization** (Android Settings → Apps →
+   Termux → Battery → Unrestricted). Without this Android will kill the agent
+   within hours or minutes, wake lock or not.
+3. **Survive reboots with Termux:Boot** (F-Droid addon):
+
+```bash
+# one time: install the Termux:Boot app from F-Droid and OPEN it once
+mkdir -p ~/.termux/boot
+curl -fsSL https://<your-deployment>.up.railway.app/termux/agent.sh \
+  -o ~/.mcp-agent/agent.sh        # (agent must exist at ~/.mcp-agent/agent.sh)
+curl -fsSL https://<your-deployment>.up.railway.app/termux/boot.sh -o ~/.termux/boot/mcp-agent.sh
+chmod +x ~/.termux/boot/mcp-agent.sh
+```
+
+The boot hook waits 30s for the network, reuses `~/.mcp-agent/env`, refuses to
+double-start (checks the pid file), and starts the agent in the background.
+
+When in doubt, check `~/.mcp-agent/agent.log`.
 
 ## Security model
 

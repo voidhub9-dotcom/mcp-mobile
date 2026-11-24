@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "http";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const AGENT_PATH = path.resolve(__dirname, "../../../termux/agent.sh");
+const AGENT_PATH = path.resolve(__dirname, "../../../../termux/agent.sh");
 export async function GET(_req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
         const source = await fs.readFile(AGENT_PATH, "utf8");

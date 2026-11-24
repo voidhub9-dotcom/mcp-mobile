@@ -16,6 +16,7 @@
     "docs",
     "termux-setup.sh",
     "termux-start.sh",
+    "termux",
     "Dockerfile",
     "railway.toml",
     "render.yaml"

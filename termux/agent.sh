@@ -20,10 +20,24 @@
 # ═══════════════════════════════════════════════════════════════
 set -u
 
+# Optional config file so boot-time starts can find the token:
+#   mkdir -p ~/.mcp-agent && echo 'MCP_AGENT_TOKEN=<token>' > ~/.mcp-agent/env
+if [ -f "$HOME/.mcp-agent/env" ]; then
+    . "$HOME/.mcp-agent/env"
+fi
+
 BRIDGE="${MCP_AGENT_BRIDGE:-https://mcp-mobile-production200.up.railway.app}"
 TOKEN="${MCP_AGENT_TOKEN:-}"
 NAME="${MCP_AGENT_NAME:-$(getprop ro.product.model 2>/dev/null | tr ' ' '-')}"
 [ -z "$NAME" ] && NAME="android-phone"
+
+# Record our pid so boot hooks and watchdogs can see we are alive.
+mkdir -p "$HOME/.mcp-agent"
+echo $$ > "$HOME/.mcp-agent/agent.pid"
+
+# Hold a wake lock so Android does not kill the agent while Termux is in the
+# background. Pair this with excluding Termux from battery optimization.
+command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock 2>/dev/null
 
 if [ -z "$TOKEN" ]; then
     echo "[agent] MCP_AGENT_TOKEN is not set."
