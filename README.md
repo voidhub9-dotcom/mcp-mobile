@@ -30,6 +30,7 @@ Use it to see connected Roblox clients, inspect scripts, run tools, view server 
 - **Anti-Cheat Tools** — Scan games for anti-cheat systems with detailed severity-level reports.
 - **Anti-AFK** — Automatically prevents idle disconnections by responding to the `Player.Idled` event. Keeps you in the game. Control it on demand with the `anti-afk` MCP tool (`enable` / `disable` / `status`).
 - **Server Hop** — Hop the connected client to another public server (`random`, `lowest-players`, `lowest-ping`, or an exact `jobId`), into a different game entirely (`placeId`), or back into the current server (`rejoin`). The connector queues itself via `queue_on_teleport` so the bridge auto-reloads in the destination server and the agent keeps remote control while you are away. See [Server Hop](#server-hop).
+- **Termux Phone Agent** — a shell agent for Termux on the phone, served the same way as the in-game connectors. The `phone-shell` tool runs commands on the phone and returns output and exit code. This is how the agent moves you between GAMES (`termux-open-url "roblox://placeId=..."`), since Roblox blocks cross-creator teleports from inside a client. See [Termux Phone Agent](#termux-phone-agent).
 - **Claude Remote Connector Support** — Works as a secure custom connector in Claude's web interface. See the [Claude Remote Connector Guide](docs/claude-connector.md).
 - **Custom AI Chat** — Built-in chat interface at `/ai` supporting any Anthropic-compatible API with api-key, bearer token, or custom header auth. Screenshot images are passed to the AI as vision content.
 - **Mobile Support** — Works with mobile executors (Delta, CodeX, VegaX, etc.) with fallbacks for missing APIs. See the [Mobile Setup Guide](docs/setup-mobile.md) or [Mobile-Only Setup Guide](docs/setup-mobile-only.md).
@@ -193,6 +194,30 @@ server-hop { action: "rejoin" }                             // back into the cur
 ```
 
 The public server list comes straight from the Roblox games API inside the client (up to `maxPages` x 100 servers scanned). After the teleport, the connector reloads itself via `queue_on_teleport` (when the executor supports it, e.g. Delta) so the bridge reconnects automatically and the agent keeps full tool access in the new server. If the executor lacks `queue_on_teleport`, keep the loader in your autoexec folder so it reconnects on its own.
+
+## Termux Phone Agent
+
+The `phone-shell` MCP tool runs shell commands in Termux on the phone and returns stdout/stderr and the exit code. The agent registers as its own bridge client (visible in `list-clients` as `mobile=termux-agent/android`) and authenticates with the `TERMUX_TOKEN` environment variable set on the server.
+
+Why it exists: Roblox refuses client-initiated teleports into universes owned by a different creator, so the `server-hop` tool can never jump your connected client into another game. The phone shell closes that gap:
+
+```text
+phone-shell { command: 'termux-open-url "roblox://placeId=2753915549/"' }   // launch straight into any game
+phone-shell { command: 'termux-open-url "roblox://placeId=...&gameInstanceId=<jobId>"' }
+```
+
+Setup:
+
+1. Server: set `TERMUX_TOKEN` (e.g. `openssl rand -hex 32`) as an environment variable and redeploy.
+2. Phone (Termux):
+
+```bash
+curl -fsSL https://<your-deployment>.up.railway.app/termux/agent.sh -o agent.sh
+export MCP_AGENT_TOKEN=<the same token>
+nohup bash agent.sh >> ~/.mcp-agent/agent.log 2>&1 &
+```
+
+The Roblox connector in your autoexec folder and the Termux agent run side by side: the connector gives remote control inside the game, the agent gives remote control of the phone itself.
 
 ## Claude (claude.ai) Custom Connector
 

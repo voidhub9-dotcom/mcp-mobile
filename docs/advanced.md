@@ -68,6 +68,16 @@ The `server-hop` tool rides the existing `get-data-by-code` bridge type, so both
 
 Known limits: teleports only work from a live session (after a hard kick the client has no character to teleport, so `rejoin` reports that case instead of teleporting), and executors without `queue_on_teleport` rely on an autoexec loader to reconnect (the tool result says which path was taken).
 
+## Phone Shell (`phone-shell`)
+
+The `phone-shell` tool sends shell commands to a Termux agent on the phone. The agent is a bridge client like the in-game connectors: it registers through `/termux/register` (authenticated against the server's `TERMUX_TOKEN` environment variable with a constant-time compare), long-polls `/poll`, and answers through `/respond`. The agent carries the `phone-shell` capability; the tool picks the most recently active agent or an explicit `clientId`, dispatches a `phone-shell` message directly (`SendArbitraryDataToClient`, not the bridge `sendAndWait` helper), and resolves the response.
+
+1. Commands run through `bash -lc` as the Termux user (no root), with the timeout the tool requested (clamped 5s to 300s) plus output truncation through the standard tool limits.
+2. The response is stdout, stderr (under a `[stderr]` marker), and the exit code on a trailing `[exit: N]` line, prefixed by the agent identity.
+3. If the agent is missing, the tool returns setup instructions instead of a generic failure.
+
+Known limits: cross-game movement is the main use case (`termux-open-url "roblox://placeId=<id>/"`, optionally `&gameInstanceId=<jobId>` to target a server), because client-initiated teleports into a different creator's universe are refused by the engine itself. The agent only reaches what a non-root Termux shell can reach.
+
 ## Security
 
 **This server allows arbitrary code execution.** Any connected AI client can run Lua code in your Roblox session, take screenshots, and read client data.

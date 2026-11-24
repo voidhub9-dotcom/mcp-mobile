@@ -8,6 +8,7 @@ import registerGetSessionAlerts from "./impl/clients/get-session-alerts.js";
 import registerCreateDiagnosticSnapshot from "./impl/clients/create-diagnostic-snapshot.js";
 import registerAntiAFK from "./impl/clients/anti-afk.js";
 import registerServerHop from "./impl/clients/server-hop.js";
+import registerPhoneShell from "./impl/clients/phone-shell.js";
 import registerExecute from "./impl/execution/execute.js";
 import registerExecuteFile from "./impl/execution/execute-file.js";
 import registerGetScriptContent from "./impl/inspection/get-script-content.js";
@@ -43,6 +44,7 @@ export function registerAllTools(server: McpServer): void {
     registerCreateDiagnosticSnapshot(server);
     registerAntiAFK(server);
     registerServerHop(server);
+    registerPhoneShell(server);
     registerExecute(server);
     registerExecuteFile(server);
     registerGetScriptContent(server);
