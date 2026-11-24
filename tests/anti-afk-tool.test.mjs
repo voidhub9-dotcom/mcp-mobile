@@ -57,4 +57,18 @@ assert.match(compiledRegistry, /anti-afk\.js/, "compiled registry must include t
 const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
 assert.match(readme, /anti-afk.*MCP tool.*enable.*disable.*status/s, "README must document the anti-afk tool actions");
 
+// 9. The mobile connector enables anti-AFK by default at load, exactly like
+// the desktop connector, and must not require an opt-in flag.
+const mobileSourcePath = new URL("../connector-src/mobile-connector.luau", import.meta.url);
+assert.ok(existsSync(mobileSourcePath), "connector-src/mobile-connector.luau must exist");
+const mobileSource = readFileSync(mobileSourcePath, "utf8");
+assert.match(
+    mobileSource,
+    /if getgenv\(\)\.MCP_DisableAntiAFK ~= true then\s*\r?\n\s*AntiAFKEnsure\(\)/,
+    "mobile connector must enable anti-AFK by default at load (opt-out only)",
+);
+assert.doesNotMatch(mobileSource, /MCP_EnableAntiAFK/, "mobile connector must not require an opt-in flag for anti-AFK");
+const servedMobile = readFileSync(new URL("../mobile-connector.luau", import.meta.url), "utf8");
+assert.equal(servedMobile, mobileSource, "the served mobile-connector.luau must stay in sync with connector-src/mobile-connector.luau");
+
 console.log("anti-afk tool test passed");

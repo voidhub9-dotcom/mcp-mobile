@@ -41,7 +41,9 @@ local function AntiAFKDisable()
     end
 end
 
-if getgenv().MCP_EnableAntiAFK == true and getgenv().MCP_DisableAntiAFK ~= true then
+-- Anti-AFK is on by default (same as the desktop connector); opt out with
+-- getgenv().MCP_DisableAntiAFK = true before loading the connector.
+if getgenv().MCP_DisableAntiAFK ~= true then
     AntiAFKEnsure()
 end
 
