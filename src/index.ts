@@ -4,8 +4,10 @@ import { boot } from "./bridge/boot.js";
 import { createMcpServer } from "./bridge/mcp-transport.js";
 import { initMcpClient } from "./custom-ai/mcp-client.js";
 import { installServerLogCapture } from "./http/server-logs.js";
+import { startDiscordPresence } from "./discord/presence.js";
 import { registerLocalDecompilerLifetime } from "./decompiler/local-process-lifetime.js";
 installServerLogCapture();
+startDiscordPresence();
 registerLocalDecompilerLifetime();
 import { HTTP_MODE, MCP_AUTH_TOKEN, WS_PORT } from "./config.js";
 if (HTTP_MODE) {

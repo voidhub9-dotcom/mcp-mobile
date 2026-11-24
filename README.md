@@ -25,6 +25,7 @@ Use it to see connected Roblox clients, inspect scripts, run tools, view server 
 - **GUI Interaction** — Click buttons and type into text boxes.
 - **Screenshot** — Capture screenshots on Windows (OS-level) or any platform (client-side viewport capture). The AI receives actual images it can visually analyze.
 - **Multi-Client** — Connect multiple Roblox clients at once.
+- **Discord Rich Presence** — Show the active Roblox client as your Discord activity. Requires a local Discord client and a Discord application ID. See [Discord Rich Presence](#discord-rich-presence).
 - **Primary / Secondary** — Multiple MCP instances auto-coordinate with automatic promotion. Supports remote relaying via `--baseurl`. See [Advanced](docs/advanced.md).
 - **Game Understanding** — Player state snapshot, game GUI inspection, activity tracing, and game system discovery for writing automation scripts.
 - **Anti-Cheat Tools** — Scan games for anti-cheat systems with detailed severity-level reports.
@@ -137,6 +138,31 @@ After the MCP server starts and Roblox connects, open the dashboard:
 ```text
 http://localhost:16384/
 ```
+
+## Discord Rich Presence
+
+The server can show the active connected Roblox client (game, username, elapsed time) as your Discord activity.
+
+Requires:
+
+- The **Discord desktop app** running on the same machine as the MCP server (presence uses Discord's local IPC socket — it cannot connect from Railway/Render/cloud hosts).
+- A **Discord application ID**: create an app at <https://discord.com/developers/applications> and copy its Application ID.
+
+Enable it with environment variables:
+
+```bash
+DISCORD_RPC_CLIENT_ID=<your application id> DISCORD_RICH_PRESENCE=true npm start
+```
+
+Or control it at runtime through the `discord-rpc` MCP tool:
+
+```text
+discord-rpc { action: "enable", clientId: "<your application id>" }
+discord-rpc { action: "status" }
+discord-rpc { action: "disable" }
+```
+
+The presence follows the active client automatically — including server hops and game changes — and clears when no client is connected. Optionally set `DISCORD_RPC_LARGE_IMAGE` to the name of an image asset uploaded to your Discord application to show a game icon. When Discord is unreachable the integration silently retries every 15 seconds and never affects the MCP server itself.
 
 ## Mobile Support
 

@@ -41,6 +41,9 @@ export const DEEPSEEK_API_KEY: string | null = process.env.DEEPSEEK_API_KEY || n
 export const DEEPSEEK_BASE_URL: string = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
 export const DEEPSEEK_MODEL: string = process.env.DEEPSEEK_MODEL || "deepseek-chat";
 export const DEEPSEEK_MAX_TOKENS: number = parseInt(process.env.DEEPSEEK_MAX_TOKENS || "16000", 10);
+export const DISCORD_RPC_CLIENT_ID: string | null = process.env.DISCORD_RPC_CLIENT_ID || null;
+export const DISCORD_RICH_PRESENCE: boolean = process.env.DISCORD_RICH_PRESENCE === "true" || process.env.DISCORD_RICH_PRESENCE === "1";
+export const DISCORD_RPC_LARGE_IMAGE: string | null = process.env.DISCORD_RPC_LARGE_IMAGE || null;
 if (BASE_URL) {
     console.error(`[Config] --baseurl specified: ${BASE_URL} (will run as secondary relay to this host)`);
 }

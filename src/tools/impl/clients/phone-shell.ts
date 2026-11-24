@@ -1,9 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { GetResponseOfIdFromClient, SendArbitraryDataToClient, } from "../../bridge/handlers/shared/communication.js";
-import { getActiveClients, resolveTargetClient } from "../../bridge/handlers/shared/registry.js";
-import type { RobloxClient } from "../../bridge/types.js";
-import { INVALID_CLIENT_ERROR, NO_CLIENT_ERROR, toolTextResponse, } from "../../factory.js";
+import { GetResponseOfIdFromClient, SendArbitraryDataToClient, } from "../../../bridge/handlers/shared/communication.js";
+import { getActiveClients, resolveTargetClient } from "../../../bridge/handlers/shared/registry.js";
+import type { RobloxClient } from "../../../bridge/types.js";
+import { INVALID_CLIENT_ERROR, NO_CLIENT_ERROR } from "../../errors.js";
+import { toolTextResponse } from "../../factory.js";
 import { maxOutputCharsSchema } from "../../schemas.js";
 
 // This tool targets Termux agents, not the in-game connectors. The message
