@@ -98,10 +98,10 @@ async function dashboard(res: ServerResponse, flash: string | null): Promise<voi
     const bigTitle = gameIcon && game ? game.placeName : PRESENCE_LARGE_TEXT;
     let art: string;
     if (gameIcon) {
-        art = `<img class="big" src="${escapeHtml(gameIcon)}" alt="${escapeHtml(bigTitle)}" title="${escapeHtml(bigTitle)}"><span class="ring">${logo ? `<img src="${escapeHtml(logo)}" alt="">` : LOGO_SVG(28)}</span>`;
+        art = `<img class="big" src="${escapeHtml(gameIcon)}" alt="" title="${escapeHtml(bigTitle)}"><span class="ring">${logo ? `<img src="${escapeHtml(logo)}" alt="">` : LOGO_SVG(28)}</span>`;
     }
     else if (logo) {
-        art = `<img class="big" src="${escapeHtml(logo)}" alt="${escapeHtml(PRESENCE_LARGE_TEXT)}" title="${escapeHtml(PRESENCE_LARGE_TEXT)}">`;
+        art = `<img class="big logo" src="${escapeHtml(logo)}" alt="" title="${escapeHtml(PRESENCE_LARGE_TEXT)}">`;
     }
     else {
         art = `<div class="big logo">${icon("game", 34)}</div>`;
@@ -111,7 +111,7 @@ async function dashboard(res: ServerResponse, flash: string | null): Promise<voi
 <div class="av">${avatar}<span class="on${presence.active ? "" : " idle"}"></span></div>
 <div class="body"><div class="names"><b>${escapeHtml(name)}</b><span>${sub}</span></div>
 <div class="act"><div class="caps">${presence.active ? "Playing · live" : "Playing · preview"}</div>
-<div class="row"><div class="art">${art}</div><div class="t"><b>${escapeHtml(presenceTitle(game))}</b><div>${escapeHtml(presence.details ?? "Making a script")}</div><div class="m">${escapeHtml(PRESENCE_STATE)}</div><div class="time">${icon("game", 13)}${fmtElapsed(presence.sessionStart)}</div></div></div>
+<div class="row"><div class="art">${art}</div><div class="t"><b>${escapeHtml(presenceTitle(game))}</b><div>${escapeHtml(presence.details ?? "Using VoidHub")}</div><div class="m">${escapeHtml(PRESENCE_STATE)}</div><div class="time">${icon("game", 13)}${fmtElapsed(presence.sessionStart)}</div></div></div>
 ${presenceButtons(game).map((b) => `<a class="get" href="${escapeHtml(b.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(b.label)}</a>`).join("")}</div></div></section>`;
 
     const tile = (k: string, v: string, on: boolean) => `<div class="tile"><div class="k">${k}</div><div class="v${on ? "" : " off"}"><span>${escapeHtml(v)}</span></div></div>`;

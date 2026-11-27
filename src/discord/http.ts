@@ -215,7 +215,7 @@ h1{margin:0;font-size:30px;line-height:1.15;font-weight:700;letter-spacing:-.025
 .caps{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .input{display:flex;align-items:center;gap:10px;background:var(--bg);border:1.5px solid var(--border);border-radius:14px;padding:0 8px 0 16px;transition:border-color .15s,box-shadow .15s}
 .input:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px #6C63FF40}
-.input input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--text);font:600 16px/1 inherit;font-family:inherit;padding:15px 0}
+.input input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--text);font-family:inherit;font-size:16px;font-weight:600;line-height:1;padding:15px 0}
 .input input::placeholder{color:#5E6176;font-weight:500}
 .eye{appearance:none;border:0;background:transparent;color:var(--muted);padding:8px;border-radius:10px;cursor:pointer}
 .eye:hover{color:var(--text);background:#ffffff0d}
@@ -223,7 +223,7 @@ h1{margin:0;font-size:30px;line-height:1.15;font-weight:700;letter-spacing:-.025
 .note .i{color:var(--ok)}
 .foot{margin:0;text-align:center;font-size:13px;color:var(--muted)}
 form{margin:0}
-.btn{appearance:none;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;border-radius:14px;padding:15px 20px;font:600 15px/1.2 inherit;font-family:inherit;letter-spacing:-.01em;cursor:pointer;text-decoration:none;border:1px solid transparent;transition:transform .08s,filter .15s}
+.btn{appearance:none;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;border-radius:14px;padding:15px 20px;font-family:inherit;font-size:15px;font-weight:600;line-height:1.2;letter-spacing:-.01em;cursor:pointer;text-decoration:none;border:1px solid transparent;transition:transform .08s,filter .15s}
 .btn:active{transform:translateY(1px)}
 .btn.primary{color:#fff;background:linear-gradient(90deg,#8B5CF6,#5865F2);border-color:#ffffff24;box-shadow:0 8px 24px -6px #6C63FF73}
 .btn.primary:hover{filter:brightness(1.08)}
