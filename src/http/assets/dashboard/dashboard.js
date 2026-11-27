@@ -54,10 +54,22 @@ async function dashboardApiFetch(input, init = {}, retryAuthorization = true) {
     if (response.status === 401) {
         // One sign-in for the whole site: go to the VoidHub sign-in page once
         // (it remembers this device), then come straight back here.
-        if (!window.__voidhubSignInRedirect) {
+        // Never bounce more than once every 30s, so a server-side problem can't
+        // turn into a refresh loop; show a sign-in banner instead.
+        let recent = false;
+        try { recent = Date.now() - Number(sessionStorage.getItem('vh_signin_redirect_at') || 0) < 30000; } catch {}
+        if (!window.__voidhubSignInRedirect && !recent) {
             window.__voidhubSignInRedirect = true;
+            try { sessionStorage.setItem('vh_signin_redirect_at', String(Date.now())); } catch {}
             try { localStorage.removeItem('mcp_auth_token'); } catch {}
             location.href = '/auth/discord?next=' + encodeURIComponent(location.pathname + location.search);
+        } else if (!document.getElementById('vhSignInBanner')) {
+            const bar = document.createElement('a');
+            bar.id = 'vhSignInBanner';
+            bar.className = 'vh-signin-banner';
+            bar.href = '/auth/discord?next=' + encodeURIComponent(location.pathname + location.search);
+            bar.textContent = 'Not signed in. Tap to sign in with your MCP_AUTH_TOKEN';
+            document.body.appendChild(bar);
         }
     }
     return response;

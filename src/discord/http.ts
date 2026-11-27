@@ -95,12 +95,20 @@ export function clearAuthCookie(req: IncomingMessage, res: ServerResponse): void
  * blocks cross-site POSTs from carrying the cookie; this is belt and braces.
  */
 export function sameOrigin(req: IncomingMessage): boolean {
+    const fetchSite = req.headers["sec-fetch-site"];
+    if (fetchSite === "same-origin" || fetchSite === "none")
+        return true;
+    if (fetchSite === "cross-site")
+        return false;
     const origin = req.headers.origin;
     if (!origin || origin === "null")
         return true; // some mobile browsers omit it on same-site form posts
-    const host = String(req.headers["x-forwarded-host"] || req.headers.host || "").split(",")[0].trim();
+    const hosts = [req.headers["x-forwarded-host"], req.headers.host]
+        .flatMap((h) => String(h || "").split(","))
+        .map((h) => h.trim())
+        .filter(Boolean);
     try {
-        return new URL(origin).host === host;
+        return hosts.includes(new URL(origin).host);
     }
     catch {
         return false;

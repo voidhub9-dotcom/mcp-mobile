@@ -156,6 +156,10 @@ export async function GET(req: IncomingMessage, res: ServerResponse, url: URL): 
         loginPage(res, 200, false, safeNext(url.searchParams.get("next")));
         return;
     }
+    // Re-issue the cookie site-wide. Older sign-ins were scoped to /auth/discord,
+    // which the dashboard API never saw (that caused a redirect loop).
+    if (authRequired())
+        setAuthCookie(req, res);
     if (url.searchParams.has("next")) {
         redirect(res, safeNext(url.searchParams.get("next")));
         return;
