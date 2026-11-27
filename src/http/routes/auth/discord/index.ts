@@ -4,7 +4,7 @@ import { within, resolveAssetImage } from "../../../../discord/app-assets.js";
 import { DEFAULT_DISCORD_USER_KEY, DISCORD_BUTTON_URL, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_LARGE_IMAGE_KEY, DISCORD_REDIRECT_URI, DISCORD_SHOW_GAME_ICON, PRESENCE_BUTTON_LABEL, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_LARGE_TEXT, PRESENCE_NAME, PRESENCE_STATE, TOKEN_ENCRYPTION_KEY, } from "../../../../discord/config.js";
 import { getPresenceStatus } from "../../../../discord/discordPresence.js";
 import { getGameIconUrl } from "../../../../discord/game-icon.js";
-import { authRequired, authorize, clearAuthCookie, escapeHtml, hasValidAuthCookie, parseForm, redirect, sendMessage, sendPage, serverTokenMatches, setAuthCookie, type Tone } from "../../../../discord/http.js";
+import { authRequired, authorize, clearAuthCookie, escapeHtml, hasValidAuthCookie, icon, LOGO_SVG, parseForm, redirect, sendMessage, sendPage, serverTokenMatches, setAuthCookie, toast, type Tone } from "../../../../discord/http.js";
 import { createAuthorizeUrl } from "../../../../discord/oauth.js";
 import { getLink, tokenStorageAvailable } from "../../../../discord/token-store.js";
 import { currentGame } from "../../../../discord/tool-hook.js";
@@ -30,7 +30,9 @@ function notConfigured(res: ServerResponse): boolean {
     const missing = missingConfig();
     if (missing.length === 0)
         return false;
-    sendMessage(res, 503, "error", "Discord isn't set up on the server yet", `<p>Add ${missing.length === 1 ? "this variable" : "these variables"} in Railway → <b>Variables</b>, then redeploy:</p><p>${missing.map((m) => `<code>${m}</code>`).join(" ")}</p><p class="hint">Full guide: <code>docs/discord-rpc.md</code></p>`, "Reload");
+    sendMessage(res, 503, "error", "Discord isn't set up yet", `The server is missing ${missing.length === 1 ? "a variable" : `${missing.length} variables`}: ${missing.map((m) => `<code>${m}</code>`).join(" ")}`, "Reload", {
+        steps: ["Open Railway → your service → <b>Variables</b>", `Add ${missing.map((m) => `<code>${m}</code>`).join(", ")}`, "Wait for the redeploy to finish, then reload this page"],
+    });
     return true;
 }
 
@@ -41,30 +43,27 @@ function startDiscord(res: ServerResponse): void {
 }
 
 const FLASH: Record<string, { tone: Tone; html: string }> = {
-    linked: { tone: "ok", html: "<b>Discord linked.</b> Tap <b>Send test presence</b> to check your profile." },
-    tested: { tone: "ok", html: "<b>Test sent.</b> Discord accepted it. Open your Discord profile to see it." },
+    linked: { tone: "ok", html: "<b>Discord linked.</b> Tap <b>Send test presence</b> to try it." },
+    tested: { tone: "ok", html: "<b>Test sent.</b> Check your Discord profile." },
     unlinked: { tone: "info", html: "<b>Discord unlinked.</b> Tokens were revoked and deleted." },
     signedout: { tone: "info", html: "Signed out on this device." },
-    badtoken: { tone: "error", html: "<b>Wrong token.</b> Enter the <code>MCP_AUTH_TOKEN</code> from Railway exactly." },
 };
 
-function loginPage(res: ServerResponse, status = 200, flash?: string): void {
+const EYE_SCRIPT = `document.querySelectorAll('[data-eye]').forEach(function(b){b.addEventListener('click',function(){var i=document.getElementById(b.getAttribute('data-eye'));if(!i)return;var show=i.type==='password';i.type=show?'text':'password';b.setAttribute('aria-pressed',String(show));b.setAttribute('aria-label',show?'Hide token':'Show token');});});`;
+
+function loginPage(res: ServerResponse, status = 200, badToken = false): void {
     sendPage(res, status, {
         title: "Sign in",
-        banner: flash ? FLASH[flash] ?? null : null,
-        body: `<section class="card"><h1>Sign in</h1><p>Enter this server's <code>MCP_AUTH_TOKEN</code>. You only need to do this once: this device is remembered for 30 days.</p>
-<form method="post" action="/auth/discord"><input type="hidden" name="action" value="login">
-<input name="server_token" type="password" autocomplete="current-password" required autofocus placeholder="MCP_AUTH_TOKEN" aria-label="MCP_AUTH_TOKEN">
-<button class="btn" type="submit">Continue</button></form></section>`,
+        body: `<section class="hero"><div class="badge accent">${icon("lock", 28)}</div><h1>Sign in to manage<br>your presence</h1><p class="lead">Enter this server's <code>MCP_AUTH_TOKEN</code>. You only do this once on this device.</p></section>
+${badToken ? toast("error", "<b>Wrong token.</b> Copy it exactly from Railway → Variables.") : ""}
+<form class="card" method="post" action="/auth/discord"><input type="hidden" name="action" value="login">
+<label class="label" for="tok">Server token</label>
+<div class="input"><input id="tok" name="server_token" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" required autofocus placeholder="Paste MCP_AUTH_TOKEN"><button class="eye" type="button" data-eye="tok" aria-label="Show token" aria-pressed="false">${icon("eye", 20)}</button></div>
+<button class="btn primary" type="submit">Continue ${icon("arrow")}</button>
+<div class="note">${icon("shield", 16)}Remembered for 30 days · secure cookie</div></form>
+<p class="foot">Lost the token? It's in Railway → Variables.</p>`,
+        script: EYE_SCRIPT,
     });
-}
-
-function fmtAgo(ms: number): string {
-    const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
-    if (s < 60)
-        return `${s}s ago`;
-    const m = Math.round(s / 60);
-    return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
 }
 
 function fmtElapsed(startMs: number | null): string {
@@ -86,55 +85,57 @@ async function dashboard(res: ServerResponse, flash: string | null): Promise<voi
         within(resolveAssetImage(DISCORD_LARGE_IMAGE_KEY), 2500),
     ]);
 
-    const who = link
-        ? escapeHtml(link.discordUsername || (link.discordUserId ? `User ${link.discordUserId}` : "Linked account"))
-        : "";
+    const name = link?.discordUsername || (link ? "Discord account" : "Not linked yet");
+    const initial = escapeHtml((link?.discordUsername || "V").trim().charAt(0).toUpperCase() || "V");
     const avatar = link?.discordAvatarUrl
-        ? `<img src="${escapeHtml(link.discordAvatarUrl)}" alt="" width="22" height="22" style="border-radius:50%;vertical-align:-6px;margin-right:6px">`
-        : "";
-    const accountRow = link
-        ? `<span class="pill ok">Linked</span>`
-        : `<span class="pill off">Not linked</span>`;
-    const presenceRow = presence.active
-        ? `<span class="pill ok">Showing</span>`
-        : `<span class="pill off">Idle</span>`;
-    const statusCard = `<section class="card"><h2>Status</h2>
-<div class="row"><span class="k">Discord</span>${accountRow}</div>
-${link ? `<div class="row"><span class="k">Account</span><span>${avatar}${who}</span></div>` : ""}
-<div class="row"><span class="k">Presence</span>${presenceRow}</div>
-${presence.active && presence.lastActivityAt ? `<div class="row"><span class="k">Last tool call</span><span>${fmtAgo(presence.lastActivityAt)}</span></div>` : ""}
-<div class="row"><span class="k">Roblox game</span><span>${game ? escapeHtml(game.placeName) : `<span class="pill off">None connected</span>`}</span></div>
-</section>`;
+        ? `<img src="${escapeHtml(link.discordAvatarUrl)}" alt="">`
+        : initial;
+    const sub = link
+        ? (link.discordUserId ? `ID ${escapeHtml(link.discordUserId)}` : "Linked to Void Hub RPC")
+        : "Link Discord to show your presence";
 
-    const bigImg = gameIcon ?? logo;
+    // Activity art: game icon (big) + logo badge, or the logo alone.
     const bigTitle = gameIcon && game ? game.placeName : PRESENCE_LARGE_TEXT;
-    const bigHtml = bigImg
-        ? `<img class="big" src="${escapeHtml(bigImg)}" alt="${escapeHtml(bigTitle)}" title="${escapeHtml(bigTitle)}">`
-        : `<div class="big"><svg viewBox="0 0 48 48" width="44" height="44" aria-hidden="true"><path d="M13 14h6.2L24 28.6 28.8 14H35l-8.4 21h-5.2z" fill="#fff"/></svg></div>`;
-    const smallHtml = gameIcon
-        ? (logo ? `<img class="small" src="${escapeHtml(logo)}" alt="" title="${escapeHtml(PRESENCE_LARGE_TEXT)}">` : `<span class="small"></span>`)
-        : "";
-    const preview = `<section class="card"><h2>${presence.active ? "Live on your profile" : "Preview"}</h2><div class="presence"><div class="label">Playing</div>
-<div class="pr"><div class="art">${bigHtml}${smallHtml}</div><div class="t"><b>${escapeHtml(PRESENCE_NAME)}</b><div>${escapeHtml(presence.details ?? "Making a script")}</div><div>${escapeHtml(PRESENCE_STATE)}</div><div class="time">${fmtElapsed(presence.sessionStart)}</div></div></div>
-${DISCORD_BUTTON_URL ? `<div class="fakebtn">${escapeHtml(PRESENCE_BUTTON_LABEL)}</div>` : ""}</div>
-<p class="hint">Updates while the AI uses tools and clears after ${Math.round(PRESENCE_IDLE_TIMEOUT_MS / 60_000)} idle minutes.${game && !gameIcon && DISCORD_SHOW_GAME_ICON ? " The game icon will show once Roblox returns it." : ""}</p></section>`;
+    let art: string;
+    if (gameIcon) {
+        art = `<img class="big" src="${escapeHtml(gameIcon)}" alt="${escapeHtml(bigTitle)}" title="${escapeHtml(bigTitle)}"><span class="ring">${logo ? `<img src="${escapeHtml(logo)}" alt="">` : LOGO_SVG(28)}</span>`;
+    }
+    else if (logo) {
+        art = `<img class="big" src="${escapeHtml(logo)}" alt="${escapeHtml(PRESENCE_LARGE_TEXT)}" title="${escapeHtml(PRESENCE_LARGE_TEXT)}">`;
+    }
+    else {
+        art = `<div class="big logo">${icon("game", 34)}</div>`;
+    }
 
+    const profile = `<section class="dc" aria-label="Discord profile preview"><div class="banner"></div>
+<div class="av">${avatar}<span class="on${presence.active ? "" : " idle"}"></span></div>
+<div class="body"><div class="names"><b>${escapeHtml(name)}</b><span>${sub}</span></div>
+<div class="act"><div class="caps">${presence.active ? "Playing · live" : "Playing · preview"}</div>
+<div class="row"><div class="art">${art}</div><div class="t"><b>${escapeHtml(PRESENCE_NAME)}</b><div>${escapeHtml(presence.details ?? "Making a script")}</div><div class="m">${escapeHtml(PRESENCE_STATE)}</div><div class="time">${icon("game", 13)}${fmtElapsed(presence.sessionStart)}</div></div></div>
+${DISCORD_BUTTON_URL ? `<div class="get">${escapeHtml(PRESENCE_BUTTON_LABEL)}</div>` : ""}</div></div></section>`;
+
+    const tile = (k: string, v: string, on: boolean) => `<div class="tile"><div class="k">${k}</div><div class="v${on ? "" : " off"}"><span>${escapeHtml(v)}</span></div></div>`;
+    const tiles = `<section class="tiles">${tile("Discord", link ? "Linked" : "Not linked", Boolean(link))}${tile("Presence", presence.active ? "Live" : "Idle", presence.active)}${tile("Game", game ? game.placeName : "None", Boolean(game))}</section>`;
+
+    const signOut = authRequired()
+        ? `<form method="post" action="/auth/discord"><input type="hidden" name="action" value="logout"><button class="btn link" type="submit">${icon("logout", 16)}Sign out on this device</button></form>`
+        : "";
     const actions = link
         ? `<section class="actions">
-<form method="post" action="/auth/discord/test"><button class="btn" type="submit">Send test presence</button></form>
-<form method="post" action="/auth/discord"><input type="hidden" name="action" value="link"><button class="btn secondary" type="submit">Relink Discord</button></form>
-<form method="post" action="/auth/discord/unlink"><button class="btn danger" type="submit">Unlink Discord</button></form>
-${authRequired() ? `<form method="post" action="/auth/discord"><input type="hidden" name="action" value="logout"><button class="btn ghost" type="submit">Sign out on this device</button></form>` : ""}
-</section>`
+<form method="post" action="/auth/discord/test"><button class="btn primary" type="submit">${icon("zap")}Send test presence</button></form>
+<form method="post" action="/auth/discord"><input type="hidden" name="action" value="link"><button class="btn secondary" type="submit">${icon("refresh")}Relink Discord</button></form>
+<form method="post" action="/auth/discord/unlink"><button class="btn danger" type="submit">${icon("unlink")}Unlink Discord</button></form>
+${signOut}</section>`
         : `<section class="actions">
-<form method="post" action="/auth/discord"><input type="hidden" name="action" value="link"><button class="btn" type="submit">Link Discord</button></form>
-${authRequired() ? `<form method="post" action="/auth/discord"><input type="hidden" name="action" value="logout"><button class="btn ghost" type="submit">Sign out on this device</button></form>` : ""}
-</section>`;
+<form method="post" action="/auth/discord"><input type="hidden" name="action" value="link"><button class="btn primary" type="submit">${icon("link")}Link Discord</button></form>
+${signOut}</section>`;
 
+    const note = `<p class="foot">Updates while the AI uses tools · clears after ${Math.round(PRESENCE_IDLE_TIMEOUT_MS / 60_000)} idle minutes</p>`;
+    const pill = presence.active ? `<span class="pill">Live</span>` : link ? `<span class="pill off">Idle</span>` : "";
     sendPage(res, 200, {
         title: link ? "Dashboard" : "Link Discord",
-        banner: flash ? FLASH[flash] ?? null : null,
-        body: statusCard + preview + actions,
+        headerRight: pill,
+        body: (flash && FLASH[flash] ? toast(FLASH[flash].tone, FLASH[flash].html) : "") + profile + tiles + actions + note,
     });
 }
 
@@ -170,7 +171,7 @@ export async function POST(req: IncomingMessage, res: ServerResponse): Promise<v
             return;
         }
         if (!serverTokenMatches(form.server_token)) {
-            loginPage(res, 401, "badtoken");
+            loginPage(res, 401, true);
             return;
         }
         setAuthCookie(req, res);
@@ -179,7 +180,7 @@ export async function POST(req: IncomingMessage, res: ServerResponse): Promise<v
     }
     // action === "link"
     if (!authorize(req, res, form.server_token)) {
-        loginPage(res, 401, form.server_token ? "badtoken" : undefined);
+        loginPage(res, 401, Boolean(form.server_token));
         return;
     }
     startDiscord(res);

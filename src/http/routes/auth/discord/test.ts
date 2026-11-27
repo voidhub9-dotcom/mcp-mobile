@@ -17,18 +17,20 @@ export async function POST(req: IncomingMessage, res: ServerResponse): Promise<v
         ? sendJson(res, status, { ok: false, error: title })
         : sendMessage(res, status, "error", title, html);
     if (!authorize(req, res, form.server_token))
-        return fail(401, "Not signed in", "<p>Open the Void Hub RPC page and sign in with your <code>MCP_AUTH_TOKEN</code> first.</p>");
+        return fail(401, "Not signed in", "Open the Void Hub RPC page and sign in with your <code>MCP_AUTH_TOKEN</code> first.");
     if (!presenceEnabled())
-        return fail(503, "Discord isn't set up on the server", "<p>Check the <code>DISCORD_*</code> and <code>TOKEN_ENCRYPTION_KEY</code> variables.</p>");
+        return fail(503, "Discord isn't set up on the server", "Check the <code>DISCORD_*</code> and <code>TOKEN_ENCRYPTION_KEY</code> variables.");
     if (!(await getLink(DEFAULT_DISCORD_USER_KEY)))
-        return fail(409, "No Discord account linked yet", "<p>Tap <b>Link Discord</b> first.</p>");
+        return fail(409, "No Discord account linked yet", "Tap <b>Link Discord</b> first.");
     const game = currentGame();
     const result = await sendTestPresence(DEFAULT_DISCORD_USER_KEY, "Testing Void Hub RPC", game);
     if (!result.ok) {
         console.error(`[Discord] Test presence failed: ${result.error}`);
         if (json)
             return sendJson(res, 502, { ok: false, error: result.error, game });
-        return sendMessage(res, 502, "error", "Discord said no", `<p>Discord rejected the test presence. Send this to whoever runs the server:</p><pre>${escapeHtml(result.error ?? "unknown error")}</pre>`);
+        return sendMessage(res, 502, "error", "Discord said no", "Discord rejected the test presence. Send the error below to whoever runs the server.", "Back to Void Hub RPC", {
+            detail: `<div class="caps">Error from Discord</div><pre>${escapeHtml(result.error ?? "unknown error")}</pre>`,
+        });
     }
     if (json)
         return sendJson(res, 200, { ok: true, game });
