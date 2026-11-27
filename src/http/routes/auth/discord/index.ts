@@ -54,7 +54,7 @@ const EYE_SCRIPT = `document.querySelectorAll('[data-eye]').forEach(function(b){
 function loginPage(res: ServerResponse, status = 200, badToken = false): void {
     sendPage(res, status, {
         title: "Sign in",
-        body: `<section class="hero"><div class="badge accent">${icon("lock", 28)}</div><h1>Sign in to manage<br>your presence</h1><p class="lead">Enter this server's <code>MCP_AUTH_TOKEN</code>. You only do this once on this device.</p></section>
+        body: `<section class="hero"><span class="eyebrow">VoidHub RPC</span><h1>Sign in.</h1><p class="lead">Enter this server's <code>MCP_AUTH_TOKEN</code>. You only do this once on this device.</p></section>
 ${badToken ? toast("error", "<b>Wrong token.</b> Copy it exactly from Railway → Variables.") : ""}
 <form class="card" method="post" action="/auth/discord"><input type="hidden" name="action" value="login">
 <label class="label" for="tok">Server token</label>
@@ -98,30 +98,30 @@ async function dashboard(res: ServerResponse, flash: string | null): Promise<voi
     const bigTitle = gameIcon && game ? game.placeName : PRESENCE_LARGE_TEXT;
     let art: string;
     if (gameIcon) {
-        art = `<img class="big" src="${escapeHtml(gameIcon)}" alt="" title="${escapeHtml(bigTitle)}"><span class="ring">${logo ? `<img src="${escapeHtml(logo)}" alt="">` : LOGO_SVG(28)}</span>`;
+        art = `<div class="big" role="img" aria-label="${escapeHtml(bigTitle)}" title="${escapeHtml(bigTitle)}" style="background:#26262b url('${escapeHtml(gameIcon)}') center/cover"></div><span class="ring">${logo ? `<span class="bgimg" style="background-image:url('${escapeHtml(logo)}')"></span>` : LOGO_SVG(24)}</span>`;
     }
     else if (logo) {
-        art = `<img class="big logo" src="${escapeHtml(logo)}" alt="" title="${escapeHtml(PRESENCE_LARGE_TEXT)}">`;
+        art = `<div class="big" role="img" aria-label="${escapeHtml(PRESENCE_LARGE_TEXT)}" title="${escapeHtml(PRESENCE_LARGE_TEXT)}" style="background:#26262b url('${escapeHtml(logo)}') center/cover"></div>`;
     }
     else {
         art = `<div class="big logo">${icon("game", 34)}</div>`;
     }
 
-    const profile = `<section class="dc" aria-label="Discord profile preview"><div class="banner"></div>
+    const profile = `<section class="panel"><div class="dc" aria-label="Discord profile preview"><div class="banner"></div>
 <div class="av">${avatar}<span class="on${presence.active ? "" : " idle"}"></span></div>
 <div class="body"><div class="names"><b>${escapeHtml(name)}</b><span>${sub}</span></div>
-<div class="act"><div class="caps">${presence.active ? "Playing · live" : "Playing · preview"}</div>
+<div class="act"><div class="caps">${presence.active ? "Playing" : "Playing · preview"}</div>
 <div class="row"><div class="art">${art}</div><div class="t"><b>${escapeHtml(presenceTitle(game))}</b><div>${escapeHtml(presence.details ?? "Using VoidHub")}</div><div class="m">${escapeHtml(PRESENCE_STATE)}</div><div class="time">${icon("game", 13)}${fmtElapsed(presence.sessionStart)}</div></div></div>
-${presenceButtons(game).map((b) => `<a class="get" href="${escapeHtml(b.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(b.label)}</a>`).join("")}</div></div></section>`;
+${presenceButtons(game).map((b) => `<a class="get" href="${escapeHtml(b.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(b.label)}</a>`).join("")}</div></div></div></section>`;
 
-    const tile = (k: string, v: string, on: boolean) => `<div class="tile"><div class="k">${k}</div><div class="v${on ? "" : " off"}"><span>${escapeHtml(v)}</span></div></div>`;
-    const tiles = `<section class="tiles">${tile("Discord", link ? "Linked" : "Not linked", Boolean(link))}${tile("Presence", presence.active ? "Live" : "Idle", presence.active)}${tile("Game", game ? game.placeName : "None", Boolean(game))}</section>`;
+    const chip = (ic: string, v: string, on: boolean, wide = false) => `<div class="chip ${on ? "on" : "off"}${wide ? " wide" : ""}">${icon(ic, 18)}<span>${escapeHtml(v)}</span></div>`;
+    const tiles = `<section class="chips">${chip(link ? "check" : "link", link ? "Discord linked" : "Not linked", Boolean(link))}${chip("zap", presence.active ? "Presence live" : "Presence idle", presence.active)}${chip("game", game ? game.placeName : "No game connected", Boolean(game), true)}</section>`;
 
     const signOut = authRequired()
         ? `<form method="post" action="/auth/discord"><input type="hidden" name="action" value="logout"><button class="btn link" type="submit">${icon("logout", 16)}Sign out on this device</button></form>`
         : "";
     const actions = link
-        ? `<section class="actions">
+        ? `<section class="sec"><h2>Controls.</h2><p>Test it, relink, or remove the link.</p></section><section class="actions">
 <form method="post" action="/auth/discord/test"><button class="btn primary" type="submit">${icon("zap")}Send test presence</button></form>
 <form method="post" action="/auth/discord"><input type="hidden" name="action" value="link"><button class="btn secondary" type="submit">${icon("refresh")}Relink Discord</button></form>
 <form method="post" action="/auth/discord/unlink"><button class="btn danger" type="submit">${icon("unlink")}Unlink Discord</button></form>
@@ -139,7 +139,7 @@ ${signOut}</section>`;
     sendPage(res, 200, {
         title: link ? "Dashboard" : "Link Discord",
         headerRight: pill,
-        body: volumeWarn + (flash && FLASH[flash] ? toast(FLASH[flash].tone, FLASH[flash].html) : "") + profile + tiles + actions + saved + note,
+        body: `<section class="hero"><span class="eyebrow">Discord Rich Presence</span><h1>${link ? "You're live." : "Go live."}</h1><p class="lead">${link ? "Your Discord shows the game you're in and what the AI is building." : "Link Discord once. Your status follows every game automatically."}</p></section>` + volumeWarn + (flash && FLASH[flash] ? toast(FLASH[flash].tone, FLASH[flash].html) : "") + profile + tiles + actions + saved + note,
     });
 }
 
