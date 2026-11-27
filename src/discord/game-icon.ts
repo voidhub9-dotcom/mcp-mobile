@@ -2,7 +2,7 @@ import { DISCORD_HTTP_TIMEOUT_MS } from "./config.js";
 
 // Looks up a Roblox game's icon so Rich Presence can show the game you're in.
 // Uses Roblox's public thumbnails API (no auth). Results are cached; failures
-// return null so the caller falls back to the Void Hub logo.
+// return null so the caller falls back to the VoidHub logo.
 
 const ICON_TTL_MS = 60 * 60_000;
 const MISS_TTL_MS = 5 * 60_000;

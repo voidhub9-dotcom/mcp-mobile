@@ -4,7 +4,7 @@ import { escapeHtml, redirect, sendMessage } from "../../../../discord/http.js";
 import { consumeState, exchangeCode } from "../../../../discord/oauth.js";
 
 // GET /auth/discord/callback?code=...&state=...
-// Exchanges the code, stores the encrypted tokens, then returns to the Void Hub RPC page.
+// Exchanges the code, stores the encrypted tokens, then returns to the VoidHub RPC page.
 
 const ERROR_HELP: Record<string, { text: string; steps?: string[] }> = {
     access_denied: { text: "You cancelled on Discord's screen. Nothing was linked." },

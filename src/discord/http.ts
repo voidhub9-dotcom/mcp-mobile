@@ -155,7 +155,7 @@ export function parseForm(raw: string, contentType: string | undefined): Record<
     return Object.fromEntries(new URLSearchParams(raw));
 }
 
-// ---- Page shell (matches the "Void Hub RPC" Figma design) -------------------------
+// ---- Page shell (matches the "VoidHub RPC" Figma design) -------------------------
 
 export type Tone = "ok" | "error" | "info";
 
@@ -292,7 +292,7 @@ export interface PageOptions {
 }
 
 export function header(right = ""): string {
-    return `<header class="head">${LOGO_SVG(40)}<div class="t"><b>Void Hub RPC</b><span>Discord Rich Presence</span></div>${right}</header>`;
+    return `<header class="head">${LOGO_SVG(40)}<div class="t"><b>VoidHub RPC</b><span>Discord Rich Presence</span></div>${right}</header>`;
 }
 
 export function toast(tone: Tone, html: string): string {
@@ -302,7 +302,7 @@ export function toast(tone: Tone, html: string): string {
 
 export function renderPage(opts: PageOptions, nonce = ""): string {
     const script = opts.script ? `<script nonce="${nonce}">${opts.script}</script>` : "";
-    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#0A0B10"><title>${escapeHtml(opts.title)} · Void Hub RPC</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"><style>${STYLES}</style></head><body><main class="wrap">${header(opts.headerRight ?? "")}${opts.body}</main>${script}</body></html>`;
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#0A0B10"><title>${escapeHtml(opts.title)} · VoidHub RPC</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"><style>${STYLES}</style></head><body><main class="wrap">${header(opts.headerRight ?? "")}${opts.body}</main>${script}</body></html>`;
 }
 
 export function sendPage(res: ServerResponse, status: number, opts: PageOptions): void {
@@ -330,7 +330,7 @@ export interface MessageExtras {
 }
 
 /** Full-screen message: icon badge, big title, explanation, optional steps, one button. */
-export function sendMessage(res: ServerResponse, status: number, tone: Tone, title: string, html: string, buttonLabel = "Back to Void Hub RPC", extras: MessageExtras = {}): void {
+export function sendMessage(res: ServerResponse, status: number, tone: Tone, title: string, html: string, buttonLabel = "Back to VoidHub RPC", extras: MessageExtras = {}): void {
     const badgeIcon = tone === "error" ? "alert" : tone === "ok" ? "check" : "info";
     const steps = extras.steps?.length
         ? `<section class="card"><div class="caps">How to fix</div><ol class="steps">${extras.steps.map((s, i) => `<li><span class="n">${i + 1}</span><span>${s}</span></li>`).join("")}</ol></section>`

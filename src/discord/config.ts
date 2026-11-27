@@ -20,7 +20,7 @@ export const DISCORD_CLIENT_ID: string | null = process.env.DISCORD_CLIENT_ID?.t
 export const DISCORD_CLIENT_SECRET: string | null = process.env.DISCORD_CLIENT_SECRET?.trim() || null;
 export const DISCORD_REDIRECT_URI: string | null = process.env.DISCORD_REDIRECT_URI?.trim() || null;
 export const DISCORD_LARGE_IMAGE_KEY: string = process.env.DISCORD_LARGE_IMAGE_KEY?.trim() || "void_logo";
-/** "Get Void Hub" button link. Defaults to the Void Hub Discord server; set to "off" to hide it. */
+/** "Get VoidHub" button link. Defaults to the VoidHub Discord server; set to "off" to hide it. */
 export const DEFAULT_BUTTON_URL = "https://discord.gg/4AdJr8emK2";
 export const DISCORD_BUTTON_URL: string | null = (() => {
     const raw = process.env.DISCORD_BUTTON_URL?.trim();
@@ -36,7 +36,7 @@ export const TOKEN_ENCRYPTION_KEY: string | null = process.env.TOKEN_ENCRYPTION_
 export const DISCORD_TOKEN_STORE_PATH: string = process.env.DISCORD_TOKEN_STORE_PATH?.trim() ||
     path.join(os.homedir(), ".roblox-mcp", "discord-links.json");
 
-/** Show the current Roblox game's icon as the big image (Void Hub logo becomes the small badge). */
+/** Show the current Roblox game's icon as the big image (VoidHub logo becomes the small badge). */
 export const DISCORD_SHOW_GAME_ICON: boolean = !/^(0|false|no|off)$/i.test(process.env.DISCORD_SHOW_GAME_ICON?.trim() || "");
 
 /** Activity platform Discord requires on headless-session activities. */
@@ -56,11 +56,11 @@ export const PRESENCE_KEEPALIVE_MS = envInt("DISCORD_PRESENCE_KEEPALIVE_MS", 2 *
 /** Hard cap on any single Discord HTTP call. */
 export const DISCORD_HTTP_TIMEOUT_MS = 8_000;
 
-export const PRESENCE_NAME = "Void Hub RPC";
+export const PRESENCE_NAME = "VoidHub RPC";
 export const PRESENCE_GAME_BUTTON_LABEL = "See Game Page";
-export const PRESENCE_STATE = "Connected via Void Hub MCP";
-export const PRESENCE_LARGE_TEXT = "Void Hub MCP";
-export const PRESENCE_BUTTON_LABEL = "Get Void Hub";
+export const PRESENCE_STATE = "Connected via VoidHub MCP";
+export const PRESENCE_LARGE_TEXT = "VoidHub MCP";
+export const PRESENCE_BUTTON_LABEL = "Get VoidHub";
 
 /** Single-user deployments (one shared MCP_AUTH_TOKEN) store their link under this id. */
 export const DEFAULT_DISCORD_USER_KEY = "default";

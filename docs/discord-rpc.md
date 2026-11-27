@@ -8,13 +8,13 @@ It's optional. If the Discord variables aren't set, the server behaves exactly a
 
 | Field | Value |
 |-------|-------|
-| Activity | Playing **the Roblox game you're in** (e.g. `[🐟] Net a Fish!`), or **Void Hub RPC** when no game is connected |
+| Activity | Playing **the Roblox game you're in** (e.g. `[🐟] Net a Fish!`), or **VoidHub RPC** when no game is connected |
 | Details | What the agent is doing right now (see [Tool → details](#tool--details)) |
-| State | `Connected via Void Hub MCP` |
+| State | `Connected via VoidHub MCP` |
 | Elapsed time | Since the first tool call of the current session |
-| Large image | The icon of the **Roblox game you're in**, with the game's name as the tooltip. If no game is connected, or the icon can't be loaded, it shows `DISCORD_LARGE_IMAGE_KEY` with the tooltip `Void Hub MCP` |
-| Small image | `DISCORD_LARGE_IMAGE_KEY` (your Void Hub logo) in the corner of the game icon, tooltip `Void Hub MCP` |
-| Buttons | **See Game Page** → the game's Roblox page (when in a game), and **Get Void Hub** → `DISCORD_BUTTON_URL` (default `https://discord.gg/4AdJr8emK2`) |
+| Large image | The icon of the **Roblox game you're in**, with the game's name as the tooltip. If no game is connected, or the icon can't be loaded, it shows `DISCORD_LARGE_IMAGE_KEY` with the tooltip `VoidHub MCP` |
+| Small image | `DISCORD_LARGE_IMAGE_KEY` (your VoidHub logo) in the corner of the game icon, tooltip `VoidHub MCP` |
+| Buttons | **See Game Page** → the game's Roblox page (when in a game), and **Get VoidHub** → `DISCORD_BUTTON_URL` (default `https://discord.gg/4AdJr8emK2`) |
 
 ## How it behaves
 
@@ -27,7 +27,7 @@ It's optional. If the Discord variables aren't set, the server behaves exactly a
 
 ## 1. Create the Discord application
 
-1. Open <https://discord.com/developers/applications> and choose **New Application**. Discord shows the application name as the activity name, so "Void Hub RPC" is a good choice.
+1. Open <https://discord.com/developers/applications> and choose **New Application**. Discord shows the application name as the activity name, so "VoidHub RPC" is a good choice.
 2. **Discord Social SDK → Getting Started**: fill in the form and enable the Social SDK. The `sdk.social_layer_presence` scope is rejected until this is on.
 3. **OAuth2 → Redirects**: add the callback URL for your server (see the table below) and save. It must match `DISCORD_REDIRECT_URI` exactly.
 4. **OAuth2**: copy the **Client ID**, then choose **Reset Secret** and copy the **Client Secret**.
@@ -51,7 +51,7 @@ Quick tunnels (`trycloudflare.com`) change URL on every restart, so you'd have t
 | `DISCORD_REDIRECT_URI` | yes | `https://YOUR-APP.up.railway.app/auth/discord/callback` | Must match the portal redirect exactly |
 | `TOKEN_ENCRYPTION_KEY` | yes | output of `openssl rand -hex 32` | 32-byte key that encrypts stored tokens (AES-256-GCM). Accepts 64 hex characters or base64 |
 | `DISCORD_LARGE_IMAGE_KEY` | no | `void_logo` | Art asset key or image URL |
-| `DISCORD_BUTTON_URL` | no | `https://discord.gg/4AdJr8emK2` | Link for the **Get Void Hub** button (`off` hides it) |
+| `DISCORD_BUTTON_URL` | no | `https://discord.gg/4AdJr8emK2` | Link for the **Get VoidHub** button (`off` hides it) |
 | `DISCORD_SHOW_GAME_BUTTON` | no | `true` | `false` hides the **See Game Page** button |
 | `DISCORD_PRESENCE_PLATFORM` | no | `desktop` | Platform reported to Discord: `desktop`, `android`, `ios`, `xbox`, `ps4`, `ps5`, `samsung` or `embedded` |
 | `DISCORD_SHOW_GAME_ICON` | no | `true` | Set to `false` to always use your logo as the big image instead of the current game's icon |
@@ -118,8 +118,8 @@ The last line creates the key once and reuses it on every start.
 2. If `MCP_AUTH_TOKEN` is set, enter it and choose **Continue**. You only do this once per device: the page remembers you for 30 days with a secure, HttpOnly cookie. **Sign out on this device** forgets it, and changing `MCP_AUTH_TOKEN` signs every device out.
    Then choose **Link Discord**.
 3. Approve on Discord. You'll land on a **Discord linked** page.
-4. Back on the Void Hub RPC page, choose **Send test presence**. The server sends **Testing Void Hub RPC** to Discord right away and shows Discord's answer:
-   - **Test sent**: open your Discord profile. You should see **Playing Void Hub RPC**. If a Roblox client is connected, the big image is that game's icon.
+4. Back on the VoidHub RPC page, choose **Send test presence**. The server sends **Testing VoidHub RPC** to Discord right away and shows Discord's answer:
+   - **Test sent**: open your Discord profile. You should see **Playing VoidHub RPC**. If a Roblox client is connected, the big image is that game's icon.
    - **Discord said no**: the page shows Discord's exact error. See [Troubleshooting](#troubleshooting).
 5. After that, any MCP tool call (from Claude, the built-in `/ai` chat, or any MCP client) updates the presence automatically.
 
@@ -137,11 +137,11 @@ Unlinking clears the live presence, revokes the tokens at Discord, and deletes t
 
 | Method | Path | Auth (when `MCP_AUTH_TOKEN` is set) | What it does |
 |--------|------|------|--------------|
-| `GET` | `/auth/discord` | Sign-in form, then the remembered-device cookie | The Void Hub RPC page: status, presence preview, and buttons |
+| `GET` | `/auth/discord` | Sign-in form, then the remembered-device cookie | The VoidHub RPC page: status, presence preview, and buttons |
 | `GET` | `/auth/discord?start=1` | Cookie | Redirects straight to Discord with a one-time CSRF `state` |
 | `POST` | `/auth/discord` | `action=login` with `server_token`, otherwise the cookie | `login` (remember this device), `link` (go to Discord), `logout` |
 | `GET` | `/auth/discord/callback` | CSRF `state` (10 min, single use) | Exchanges the `code`, then stores encrypted access and refresh tokens |
-| `POST` | `/auth/discord/test` | Bearer header, `server_token` field, or the cookie | Sends a **Testing Void Hub RPC** presence immediately (no throttle) and returns Discord's answer |
+| `POST` | `/auth/discord/test` | Bearer header, `server_token` field, or the cookie | Sends a **Testing VoidHub RPC** presence immediately (no throttle) and returns Discord's answer |
 | `POST` | `/auth/discord/unlink` | Bearer header, `server_token` field, or the cookie | Clears the presence, revokes the tokens, deletes them |
 | `GET` | `/auth/discord/status` | Bearer header or the cookie | JSON health check (below) |
 

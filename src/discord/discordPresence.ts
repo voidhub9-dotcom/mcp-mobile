@@ -71,12 +71,12 @@ export interface BuildActivityOptions {
     gameIconUrl?: string | null;
 }
 
-/** Title shown in bold: the Roblox game's name when in a game, else "Void Hub RPC". */
+/** Title shown in bold: the Roblox game's name when in a game, else "VoidHub RPC". */
 export function presenceTitle(game: PresenceGame | null | undefined): string {
     return game?.placeName?.trim() ? truncate(game.placeName, 128) : PRESENCE_NAME;
 }
 
-/** Up to two buttons (Discord's limit): "See Game Page" for the current game, then "Get Void Hub". */
+/** Up to two buttons (Discord's limit): "See Game Page" for the current game, then "Get VoidHub". */
 export function presenceButtons(game: PresenceGame | null | undefined): { label: string; url: string }[] {
     const buttons: { label: string; url: string }[] = [];
     if (DISCORD_SHOW_GAME_BUTTON && game && game.placeId > 0)
@@ -113,7 +113,7 @@ export function buildActivity(details: string, startMs: number, options: BuildAc
 }
 
 function truncate(text: string, max: number): string {
-    const clean = text.trim() || "Using Void Hub";
+    const clean = text.trim() || "Using VoidHub";
     return clean.length > max ? clean.slice(0, max - 1) + "…" : clean;
 }
 
@@ -239,7 +239,7 @@ async function pushPresence(userKey: string, details: string, sessionStart: numb
         if (resp.status === 400 && gameIconUrl && /image|asset|url/i.test(text)) {
             gameIconsAccepted = false;
             gameIconUrl = null;
-            console.error("[Discord] Discord rejected the game icon URL; using the Void Hub logo instead.");
+            console.error("[Discord] Discord rejected the game icon URL; using the VoidHub logo instead.");
             continue;
         }
         if (resp.status === 400 && buttonsAccepted && /button/i.test(text)) {

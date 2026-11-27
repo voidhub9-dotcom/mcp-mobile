@@ -182,7 +182,7 @@ For remote access without VPN:
 
 ## Optional: Discord Rich Presence (VoidHub RPC)
 
-The PC server can show **Playing Void Hub RPC** on your Discord profile while the AI runs tools. Discord doesn't need to be open on the phone or the PC.
+The PC server can show **Playing VoidHub RPC** on your Discord profile while the AI runs tools. Discord doesn't need to be open on the phone or the PC.
 
 1. Create the Discord app and enable the Social SDK, adding `http://localhost:16384/auth/discord/callback` as a redirect. Steps are in [VoidHub RPC](discord-rpc.md#1-create-the-discord-application).
 2. Set the variables before starting the server. If your AI client starts the server, put them in its MCP config `env` block instead.

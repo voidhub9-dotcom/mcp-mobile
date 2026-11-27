@@ -31,7 +31,7 @@ Use it to see connected Roblox clients, inspect scripts, run tools, view server 
 - **Anti-AFK** — Automatically prevents idle disconnections by responding to the `Player.Idled` event. Keeps you in the game. Control it on demand with the `anti-afk` MCP tool (`enable` / `disable` / `status`).
 - **Server Hop** — Hop the connected client to another public server (`random`, `lowest-players`, `lowest-ping`, or an exact `jobId`), into a different game entirely (`placeId`), or back into the current server (`rejoin`). The connector queues itself via `queue_on_teleport` so the bridge auto-reloads in the destination server and the agent keeps remote control while you are away. See [Server Hop](#server-hop).
 - **Termux Phone Agent** — a shell agent for Termux on the phone, served the same way as the in-game connectors. The `phone-shell` tool runs commands on the phone and returns output and exit code. This is how the agent moves you between GAMES (`termux-open-url "roblox://placeId=..."`), since Roblox blocks cross-creator teleports from inside a client. See [Termux Phone Agent](#termux-phone-agent).
-- **VoidHub RPC (Discord Rich Presence)** — Link your Discord account once and the server (cloud, phone or PC) shows **Void Hub RPC** as your Discord activity while MCP tools run (e.g. "Making a script"), then clears it after a few idle minutes. No Discord desktop app or local RPC needed. See [VoidHub RPC](docs/discord-rpc.md).
+- **VoidHub RPC (Discord Rich Presence)** — Link your Discord account once and the server (cloud, phone or PC) shows **VoidHub RPC** as your Discord activity while MCP tools run (e.g. "Making a script"), then clears it after a few idle minutes. No Discord desktop app or local RPC needed. See [VoidHub RPC](docs/discord-rpc.md).
 - **Claude Remote Connector Support** — Works as a secure custom connector in Claude's web interface. See the [Claude Remote Connector Guide](docs/claude-connector.md).
 - **Custom AI Chat** — Built-in chat interface at `/ai` supporting any Anthropic-compatible API with api-key, bearer token, or custom header auth. Screenshot images are passed to the AI as vision content.
 - **Mobile Support** — Works with mobile executors (Delta, CodeX, VegaX, etc.) with fallbacks for missing APIs. See the [Mobile Setup Guide](docs/setup-mobile.md) or [Mobile-Only Setup Guide](docs/setup-mobile-only.md).
@@ -229,19 +229,19 @@ The server can set your Discord Rich Presence straight from Railway, using Disco
 
 | Field | Value |
 |-------|-------|
-| Activity | Playing **the Roblox game you're in**, or **Void Hub RPC** when none is connected |
+| Activity | Playing **the Roblox game you're in**, or **VoidHub RPC** when none is connected |
 | Details | What the agent is doing, e.g. `Making a script`, `Spying on remotes`, `Running get-game-info` |
-| State | `Connected via Void Hub MCP` |
+| State | `Connected via VoidHub MCP` |
 | Elapsed time | Since the first tool call of the session |
 | Large image | Icon of the Roblox game you're in (tooltip: game name). Falls back to `DISCORD_LARGE_IMAGE_KEY` |
-| Small image | `DISCORD_LARGE_IMAGE_KEY` (your logo), tooltip `Void Hub MCP` |
-| Buttons | **See Game Page** (the game's Roblox page) and **Get Void Hub** → `DISCORD_BUTTON_URL` (default: the Void Hub Discord) |
+| Small image | `DISCORD_LARGE_IMAGE_KEY` (your logo), tooltip `VoidHub MCP` |
+| Buttons | **See Game Page** (the game's Roblox page) and **Get VoidHub** → `DISCORD_BUTTON_URL` (default: the VoidHub Discord) |
 
 Updates are throttled to one per 15 seconds and kept alive while you're active. The presence is cleared after 5 minutes with no tool calls. Discord calls never block or fail a tool: if you haven't linked Discord, or Discord is down or slow, tools run exactly as before.
 
 ### 1. Discord Developer Portal
 
-1. Go to <https://discord.com/developers/applications> → **New Application**, named e.g. "Void Hub RPC". The application name is what Discord shows as the activity name.
+1. Go to <https://discord.com/developers/applications> → **New Application**, named e.g. "VoidHub RPC". The application name is what Discord shows as the activity name.
 2. **Social SDK**: open **Discord Social SDK → Getting Started**, fill in the form, and enable the Social SDK for the app. The `sdk.social_layer_presence` scope only works once this is enabled.
 3. **OAuth2 → Redirects**: add `https://<your-railway-domain>/auth/discord/callback` and save.
 4. **OAuth2**: copy the **Client ID**, and **Reset Secret** to get the **Client Secret**.
@@ -260,7 +260,7 @@ In your Railway service → **Variables**, add:
 | `DISCORD_LARGE_IMAGE_KEY` | no | `void_logo` | Art asset key or image URL |
 | `DISCORD_PRESENCE_PLATFORM` | no | `desktop` | Platform reported to Discord: `desktop`, `android`, `ios`, `xbox`, `ps4`, `ps5`, `samsung` or `embedded` |
 | `DISCORD_SHOW_GAME_ICON` | no | `true` | `false` to always use your logo as the big image |
-| `DISCORD_BUTTON_URL` | no | `https://discord.gg/4AdJr8emK2` | "Get Void Hub" button link (`off` hides it) |
+| `DISCORD_BUTTON_URL` | no | `https://discord.gg/4AdJr8emK2` | "Get VoidHub" button link (`off` hides it) |
 | `DISCORD_SHOW_GAME_BUTTON` | no | `true` | `false` hides the "See Game Page" button |
 | `MCP_AUTH_TOKEN` | strongly recommended | — | Gates linking and unlinking (see below) |
 | `DISCORD_TOKEN_STORE_PATH` | recommended | `/data/discord-links.json` | Put tokens on a Railway volume so they survive redeploys |
@@ -278,7 +278,7 @@ Open `https://<your-railway-domain>/auth/discord`. If `MCP_AUTH_TOKEN` is set, e
 
 | Method | Path | Auth (when `MCP_AUTH_TOKEN` is set) | What it does |
 |--------|------|------|--------------|
-| `GET` | `/auth/discord` | sign in once, then a remembered-device cookie | The Void Hub RPC page: status, presence preview, link/test/unlink buttons |
+| `GET` | `/auth/discord` | sign in once, then a remembered-device cookie | The VoidHub RPC page: status, presence preview, link/test/unlink buttons |
 | `POST` | `/auth/discord` | `server_token` field or the cookie | `action=login`, `link` (go to Discord), or `logout` |
 | `GET` | `/auth/discord/callback` | CSRF `state` | Exchanges the code, then stores encrypted access and refresh tokens |
 | `POST` | `/auth/discord/test` | `Authorization: Bearer <MCP_AUTH_TOKEN>` or `server_token` field | Sends a test presence right away and shows Discord's answer |

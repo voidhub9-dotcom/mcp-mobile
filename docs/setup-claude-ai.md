@@ -156,7 +156,7 @@ Claude routes each tool call to your `/mcp` endpoint, which relays it to the con
 
 ### Optional: Discord Rich Presence
 
-Show **Playing Void Hub RPC** on your Discord profile while Claude works: add the Discord variables to your deployment, then link once at `https://YOUR-SERVICE.up.railway.app/auth/discord`. See [VoidHub RPC](discord-rpc.md).
+Show **Playing VoidHub RPC** on your Discord profile while Claude works: add the Discord variables to your deployment, then link once at `https://YOUR-SERVICE.up.railway.app/auth/discord`. See [VoidHub RPC](discord-rpc.md).
 
 ## Available tools
 

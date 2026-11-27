@@ -44,7 +44,7 @@ claude mcp remove roblox-executor-mcp
 
 ## Optional: Discord Rich Presence (VoidHub RPC)
 
-To show **Playing Void Hub RPC** on your Discord profile while Claude Code runs tools, pass the Discord variables when adding the server:
+To show **Playing VoidHub RPC** on your Discord profile while Claude Code runs tools, pass the Discord variables when adding the server:
 
 ```bash
 claude mcp add roblox-executor-mcp \

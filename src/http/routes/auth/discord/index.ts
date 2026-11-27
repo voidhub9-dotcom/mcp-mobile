@@ -9,7 +9,7 @@ import { createAuthorizeUrl } from "../../../../discord/oauth.js";
 import { getLink, tokenStorageAvailable } from "../../../../discord/token-store.js";
 import { currentGame } from "../../../../discord/tool-hook.js";
 
-// GET  /auth/discord            Void Hub RPC page: sign in (once per device), status, preview, actions
+// GET  /auth/discord            VoidHub RPC page: sign in (once per device), status, preview, actions
 // GET  /auth/discord?start=1    Redirect straight to Discord's authorize screen (when authorized)
 // POST /auth/discord            action=login | link | logout
 
@@ -91,7 +91,7 @@ async function dashboard(res: ServerResponse, flash: string | null): Promise<voi
         ? `<img src="${escapeHtml(link.discordAvatarUrl)}" alt="">`
         : initial;
     const sub = link
-        ? (link.discordUserId ? `ID ${escapeHtml(link.discordUserId)}` : "Linked to Void Hub RPC")
+        ? (link.discordUserId ? `ID ${escapeHtml(link.discordUserId)}` : "Linked to VoidHub RPC")
         : "Link Discord to show your presence";
 
     // Activity art: game icon (big) + logo badge, or the logo alone.

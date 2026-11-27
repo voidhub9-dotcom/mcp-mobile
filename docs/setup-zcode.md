@@ -42,4 +42,4 @@ See ZCode's [MCP server documentation](https://zcode.z.ai/en/docs/mcp-services) 
 
 ## Optional: Discord Rich Presence (VoidHub RPC)
 
-To show **Playing Void Hub RPC** on your Discord profile while the AI runs tools, add the Discord variables to this server's `"env"` object under `mcp.servers.roblox-mcp` in `~/.zcode/cli/config.json`, then open `http://localhost:16384/auth/discord` once to link your account. See [VoidHub RPC](discord-rpc.md#local-ai-clients-claude-desktop-claude-code-cursor-windsurf-codex-antigravity-zcode-blackbox) for the Developer Portal steps and a config example.
+To show **Playing VoidHub RPC** on your Discord profile while the AI runs tools, add the Discord variables to this server's `"env"` object under `mcp.servers.roblox-mcp` in `~/.zcode/cli/config.json`, then open `http://localhost:16384/auth/discord` once to link your account. See [VoidHub RPC](discord-rpc.md#local-ai-clients-claude-desktop-claude-code-cursor-windsurf-codex-antigravity-zcode-blackbox) for the Developer Portal steps and a config example.

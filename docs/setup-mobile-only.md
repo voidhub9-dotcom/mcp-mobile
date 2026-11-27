@@ -171,7 +171,7 @@ Ask things like:
 
 ## Optional: Discord Rich Presence (VoidHub RPC)
 
-Your phone server can show **Playing Void Hub RPC** on your Discord profile while the AI runs tools, then clear it after 5 idle minutes.
+Your phone server can show **Playing VoidHub RPC** on your Discord profile while the AI runs tools, then clear it after 5 idle minutes.
 
 1. In the [Discord Developer Portal](https://discord.com/developers/applications), create an app and enable **Discord Social SDK**. Add the redirect `http://localhost:16384/auth/discord/callback`, upload a logo with the key `void_logo`, and copy the Client ID and Client Secret. Details are in [VoidHub RPC](discord-rpc.md#1-create-the-discord-application).
 2. In Termux, add the variables to `~/.bashrc` so every start picks them up:

@@ -104,14 +104,14 @@ test("tool hook never blocks or fails the tool, and presence is throttled + clea
         const first = pushes();
         assert.equal(first.length, 1);
         const act = first[0].body.activities[0];
-        assert.equal(act.name, "Void Hub RPC");
+        assert.equal(act.name, "VoidHub RPC");
         assert.equal(act.type, 0);
         assert.equal(act.platform, "desktop", "Discord requires activities[].platform");
         assert.equal(act.details, "Making a script");
-        assert.equal(act.state, "Connected via Void Hub MCP");
+        assert.equal(act.state, "Connected via VoidHub MCP");
         assert.equal(act.assets.large_image, "void_logo");
-        assert.equal(act.assets.large_text, "Void Hub MCP");
-        assert.deepEqual(act.buttons, [{ label: "Get Void Hub", url: "https://example.test/get" }]);
+        assert.equal(act.assets.large_text, "VoidHub MCP");
+        assert.deepEqual(act.buttons, [{ label: "Get VoidHub", url: "https://example.test/get" }]);
         assert.equal(first[0].auth, "Bearer AT2");
         // The tool already returned while Discord was still "hanging"; now let it finish.
         release();
@@ -149,7 +149,7 @@ test("tool hook never blocks or fails the tool, and presence is throttled + clea
     }
 });
 
-test("game icon becomes the big image, with the Void Hub logo as the small badge", () => {
+test("game icon becomes the big image, with the VoidHub logo as the small badge", () => {
     const act = presence.buildActivity("Making a script", 1, {
         game: { placeId: 606849621, placeName: "Cool Game" },
         gameIconUrl: "https://tr.rbxcdn.com/icon.png",
@@ -158,16 +158,16 @@ test("game icon becomes the big image, with the Void Hub logo as the small badge
         large_image: "https://tr.rbxcdn.com/icon.png",
         large_text: "Cool Game",
         small_image: "void_logo",
-        small_text: "Void Hub MCP",
+        small_text: "VoidHub MCP",
     });
     assert.equal(act.name, "Cool Game", "title is the game's name, like other executor RPCs");
     assert.deepEqual(act.buttons, [
         { label: "See Game Page", url: "https://www.roblox.com/games/606849621" },
-        { label: "Get Void Hub", url: "https://example.test/get" },
+        { label: "Get VoidHub", url: "https://example.test/get" },
     ]);
     const plain = presence.buildActivity("Making a script", 1);
-    assert.equal(plain.name, "Void Hub RPC");
-    assert.deepEqual(plain.assets, { large_image: "void_logo", large_text: "Void Hub MCP" });
+    assert.equal(plain.name, "VoidHub RPC");
+    assert.deepEqual(plain.assets, { large_image: "void_logo", large_text: "VoidHub MCP" });
 });
 
 test("presence fetches the Roblox game icon and falls back to the logo if Discord rejects it", async () => {
@@ -203,11 +203,11 @@ test("test presence pushes immediately and reports Discord's error", async () =>
     installFetch((url) => url.endsWith("/headless-sessions")
         ? json(403, { message: "Missing Access", code: 50001 })
         : json(204, {}));
-    const bad = await presence.sendTestPresence("default", "Testing Void Hub RPC", null);
+    const bad = await presence.sendTestPresence("default", "Testing VoidHub RPC", null);
     assert.equal(bad.ok, false);
     assert.match(bad.error, /403.*Missing Access/);
     installFetch((url) => url.endsWith("/headless-sessions") ? json(200, { token: "S3", activities: [] }) : json(204, {}));
-    const good = await presence.sendTestPresence("default", "Testing Void Hub RPC", null);
+    const good = await presence.sendTestPresence("default", "Testing VoidHub RPC", null);
     assert.deepEqual(good, { ok: true });
     await presence.clearUserPresence("default");
 });

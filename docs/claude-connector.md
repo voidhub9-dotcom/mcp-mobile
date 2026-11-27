@@ -103,7 +103,7 @@ If Claude returns a client, run a second read-only request:
 
 ## Optional: Discord Rich Presence
 
-To have the deployment show **Playing Void Hub RPC** on your Discord profile while Claude calls tools, add the Discord variables to your host and link your account at `https://YOUR-SERVICE.up.railway.app/auth/discord`. These Discord variables are separate from Claude's connector OAuth, and the connector works the same either way. See [VoidHub RPC](discord-rpc.md).
+To have the deployment show **Playing VoidHub RPC** on your Discord profile while Claude calls tools, add the Discord variables to your host and link your account at `https://YOUR-SERVICE.up.railway.app/auth/discord`. These Discord variables are separate from Claude's connector OAuth, and the connector works the same either way. See [VoidHub RPC](discord-rpc.md).
 
 ## Tool Permissions and Safety
 

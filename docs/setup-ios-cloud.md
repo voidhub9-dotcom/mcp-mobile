@@ -149,7 +149,7 @@ The server also includes a built-in AI chat at `/ai` that supports any Anthropic
 
 ## Optional: Discord Rich Presence (VoidHub RPC)
 
-The cloud server can show **Playing Void Hub RPC** on your Discord profile while the AI runs tools (for example "Making a script"), and clears it after 5 idle minutes. It works from Railway or Render, so you don't need Discord open on a PC. If you skip this section, nothing changes. The full reference (all variables, endpoints, and troubleshooting) is in [VoidHub RPC](discord-rpc.md).
+The cloud server can show **Playing VoidHub RPC** on your Discord profile while the AI runs tools (for example "Making a script"), and clears it after 5 idle minutes. It works from Railway or Render, so you don't need Discord open on a PC. If you skip this section, nothing changes. The full reference (all variables, endpoints, and troubleshooting) is in [VoidHub RPC](discord-rpc.md).
 
 ### 1. Set up the Discord app
 
@@ -168,7 +168,7 @@ The cloud server can show **Playing Void Hub RPC** on your Discord profile while
 | `DISCORD_REDIRECT_URI` | `https://YOUR-APP.up.railway.app/auth/discord/callback` (must match the portal exactly) |
 | `TOKEN_ENCRYPTION_KEY` | A random 32-byte key. Run `openssl rand -hex 32`, or use any 64-character hex string |
 | `DISCORD_LARGE_IMAGE_KEY` | Optional. Defaults to `void_logo`; can also be an `https://` image URL |
-| `DISCORD_BUTTON_URL` | Optional. Link for the **Get Void Hub** button |
+| `DISCORD_BUTTON_URL` | Optional. Link for the **Get VoidHub** button |
 | `DISCORD_TOKEN_STORE_PATH` | Recommended: `/data/discord-links.json` (see below) |
 
 Railway wipes the disk on every deploy. To keep your Discord link, open your service and go to **Settings → Volumes → Add Volume**, mount it at `/data`, and set `DISCORD_TOKEN_STORE_PATH=/data/discord-links.json`. Without a volume you'll need to re-link after each deploy.

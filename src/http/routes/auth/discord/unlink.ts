@@ -17,7 +17,7 @@ export async function POST(req: IncomingMessage, res: ServerResponse): Promise<v
         if (json)
             sendJson(res, 401, { error: "unauthorized" });
         else
-            sendMessage(res, 401, "error", "Not signed in", "Open the Void Hub RPC page and sign in with your <code>MCP_AUTH_TOKEN</code> first.");
+            sendMessage(res, 401, "error", "Not signed in", "Open the VoidHub RPC page and sign in with your <code>MCP_AUTH_TOKEN</code> first.");
         return;
     }
     const userKey = DEFAULT_DISCORD_USER_KEY;
