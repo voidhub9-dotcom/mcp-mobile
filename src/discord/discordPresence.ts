@@ -47,6 +47,8 @@ interface UserPresenceState {
     pushedKey: string | null;
     timer: NodeJS.Timeout | null;
     inflight: boolean;
+    /** The push currently talking to Discord, so a clear can wait for it. */
+    inflightPromise?: Promise<unknown> | null;
     lastErrorLogAt: number;
     /** Last MCP tool call (0 = none yet). */
     lastToolAt?: number;
@@ -280,7 +282,9 @@ async function runPush(userKey: string, st: UserPresenceState): Promise<void> {
     const details = st.details;
     const game = st.game;
     try {
-        const saved = await pushPresence(userKey, details, st.sessionStart, game);
+        const pending = pushPresence(userKey, details, st.sessionStart, game);
+        st.inflightPromise = pending.catch(() => undefined);
+        const saved = await pending;
         if (saved !== undefined)
             st.lastSaved = saved;
         st.pushedKey = stateKey(details, game);
@@ -294,6 +298,7 @@ async function runPush(userKey: string, st: UserPresenceState): Promise<void> {
     }
     finally {
         st.inflight = false;
+        st.inflightPromise = null;
         st.lastPushAt = Date.now(); // also on failure, so errors back off at the throttle rate
     }
     if (states.get(userKey) === st && stateKey(st.details, st.game) !== st.pushedKey)
@@ -394,7 +399,9 @@ export async function sendTestPresence(userKey: string, details: string, game: P
     try {
         if (!(await getValidLink(userKey)))
             return { ok: false, error: "No usable Discord token (not linked, or the refresh failed). Link again." };
-        const saved = await pushPresence(userKey, details, st.sessionStart, game);
+        const pending = pushPresence(userKey, details, st.sessionStart, game);
+        st.inflightPromise = pending.catch(() => undefined);
+        const saved = await pending;
         if (saved !== undefined)
             st.lastSaved = saved;
         st.pushedKey = stateKey(details, game);
@@ -405,6 +412,7 @@ export async function sendTestPresence(userKey: string, details: string, game: P
     }
     finally {
         st.inflight = false;
+        st.inflightPromise = null;
         st.lastPushAt = Date.now();
     }
 }
@@ -436,6 +444,10 @@ export async function clearUserPresence(userKey: string): Promise<void> {
         clearTimeout(st.timer);
     states.delete(userKey);
     try {
+        // A push that was already on its way can create a session *after* we delete
+        // it (that left statuses stuck on Discord). Wait for it, then delete.
+        if (st?.inflightPromise)
+            await st.inflightPromise;
         const link = (await getValidLink(userKey)) ?? (await getLink(userKey));
         await deleteHeadlessSession(userKey, link);
         if (link?.sessionToken)
@@ -443,6 +455,28 @@ export async function clearUserPresence(userKey: string): Promise<void> {
     }
     catch (err) {
         console.error(`[Discord] clearUserPresence failed for "${userKey}": ${(err as Error).message}`);
+    }
+}
+
+/**
+ * On boot, end any headless session a previous server process left behind
+ * (restarts/redeploys forget in-memory state, so it would otherwise stay on
+ * Discord with nobody to clear it). Never throws.
+ */
+export async function clearStaleSessionOnStartup(userKey: string): Promise<void> {
+    try {
+        if (!presenceEnabled() || states.has(userKey))
+            return;
+        const link = await getLink(userKey);
+        if (!link?.sessionToken)
+            return;
+        const fresh = (await getValidLink(userKey)) ?? link;
+        await deleteHeadlessSession(userKey, fresh);
+        await saveIfStillLinked(userKey, fresh, { ...fresh, sessionToken: null });
+        console.error(`[Discord] Ended a leftover presence session from before the restart.`);
+    }
+    catch (err) {
+        console.error(`[Discord] Startup cleanup failed: ${(err as Error).message}`);
     }
 }
 

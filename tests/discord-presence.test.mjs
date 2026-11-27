@@ -239,6 +239,8 @@ test("joining a game starts the presence with no tool call; leaving clears it", 
 
     registry.unregisterClient(clientId);
     hook.checkGamePresence();
+    assert.equal(presence.getPresenceStatus("default").active, true, "one missed check is tolerated (teleport/server hop)");
+    hook.checkGamePresence();
     const deadline2 = Date.now() + 5000;
     while (presence.getPresenceStatus("default").active && Date.now() < deadline2)
         await new Promise((r) => setTimeout(r, 5));
@@ -290,6 +292,51 @@ test("stages: build -> test -> fixing on error -> finished when quiet; AI custom
     presence.setCustomStatus("default", null, null);
     assert.equal(details(), "🛠️ Building a script");
     await presence.clearUserPresence("default");
+});
+
+test("clearing while an update is still on its way doesn't leave a stuck status", async () => {
+    await presence.clearUserPresence("default");
+    calls.length = 0;
+    let release;
+    installFetch((url, body) => {
+        if (url.endsWith("/headless-sessions"))
+            return new Promise((r) => { release = () => r(json(200, { token: "LATE", activities: [] })); });
+        return json(204, {});
+    });
+    const p = presence.sendTestPresence("default", "Testing", null);
+    await new Promise((r) => setTimeout(r, 20));
+    const clearing = presence.clearUserPresence("default"); // clear while the push is in flight
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(calls.filter((c) => c.url.endsWith("/delete")).length, 0, "waits for the in-flight push");
+    release();
+    await p; await clearing;
+    const del = calls.filter((c) => c.url.endsWith("/headless-sessions/delete"));
+    assert.equal(del.length, 1);
+    assert.equal(del[0].body.token, "LATE", "deletes the session the late push created");
+});
+
+test("on startup, a session left by the previous process is ended", async () => {
+    await presence.clearUserPresence("default");
+    const link = await store.getLink("default");
+    await store.saveLink("default", { ...link, sessionToken: "GHOST" });
+    calls.length = 0;
+    installFetch(() => json(204, {}));
+    await presence.clearStaleSessionOnStartup("default");
+    const del = calls.filter((c) => c.url.endsWith("/headless-sessions/delete"));
+    assert.equal(del.length, 1);
+    assert.equal(del[0].body.token, "GHOST");
+    assert.equal((await store.getLink("default")).sessionToken, null);
+});
+
+test("a phone client that stopped polling counts as out of the game after 20s", async () => {
+    const registry = await import("../dist/bridge/handlers/shared/registry.js");
+    const id = registry.registerClient({ username: "q", userId: 2, placeId: 777, jobId: "j2", placeName: "Stale Game", transport: "http", mobile: true });
+    const entry = registry.getClientById(id);
+    entry.lastHttpPoll = Date.now();
+    assert.equal(hook.currentGame()?.placeId, 777);
+    entry.lastHttpPoll = Date.now() - 25_000; // still inside the registry's 45s grace
+    assert.equal(hook.currentGame(), null, "presence treats it as gone");
+    registry.unregisterClient(id);
 });
 
 test("unlinked users are a silent no-op", async () => {

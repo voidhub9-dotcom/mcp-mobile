@@ -18,7 +18,7 @@ It's optional. If the Discord variables aren't set, the server behaves exactly a
 
 ## How it behaves
 
-- **Starts as soon as a Roblox game connects.** The server checks every 5 seconds; when your connector is running in a game, the presence turns on with that game's name, icon and buttons. The line under the title says `Using VoidHub`. It stays on while the game is connected and clears when the game disconnects.
+- **Starts as soon as a Roblox game connects.** The server checks every 5 seconds; when your connector is running in a game, the presence turns on with that game's name, icon and buttons. It clears about 30 seconds after the game stops checking in (one missed check is tolerated so a server hop doesn't flicker it). Any status left on Discord by a previous server run is ended when the server starts.
 - Every MCP tool call updates the presence, at most once every **15 seconds**. If several calls land inside that window, Discord gets the most recent one.
 - While tools keep running, the presence is re-sent every **2 minutes** so it doesn't lapse.
 - After **5 minutes** with no tool calls, the presence session ends and the status disappears. The next tool call starts a new session with a fresh timer.
