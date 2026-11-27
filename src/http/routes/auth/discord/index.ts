@@ -59,7 +59,7 @@ function safeNext(value: string | null | undefined): string {
 function loginPage(res: ServerResponse, status = 200, badToken = false, next = "/auth/discord"): void {
     sendPage(res, status, {
         title: "Sign in",
-        body: `<section class="hero"><span class="eyebrow">VoidHub RPC</span><h1>Sign in.</h1><p class="lead">Enter this server's <code>MCP_AUTH_TOKEN</code>. You only do this once on this device.</p></section>
+        body: `<section class="hero"><span class="eyebrow">VoidHub MCP</span><h1>Sign in.</h1><p class="lead">Enter this server's <code>MCP_AUTH_TOKEN</code>. You only do this once on this device.</p></section>
 ${badToken ? toast("error", "<b>Wrong token.</b> Copy it exactly from Railway → Variables.") : ""}
 <form class="card" method="post" action="/auth/discord"><input type="hidden" name="action" value="login"><input type="hidden" name="next" value="${escapeHtml(next)}">
 <label class="label" for="tok">Server token</label>

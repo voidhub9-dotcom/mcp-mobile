@@ -915,6 +915,16 @@ function buildCloudMobileSnippet(publicUrl) {
     return `getgenv().BridgeURL = "${base}"\ngetgenv().MCP_AUTH_TOKEN = "YOUR_MCP_AUTH_TOKEN"\nloadstring(game:HttpGet("${base}/mobile-connector.luau"))()`;
 }
 
+// Opened from another device (not localhost): the loader endpoint knows this
+// server's address as the browser sees it, so use it for the snippet.
+function pageIsRemote() {
+    try {
+        return !/^(localhost|127\.|\[?::1\]?$)/.test(location.hostname);
+    } catch {
+        return false;
+    }
+}
+
 // When the dashboard is opened over a public HTTPS address (e.g. Railway), that
 // address *is* the bridge URL, even if PUBLIC_BASE_URL isn't configured.
 function pageIsPublic() {
@@ -933,7 +943,7 @@ function updateMobileLoadstringStrip(data) {
         : buildMobileLoaderSnippet(data?.connectors?.currentMachine?.bridgeUrl || undefined);
     mobileLoadstringCode.textContent = snippet;
     mobileLoadstringStrip.hidden = false;
-    if (publicUrl) fillLoaderWithToken();
+    if (publicUrl || pageIsRemote()) fillLoaderWithToken();
 }
 
 // Signed-in browsers get the loader with the real MCP_AUTH_TOKEN filled in.

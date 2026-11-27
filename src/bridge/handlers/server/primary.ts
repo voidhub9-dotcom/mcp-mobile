@@ -6,6 +6,8 @@ import { createSession, getSession, deleteSession } from "../../mcp-transport.js
 import { isValidMcpAccessToken, staticTokenMatches, writeMcpUnauthorized } from "../../../oauth/mcp-oauth.js";
 import { resetPrimaryState, setInstanceRole, } from "../shared/communication.js";
 import { resetRegistry } from "../shared/registry.js";
+import { isAuthorizedLocalAdminRequest } from "../../../http/local-admin.js";
+import { hasValidAuthCookie, sameOrigin } from "../../../discord/http.js";
 const PROTECTED_ROUTES = new Set([
     "/mcp",
     "/register",
@@ -24,8 +26,9 @@ function hasLegacyAuth(req: IncomingMessage): boolean {
     const authorization = req.headers["authorization"];
     if (typeof authorization === "string" && authorization.startsWith("Bearer ") && staticTokenMatches(authorization.slice("Bearer ".length)))
         return true;
-    const adminToken = req.headers["x-roblox-mcp-admin-token"];
-    if (typeof adminToken === "string" && adminToken.length > 0)
+    // The local-admin header only counts when it is the real token from a
+    // loopback, same-origin request (previously any non-empty value passed).
+    if (isAuthorizedLocalAdminRequest(req))
         return true;
     const url = new URL(req.url || "", "http://localhost");
     const queryToken = url.searchParams.get("token");
@@ -41,6 +44,11 @@ function checkAuth(req: IncomingMessage, res: ServerResponse): boolean {
     if (!PROTECTED_ROUTES.has(pathname) && !pathname.startsWith("/api/"))
         return true;
     if (hasLegacyAuth(req))
+        return true;
+    // Browsers signed in on the VoidHub page (remembered-device cookie). State-changing
+    // requests must also be same-origin.
+    const method = req.method || "GET";
+    if (hasValidAuthCookie(req) && (method === "GET" || method === "HEAD" || sameOrigin(req)))
         return true;
     res.writeHead(401, { "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify({ error: "Unauthorized" }));

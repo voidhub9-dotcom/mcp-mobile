@@ -51,11 +51,13 @@ async function dashboardApiFetch(input, init = {}, retryAuthorization = true) {
         dashboardAdminTokenPromise = null;
         return dashboardApiFetch(input, init, false);
     }
-    if (response.status === 401 && retryAuthorization) {
-        const token = prompt('Bridge auth required. Enter your MCP_AUTH_TOKEN:');
-        if (token) {
-            localStorage.setItem('mcp_auth_token', token.trim());
-            return dashboardApiFetch(input, init, false);
+    if (response.status === 401) {
+        // One sign-in for the whole site: go to the VoidHub sign-in page once
+        // (it remembers this device), then come straight back here.
+        if (!window.__voidhubSignInRedirect) {
+            window.__voidhubSignInRedirect = true;
+            try { localStorage.removeItem('mcp_auth_token'); } catch {}
+            location.href = '/auth/discord?next=' + encodeURIComponent(location.pathname + location.search);
         }
     }
     return response;
@@ -509,9 +511,11 @@ const clientSetup = createClientSetup({ $, escapeHtml, showToast, dashboardApiFe
 dashboardApiFetch('/api/client-setup')
     .then((res) => (res.ok ? res.json() : null))
     .then((data) => {
-        if (data) clientSetup.updateMobileLoadstringStrip(data);
+        // /api/client-setup is local-admin only; on a cloud server it's refused,
+        // so still fill the strip from the page address (and the signed-in token).
+        clientSetup.updateMobileLoadstringStrip(data || {});
     })
-    .catch(() => {});
+    .catch(() => clientSetup.updateMobileLoadstringStrip({}));
 
 function selectClient(clientId) {
     if (selectedClientId !== clientId) resetScriptsState();

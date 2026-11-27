@@ -75,8 +75,9 @@ function isHttps(req: IncomingMessage): boolean {
     return proto === "https" || Boolean((req.socket as { encrypted?: boolean }).encrypted);
 }
 
-function cookieAttrs(req: IncomingMessage, maxAge: number): string {
-    return `Path=/auth/discord; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${isHttps(req) ? "; Secure" : ""}`;
+// The cookie covers the whole site so the dashboard and its API share the one sign-in.
+function cookieAttrs(req: IncomingMessage, maxAge: number, cookiePath = "/"): string {
+    return `Path=${cookiePath}; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${isHttps(req) ? "; Secure" : ""}`;
 }
 
 export function setAuthCookie(req: IncomingMessage, res: ServerResponse): void {
@@ -85,7 +86,8 @@ export function setAuthCookie(req: IncomingMessage, res: ServerResponse): void {
 }
 
 export function clearAuthCookie(req: IncomingMessage, res: ServerResponse): void {
-    res.setHeader("Set-Cookie", `${AUTH_COOKIE}=; ${cookieAttrs(req, 0)}`);
+    // Also clear the older cookie that was scoped to /auth/discord.
+    res.setHeader("Set-Cookie", [`${AUTH_COOKIE}=; ${cookieAttrs(req, 0)}`, `${AUTH_COOKIE}=; ${cookieAttrs(req, 0, "/auth/discord")}`]);
 }
 
 /**
