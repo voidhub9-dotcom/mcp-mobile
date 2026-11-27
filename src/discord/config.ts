@@ -20,6 +20,8 @@ export const DISCORD_CLIENT_ID: string | null = process.env.DISCORD_CLIENT_ID?.t
 export const DISCORD_CLIENT_SECRET: string | null = process.env.DISCORD_CLIENT_SECRET?.trim() || null;
 export const DISCORD_REDIRECT_URI: string | null = process.env.DISCORD_REDIRECT_URI?.trim() || null;
 export const DISCORD_LARGE_IMAGE_KEY: string = process.env.DISCORD_LARGE_IMAGE_KEY?.trim() || "void_logo";
+/** VoidHub logo used when DISCORD_LARGE_IMAGE_KEY isn't an uploaded Art Asset (or a URL). */
+export const DEFAULT_LOGO_URL = "https://pastevoid.lovable.app/img/Ru7BnfAV0N.png";
 /** "Get VoidHub" button link. Defaults to the VoidHub Discord server; set to "off" to hide it. */
 export const DEFAULT_BUTTON_URL = "https://discord.gg/4AdJr8emK2";
 export const DISCORD_BUTTON_URL: string | null = (() => {

@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { readBody } from "../../../body.js";
-import { within, resolveAssetImage } from "../../../../discord/app-assets.js";
-import { DEFAULT_DISCORD_USER_KEY, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_LARGE_IMAGE_KEY, DISCORD_REDIRECT_URI, DISCORD_SHOW_GAME_ICON, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_LARGE_TEXT, PRESENCE_STATE, TOKEN_ENCRYPTION_KEY, } from "../../../../discord/config.js";
+import { within, previewLogoUrl } from "../../../../discord/app-assets.js";
+import { DEFAULT_DISCORD_USER_KEY, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI, DISCORD_SHOW_GAME_ICON, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_LARGE_TEXT, PRESENCE_STATE, TOKEN_ENCRYPTION_KEY, } from "../../../../discord/config.js";
 import { getPresenceStatus, presenceButtons, presenceTitle } from "../../../../discord/discordPresence.js";
 import { getGameIconUrl } from "../../../../discord/game-icon.js";
 import { authRequired, authorize, clearAuthCookie, escapeHtml, hasValidAuthCookie, icon, LOGO_SVG, parseForm, redirect, sendMessage, sendPage, serverTokenMatches, setAuthCookie, toast, type Tone } from "../../../../discord/http.js";
@@ -44,7 +44,7 @@ function startDiscord(res: ServerResponse): void {
 
 const FLASH: Record<string, { tone: Tone; html: string }> = {
     linked: { tone: "ok", html: "<b>Discord linked.</b> Tap <b>Send test presence</b> to try it." },
-    tested: { tone: "ok", html: "<b>Test sent.</b> Check your Discord profile." },
+    tested: { tone: "ok", html: "<b>Test sent.</b> Check your Discord profile. Buttons only show to other people." },
     unlinked: { tone: "info", html: "<b>Discord unlinked.</b> Tokens were revoked and deleted." },
     signedout: { tone: "info", html: "Signed out on this device." },
 };
@@ -82,7 +82,7 @@ async function dashboard(res: ServerResponse, flash: string | null): Promise<voi
     const game = presence.game ?? currentGame();
     const [gameIcon, logo] = await Promise.all([
         game && DISCORD_SHOW_GAME_ICON ? within(getGameIconUrl(game.placeId), 2500) : Promise.resolve(null),
-        within(resolveAssetImage(DISCORD_LARGE_IMAGE_KEY), 2500),
+        within(previewLogoUrl(), 2500),
     ]);
 
     const name = link?.discordUsername || (link ? "Discord account" : "Not linked yet");
@@ -130,12 +130,15 @@ ${signOut}</section>`
 <form method="post" action="/auth/discord"><input type="hidden" name="action" value="link"><button class="btn primary" type="submit">${icon("link")}Link Discord</button></form>
 ${signOut}</section>`;
 
+    const saved = presence.lastSaved
+        ? `<details class="card saved"><summary class="label">What Discord saved</summary><p class="small">Exactly what Discord stored for your status on the last update. Buttons only show to <b>other people</b> on Discord, never on your own profile.</p><pre>${escapeHtml(JSON.stringify(presence.lastSaved, null, 2))}</pre></details>`
+        : "";
     const note = `<p class="foot">Updates while the AI uses tools · clears after ${Math.round(PRESENCE_IDLE_TIMEOUT_MS / 60_000)} idle minutes</p>`;
     const pill = presence.active ? `<span class="pill">Live</span>` : link ? `<span class="pill off">Idle</span>` : "";
     sendPage(res, 200, {
         title: link ? "Dashboard" : "Link Discord",
         headerRight: pill,
-        body: (flash && FLASH[flash] ? toast(FLASH[flash].tone, FLASH[flash].html) : "") + profile + tiles + actions + note,
+        body: (flash && FLASH[flash] ? toast(FLASH[flash].tone, FLASH[flash].html) : "") + profile + tiles + actions + saved + note,
     });
 }
 

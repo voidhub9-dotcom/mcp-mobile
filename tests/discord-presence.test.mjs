@@ -109,7 +109,7 @@ test("tool hook never blocks or fails the tool, and presence is throttled + clea
         assert.equal(act.platform, "desktop", "Discord requires activities[].platform");
         assert.equal(act.details, "Making a script");
         assert.equal(act.state, "Connected via VoidHub MCP");
-        assert.equal(act.assets.large_image, "void_logo");
+        assert.equal(act.assets.large_image, "https://pastevoid.lovable.app/img/Ru7BnfAV0N.png", "no void_logo Art Asset uploaded, so the logo URL is used");
         assert.equal(act.assets.large_text, "VoidHub MCP");
         assert.deepEqual(act.buttons, [{ label: "Get VoidHub", url: "https://example.test/get" }]);
         assert.equal(first[0].auth, "Bearer AT2");
@@ -194,7 +194,7 @@ test("presence fetches the Roblox game icon and falls back to the logo if Discor
     assert.ok(calls.some((c) => c.url.includes("placeIds=606849621")), "looks up the icon for the current place");
     assert.equal(sent[0].body.activities[0].assets.large_image, "https://tr.rbxcdn.com/icon.png");
     assert.equal(sent[0].body.activities[0].assets.large_text, "Cool Game");
-    assert.equal(sent[1].body.activities[0].assets.large_image, "void_logo", "falls back to the logo");
+    assert.equal(sent[1].body.activities[0].assets.large_image, "https://pastevoid.lovable.app/img/Ru7BnfAV0N.png", "falls back to the logo");
     assert.equal(presence.getPresenceStatus("default").game.placeName, "Cool Game");
     await presence.clearUserPresence("default");
 });

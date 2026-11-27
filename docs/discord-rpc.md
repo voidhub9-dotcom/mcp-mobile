@@ -50,7 +50,7 @@ Quick tunnels (`trycloudflare.com`) change URL on every restart, so you'd have t
 | `DISCORD_CLIENT_SECRET` | yes | — | OAuth2 client secret |
 | `DISCORD_REDIRECT_URI` | yes | `https://YOUR-APP.up.railway.app/auth/discord/callback` | Must match the portal redirect exactly |
 | `TOKEN_ENCRYPTION_KEY` | yes | output of `openssl rand -hex 32` | 32-byte key that encrypts stored tokens (AES-256-GCM). Accepts 64 hex characters or base64 |
-| `DISCORD_LARGE_IMAGE_KEY` | no | `void_logo` | Art asset key or image URL |
+| `DISCORD_LARGE_IMAGE_KEY` | no | `void_logo` | Art Asset key or image URL. If no Art Asset with this key exists, the built-in VoidHub logo URL is used |
 | `DISCORD_BUTTON_URL` | no | `https://discord.gg/4AdJr8emK2` | Link for the **Get VoidHub** button (`off` hides it) |
 | `DISCORD_SHOW_GAME_BUTTON` | no | `true` | `false` hides the **See Game Page** button |
 | `DISCORD_PRESENCE_PLATFORM` | no | `desktop` | Platform reported to Discord: `desktop`, `android`, `ios`, `xbox`, `ps4`, `ps5`, `samsung` or `embedded` |
@@ -198,6 +198,7 @@ To change the wording, edit `ACTION_BY_TOOL` in [`src/discord/tool-hook.ts`](../
 | Test says **Discord said no** with `400 Invalid Form Body` | Discord wants a field the server doesn't send yet. Send the exact error text to the maintainer. |
 | Test says **Discord said no** with `401` | The token was revoked or expired and couldn't refresh. Unlink, then link again. |
 | Test says **Discord said no** with `403` or `404` | The Social SDK isn't enabled for the app, or Discord doesn't allow this kind of presence for your app yet. Send the exact error text to the maintainer. |
+| No **Get VoidHub** / **See Game Page** buttons on your profile | Discord never shows Rich Presence buttons on **your own** profile. Ask a friend to look, or open **What Discord saved** on the VoidHub RPC page to see the buttons Discord stored. |
 | Linked, but nothing on your profile | Presence only appears while tools are running. Check `/auth/discord/status`. Look for `[Discord]` errors in the server log, and make sure **User Settings → Activity Privacy → Share your detected activities with others** is on in Discord. |
 | `[Discord] ... rate limited` | Raise `DISCORD_PRESENCE_THROTTLE_MS`. |
 

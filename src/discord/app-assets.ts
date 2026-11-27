@@ -1,4 +1,4 @@
-import { DISCORD_API_BASE, DISCORD_CLIENT_ID, DISCORD_HTTP_TIMEOUT_MS } from "./config.js";
+import { DEFAULT_LOGO_URL, DISCORD_API_BASE, DISCORD_CLIENT_ID, DISCORD_HTTP_TIMEOUT_MS, DISCORD_LARGE_IMAGE_KEY } from "./config.js";
 
 // Resolves a Rich Presence art-asset key (e.g. "void_logo") to its CDN image,
 // so the /auth/discord page can preview the presence exactly as Discord shows it.
@@ -40,4 +40,23 @@ export async function resolveAssetImage(keyOrUrl: string): Promise<string | null
 /** Resolve within `ms`, else null: page renders never wait long on third parties. */
 export function within<T>(promise: Promise<T | null>, ms: number): Promise<T | null> {
     return Promise.race([promise.catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), ms).unref?.())]);
+}
+
+/**
+ * What to send to Discord as the logo image: the Art Asset key if that asset
+ * exists in the Developer Portal, the URL if DISCORD_LARGE_IMAGE_KEY is one,
+ * otherwise the built-in VoidHub logo URL.
+ */
+export async function presenceLogoImage(): Promise<string> {
+    const key = DISCORD_LARGE_IMAGE_KEY;
+    if (/^https:\/\//i.test(key))
+        return key;
+    if (DISCORD_CLIENT_ID && (await loadAssets()).some((a) => a.name === key))
+        return key;
+    return DEFAULT_LOGO_URL;
+}
+
+/** https URL to show the logo on the dashboard preview. */
+export async function previewLogoUrl(): Promise<string> {
+    return (await resolveAssetImage(DISCORD_LARGE_IMAGE_KEY)) ?? DEFAULT_LOGO_URL;
 }

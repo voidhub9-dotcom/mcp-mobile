@@ -278,6 +278,11 @@ code{font:600 12.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:#fff
 pre{margin:0;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px;white-space:pre-wrap;word-break:break-word;color:#FFC9CA}
 .card p{margin:0;color:#C9CBD8;line-height:1.5}
 .small{font-size:13px;color:var(--muted)}
+.saved summary{cursor:pointer;list-style:none}
+.saved summary::-webkit-details-marker{display:none}
+.saved summary::after{content:" ▾";color:var(--muted)}
+.saved[open] summary::after{content:" ▴"}
+.saved pre{color:#C9CBD8;max-height:320px;overflow:auto}
 a{color:#A5A0FF}
 @media (prefers-reduced-motion:reduce){.btn{transition:none}}
 `;

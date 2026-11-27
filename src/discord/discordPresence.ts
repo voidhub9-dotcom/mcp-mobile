@@ -1,4 +1,5 @@
 import { DISCORD_API_BASE, DISCORD_BUTTON_URL, DISCORD_CLIENT_ID, DISCORD_SHOW_GAME_BUTTON, PRESENCE_GAME_BUTTON_LABEL, DISCORD_SHOW_GAME_ICON, DISCORD_HTTP_TIMEOUT_MS, DISCORD_LARGE_IMAGE_KEY, DISCORD_PRESENCE_PLATFORM, PRESENCE_BUTTON_LABEL, type PresencePlatform, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_KEEPALIVE_MS, PRESENCE_LARGE_TEXT, PRESENCE_NAME, PRESENCE_STATE, PRESENCE_THROTTLE_MS, discordOAuthConfigured, } from "./config.js";
+import { presenceLogoImage, within } from "./app-assets.js";
 import { getGameIconUrl } from "./game-icon.js";
 import { getValidLink, refreshLink } from "./oauth.js";
 import { getLink, saveLink, tokenStorageAvailable, type DiscordLink } from "./token-store.js";
@@ -47,6 +48,8 @@ interface UserPresenceState {
     timer: NodeJS.Timeout | null;
     inflight: boolean;
     lastErrorLogAt: number;
+    /** The activity exactly as Discord echoed it back on the last successful push. */
+    lastSaved?: unknown;
 }
 
 const states = new Map<string, UserPresenceState>();
@@ -55,6 +58,8 @@ let heartbeat: NodeJS.Timeout | null = null;
 let buttonsAccepted = true;
 // Flipped off if Discord rejects external (Roblox CDN) image URLs.
 let gameIconsAccepted = true;
+// Flipped off if Discord rejects the external logo URL.
+let logoUrlAccepted = true;
 
 function stateKey(details: string, game: PresenceGame | null): string {
     return `${details}|${game?.placeId ?? ""}`;
@@ -69,6 +74,8 @@ export interface BuildActivityOptions {
     game?: PresenceGame | null;
     /** https URL of the game's icon; when set it becomes the big image. */
     gameIconUrl?: string | null;
+    /** Art Asset key or https URL for the VoidHub logo. */
+    logo?: string;
 }
 
 /** Title shown in bold: the Roblox game's name when in a game, else "VoidHub RPC". */
@@ -96,13 +103,13 @@ export function buildActivity(details: string, startMs: number, options: BuildAc
         details: truncate(details, 128),
         state: PRESENCE_STATE,
         timestamps: { start: startMs },
-        assets: { large_image: DISCORD_LARGE_IMAGE_KEY, large_text: PRESENCE_LARGE_TEXT },
+        assets: { large_image: options.logo ?? DISCORD_LARGE_IMAGE_KEY, large_text: PRESENCE_LARGE_TEXT },
     };
     if (options.gameIconUrl) {
         activity.assets = {
             large_image: options.gameIconUrl,
             large_text: truncate(options.game?.placeName || "Roblox", 128),
-            small_image: DISCORD_LARGE_IMAGE_KEY,
+            small_image: options.logo ?? DISCORD_LARGE_IMAGE_KEY,
             small_text: PRESENCE_LARGE_TEXT,
         };
     }
@@ -174,7 +181,9 @@ async function runPush(userKey: string, st: UserPresenceState): Promise<void> {
     const details = st.details;
     const game = st.game;
     try {
-        await pushPresence(userKey, details, st.sessionStart, game);
+        const saved = await pushPresence(userKey, details, st.sessionStart, game);
+        if (saved !== undefined)
+            st.lastSaved = saved;
         st.pushedKey = stateKey(details, game);
     }
     catch (err) {
@@ -201,26 +210,27 @@ async function discordPost(path: string, accessToken: string, body: unknown): Pr
     });
 }
 
-async function pushPresence(userKey: string, details: string, sessionStart: number, game: PresenceGame | null): Promise<void> {
+async function pushPresence(userKey: string, details: string, sessionStart: number, game: PresenceGame | null): Promise<unknown> {
     let link = await getValidLink(userKey);
     if (!link)
-        return; // not linked (or token dead): silently skip
+        return undefined; // not linked (or token dead): silently skip
+    let logo = logoUrlAccepted ? ((await within(presenceLogoImage(), 3000)) ?? DISCORD_LARGE_IMAGE_KEY) : DISCORD_LARGE_IMAGE_KEY;
     const wantIcon = DISCORD_SHOW_GAME_ICON && gameIconsAccepted && game !== null;
     let gameIconUrl = wantIcon ? await getGameIconUrl(game.placeId) : null;
     let useToken = true;
     let refreshed = false;
     for (let attempt = 0; attempt < 5; attempt++) {
         const body: { activities: PresenceActivity[]; token?: string } = {
-            activities: [buildActivity(details, sessionStart, { game, gameIconUrl })],
+            activities: [buildActivity(details, sessionStart, { game, gameIconUrl, logo })],
         };
         if (useToken && link.sessionToken)
             body.token = link.sessionToken;
         const resp = await discordPost(HEADLESS_SESSION_PATH, link.accessToken, body);
         if (resp.ok) {
-            const data = (await resp.json().catch(() => ({}))) as { token?: string };
+            const data = (await resp.json().catch(() => ({}))) as { token?: string; activities?: unknown[] };
             if (data.token && data.token !== link.sessionToken)
                 await saveIfStillLinked(userKey, link, { ...link, sessionToken: data.token });
-            return;
+            return Array.isArray(data.activities) ? data.activities[0] : data;
         }
         const text = await resp.text().catch(() => "");
         if (resp.status === 401 && !refreshed) {
@@ -242,6 +252,12 @@ async function pushPresence(userKey: string, details: string, sessionStart: numb
             console.error("[Discord] Discord rejected the game icon URL; using the VoidHub logo instead.");
             continue;
         }
+        if (resp.status === 400 && /^https:/i.test(logo) && logo !== gameIconUrl && /image|asset|url/i.test(text)) {
+            logoUrlAccepted = false;
+            logo = DISCORD_LARGE_IMAGE_KEY;
+            console.error("[Discord] Discord rejected the logo URL; upload the logo as an Art Asset named " + DISCORD_LARGE_IMAGE_KEY + ".");
+            continue;
+        }
         if (resp.status === 400 && buttonsAccepted && /button/i.test(text)) {
             buttonsAccepted = false;
             console.error("[Discord] Discord rejected the presence button; continuing without it.");
@@ -252,6 +268,7 @@ async function pushPresence(userKey: string, details: string, sessionStart: numb
         }
         throw new Error(`Discord returned ${resp.status}: ${text.slice(0, 300)}`);
     }
+    return undefined;
 }
 
 /**
@@ -278,7 +295,9 @@ export async function sendTestPresence(userKey: string, details: string, game: P
     try {
         if (!(await getValidLink(userKey)))
             return { ok: false, error: "No usable Discord token (not linked, or the refresh failed). Link again." };
-        await pushPresence(userKey, details, st.sessionStart, game);
+        const saved = await pushPresence(userKey, details, st.sessionStart, game);
+        if (saved !== undefined)
+            st.lastSaved = saved;
         st.pushedKey = stateKey(details, game);
         return { ok: true };
     }
@@ -350,7 +369,7 @@ function ensureHeartbeat(): void {
     heartbeat.unref?.();
 }
 
-export function getPresenceStatus(userKey: string): { active: boolean; pushInFlight: boolean; pushScheduled: boolean; details: string | null; game: PresenceGame | null; sessionStart: number | null; lastActivityAt: number | null } {
+export function getPresenceStatus(userKey: string): { active: boolean; pushInFlight: boolean; pushScheduled: boolean; details: string | null; game: PresenceGame | null; sessionStart: number | null; lastActivityAt: number | null; lastSaved: unknown } {
     const st = states.get(userKey);
     return {
         active: Boolean(st),
@@ -360,5 +379,6 @@ export function getPresenceStatus(userKey: string): { active: boolean; pushInFli
         game: st?.game ?? null,
         sessionStart: st?.sessionStart ?? null,
         lastActivityAt: st?.lastActivityAt ?? null,
+        lastSaved: st?.lastSaved ?? null,
     };
 }
