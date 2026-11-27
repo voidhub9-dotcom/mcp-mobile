@@ -258,6 +258,7 @@ In your Railway service → **Variables**, add:
 | `DISCORD_REDIRECT_URI` | yes | `https://your-app.up.railway.app/auth/discord/callback` | Must exactly match the portal redirect |
 | `TOKEN_ENCRYPTION_KEY` | yes | output of `openssl rand -hex 32` | Encrypts stored tokens (AES-256-GCM) |
 | `DISCORD_LARGE_IMAGE_KEY` | no | `void_logo` | Art asset key or image URL |
+| `DISCORD_PRESENCE_PLATFORM` | no | `desktop` | Platform reported to Discord: `desktop`, `android`, `ios`, `xbox`, `ps4`, `ps5`, `samsung` or `embedded` |
 | `DISCORD_SHOW_GAME_ICON` | no | `true` | `false` to always use your logo as the big image |
 | `DISCORD_BUTTON_URL` | no | `https://your-site/void-hub` | "Get Void Hub" button link (no button if empty) |
 | `MCP_AUTH_TOKEN` | strongly recommended | — | Gates linking and unlinking (see below) |

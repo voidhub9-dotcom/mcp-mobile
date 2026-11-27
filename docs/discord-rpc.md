@@ -52,6 +52,7 @@ Quick tunnels (`trycloudflare.com`) change URL on every restart, so you'd have t
 | `TOKEN_ENCRYPTION_KEY` | yes | output of `openssl rand -hex 32` | 32-byte key that encrypts stored tokens (AES-256-GCM). Accepts 64 hex characters or base64 |
 | `DISCORD_LARGE_IMAGE_KEY` | no | `void_logo` | Art asset key or image URL |
 | `DISCORD_BUTTON_URL` | no | — | Link for the **Get Void Hub** button |
+| `DISCORD_PRESENCE_PLATFORM` | no | `desktop` | Platform reported to Discord: `desktop`, `android`, `ios`, `xbox`, `ps4`, `ps5`, `samsung` or `embedded` |
 | `DISCORD_SHOW_GAME_ICON` | no | `true` | Set to `false` to always use your logo as the big image instead of the current game's icon |
 | `MCP_AUTH_TOKEN` | cloud: yes | — | Protects linking and unlinking (and the rest of the server) |
 | `DISCORD_TOKEN_STORE_PATH` | cloud: recommended | `~/.roblox-mcp/discord-links.json` | Where encrypted tokens are saved |
@@ -189,6 +190,7 @@ To change the wording, edit `ACTION_BY_TOOL` in [`src/discord/tool-hook.ts`](../
 | `linked: false` after a redeploy | The token file was wiped. Add a volume and set `DISCORD_TOKEN_STORE_PATH`. |
 | "Could not decrypt stored token" in logs | `TOKEN_ENCRYPTION_KEY` changed. Link again. |
 | Big image shows your logo, not the game | No Roblox client is connected (check the dashboard), the icon lookup failed, or Discord refused the image link. If it was refused, the server log has a `[Discord] Discord rejected the game icon URL` line. |
+| Test says **Discord said no** with `400 Invalid Form Body` | Discord wants a field the server doesn't send yet. Send the exact error text to the maintainer. |
 | Test says **Discord said no** with `401` | The token was revoked or expired and couldn't refresh. Unlink, then link again. |
 | Test says **Discord said no** with `403` or `404` | The Social SDK isn't enabled for the app, or Discord doesn't allow this kind of presence for your app yet. Send the exact error text to the maintainer. |
 | Linked, but nothing on your profile | Presence only appears while tools are running. Check `/auth/discord/status`. Look for `[Discord]` errors in the server log, and make sure **User Settings → Activity Privacy → Share your detected activities with others** is on in Discord. |

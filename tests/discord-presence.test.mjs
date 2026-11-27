@@ -106,6 +106,7 @@ test("tool hook never blocks or fails the tool, and presence is throttled + clea
         const act = first[0].body.activities[0];
         assert.equal(act.name, "Void Hub RPC");
         assert.equal(act.type, 0);
+        assert.equal(act.platform, "desktop", "Discord requires activities[].platform");
         assert.equal(act.details, "Making a script");
         assert.equal(act.state, "Connected via Void Hub MCP");
         assert.equal(act.assets.large_image, "void_logo");

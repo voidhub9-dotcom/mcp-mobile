@@ -1,4 +1,4 @@
-import { DISCORD_API_BASE, DISCORD_BUTTON_URL, DISCORD_CLIENT_ID, DISCORD_SHOW_GAME_ICON, DISCORD_HTTP_TIMEOUT_MS, DISCORD_LARGE_IMAGE_KEY, PRESENCE_BUTTON_LABEL, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_KEEPALIVE_MS, PRESENCE_LARGE_TEXT, PRESENCE_NAME, PRESENCE_STATE, PRESENCE_THROTTLE_MS, discordOAuthConfigured, } from "./config.js";
+import { DISCORD_API_BASE, DISCORD_BUTTON_URL, DISCORD_CLIENT_ID, DISCORD_SHOW_GAME_ICON, DISCORD_HTTP_TIMEOUT_MS, DISCORD_LARGE_IMAGE_KEY, DISCORD_PRESENCE_PLATFORM, PRESENCE_BUTTON_LABEL, type PresencePlatform, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_KEEPALIVE_MS, PRESENCE_LARGE_TEXT, PRESENCE_NAME, PRESENCE_STATE, PRESENCE_THROTTLE_MS, discordOAuthConfigured, } from "./config.js";
 import { getGameIconUrl } from "./game-icon.js";
 import { getValidLink, refreshLink } from "./oauth.js";
 import { getLink, saveLink, tokenStorageAvailable, type DiscordLink } from "./token-store.js";
@@ -21,6 +21,7 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 export interface PresenceActivity {
     name: string;
     type: 0;
+    platform: PresencePlatform;
     application_id?: string;
     details: string;
     state: string;
@@ -75,6 +76,7 @@ export function buildActivity(details: string, startMs: number, options: BuildAc
     const activity: PresenceActivity = {
         name: PRESENCE_NAME,
         type: 0, // Playing
+        platform: DISCORD_PRESENCE_PLATFORM,
         ...(DISCORD_CLIENT_ID ? { application_id: DISCORD_CLIENT_ID } : {}),
         details: truncate(details, 128),
         state: PRESENCE_STATE,

@@ -30,6 +30,14 @@ export const DISCORD_TOKEN_STORE_PATH: string = process.env.DISCORD_TOKEN_STORE_
 /** Show the current Roblox game's icon as the big image (Void Hub logo becomes the small badge). */
 export const DISCORD_SHOW_GAME_ICON: boolean = !/^(0|false|no|off)$/i.test(process.env.DISCORD_SHOW_GAME_ICON?.trim() || "");
 
+/** Activity platform Discord requires on headless-session activities. */
+export const PRESENCE_PLATFORMS = ["desktop", "android", "ios", "xbox", "samsung", "ps4", "ps5", "embedded"] as const;
+export type PresencePlatform = (typeof PRESENCE_PLATFORMS)[number];
+export const DISCORD_PRESENCE_PLATFORM: PresencePlatform = (() => {
+    const raw = (process.env.DISCORD_PRESENCE_PLATFORM || "").trim().toLowerCase();
+    return (PRESENCE_PLATFORMS as readonly string[]).includes(raw) ? (raw as PresencePlatform) : "desktop";
+})();
+
 /** Minimum gap between two presence pushes for the same user. */
 export const PRESENCE_THROTTLE_MS = envInt("DISCORD_PRESENCE_THROTTLE_MS", 15_000, 15_000, 300_000);
 /** End the headless session after this long without MCP tool calls. */
