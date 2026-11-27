@@ -164,25 +164,28 @@ curl -H "Authorization: Bearer $MCP_AUTH_TOKEN" https://YOUR-APP.up.railway.app/
 
 ## Tool → details
 
-| Tool | Details shown |
-|------|---------------|
-| `execute`, `execute-file`, `get-ai-script-context` | Making a script |
-| `get-data-by-code` | Testing a script |
-| `get-script-content` | Reading game scripts |
-| `script-grep`, `semantic-search-scripts` | Searching game scripts |
-| `remote-spy` | Spying on remotes |
-| `decrypt-remote` | Reverse engineering remotes |
-| `scan-anticheat` | Scanning for anti-cheat |
-| `anticheat-bypass` | Researching anti-cheat |
-| `client-screenshot`, `screenshot-window` | Taking a screenshot |
-| `server-hop` | Hopping servers |
-| `research-game` | Researching a game |
-| `trace-game-activity` | Tracing game activity |
-| `find-game-systems` | Mapping game systems |
-| `click-button`, `type-text-box` | Automating the game UI |
-| anything else | Running `<tool-name>` |
+The line under the game name follows what the AI is doing:
 
-To change the wording, edit `ACTION_BY_TOOL` in [`src/discord/tool-hook.ts`](../src/discord/tool-hook.ts).
+| Stage | Shown on Discord | Triggered by |
+|------|------|------|
+| In game | Using VoidHub | A Roblox game is connected and nothing else is happening |
+| Exploring | 🔍 Exploring the game | `get-game-info`, `get-player-state`, `get-game-guis`, `search-instances`, `get-descendants-tree`, `find-game-systems`, `trace-game-activity`, `research-game`, screenshots |
+| Reading | 📜 Reading game scripts | `get-script-content`, `script-grep`, `semantic-search-scripts`, `get-ai-script-context` |
+| Spying | 📡 Spying on remotes | `remote-spy`, `decrypt-remote` |
+| Building | 🛠️ Building a script | `execute`, `execute-file` |
+| Testing | 🧪 Testing features | `get-data-by-code`, `get-console-output`, `click-button`, `type-text-box` |
+| Fixing | 🐞 Fixing a bug | A building/testing tool returned an error |
+| Finished | ✅ Finished a script | Building/testing/fixing went quiet for 90 seconds (stays 15 minutes) |
+| Anti-cheat | 🛡️ Checking anti-cheat | `scan-anticheat`, `anticheat-bypass` |
+| Hopping | 🌍 Hopping servers | `server-hop` |
+
+Housekeeping tools (`list-clients`, `set-active-client`, `anti-afk`, …) don't change the line. A stage stays for 2 minutes after its last tool call.
+
+### The AI's own status: `discord-status`
+
+The AI can set an exact line with the `discord-status` MCP tool, for example `phase=building, status="Building Pet Sim auto-farm"` shows **🛠️ Building Pet Sim auto-farm**, and `phase=finished, status="Finished auto-farm script"` shows **✅ Finished auto-farm script**. The server's MCP instructions tell the AI to call it at milestones (start building, testing, fixing, finished). A custom status wins over the automatic stages for 10 minutes or until replaced; `action=clear` goes back to automatic.
+
+To change the automatic wording, edit `STAGE_TEXT` in [`src/discord/discordPresence.ts`](../src/discord/discordPresence.ts) and `STAGE_BY_TOOL` in [`src/discord/tool-hook.ts`](../src/discord/tool-hook.ts).
 
 ## Troubleshooting
 

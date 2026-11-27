@@ -34,6 +34,7 @@ const SERVER_OPTIONS = {
         "16. For mobile clients, call get-client-capabilities to check which tools are supported on the connected executor.",
         "17. When writing Luau code for execute/get-data-by-code, always use pcall() for any Roblox API call that may fail, and return compact results (not full instances). Use setthreadidentity(8) at the start of code that needs elevated permissions.",
         "18. When writing automation scripts, follow the observed game flow exactly: fire the same remotes in the same order, interact with the same UI elements, and verify each step before proceeding. Add waits (task.wait) between steps to let the server respond.",
+        "19. Discord status (VoidHub RPC): call discord-status at milestones so the user's Discord shows progress, e.g. phase=building 'Building <game> auto-farm', phase=testing 'Testing auto-farm', phase=fixing 'Fixing teleport bug', phase=finished 'Finished auto-farm script'. Keep it short; no secrets.",
     ].join("\n"),
 };
 export function createMcpServer() {

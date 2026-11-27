@@ -1,33 +1,57 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DEFAULT_DISCORD_USER_KEY } from "./config.js";
 import { getActiveClientId, getActiveClients, resolveTargetClient } from "../bridge/handlers/shared/registry.js";
-import { clearUserPresence, getPresenceStatus, presenceEnabled, toolUsedWithin, updateGamePresence, updateUserPresence, type PresenceGame } from "./discordPresence.js";
+import { STAGE_TEXT, clearUserPresence, getPresenceStatus, presenceEnabled, toolUsedWithin, updateGamePresence, updateUserPresence, type PresenceGame, type PresenceStage } from "./discordPresence.js";
 
-// Maps MCP tool names to the "details" line shown on Discord.
-const ACTION_BY_TOOL: Record<string, string> = {
-    "execute": "Making a script",
-    "execute-file": "Making a script",
-    "get-data-by-code": "Testing a script",
-    "get-ai-script-context": "Making a script",
-    "get-script-content": "Reading game scripts",
-    "script-grep": "Searching game scripts",
-    "semantic-search-scripts": "Searching game scripts",
-    "remote-spy": "Spying on remotes",
-    "decrypt-remote": "Reverse engineering remotes",
-    "scan-anticheat": "Scanning for anti-cheat",
-    "anticheat-bypass": "Researching anti-cheat",
-    "client-screenshot": "Taking a screenshot",
-    "screenshot-window": "Taking a screenshot",
-    "server-hop": "Hopping servers",
-    "research-game": "Researching a game",
-    "trace-game-activity": "Tracing game activity",
-    "find-game-systems": "Mapping game systems",
-    "click-button": "Automating the game UI",
-    "type-text-box": "Automating the game UI",
+// Maps MCP tool names to a work stage; the stage decides the "details" line on Discord.
+// Tools mapped to "keep" (housekeeping) leave the current line alone.
+const STAGE_BY_TOOL: Record<string, PresenceStage | "keep"> = {
+    "execute": "building",
+    "execute-file": "building",
+    "get-data-by-code": "testing",
+    "get-console-output": "testing",
+    "click-button": "testing",
+    "type-text-box": "testing",
+    "get-ai-script-context": "reading",
+    "get-script-content": "reading",
+    "script-grep": "reading",
+    "semantic-search-scripts": "reading",
+    "remote-spy": "spying",
+    "decrypt-remote": "spying",
+    "scan-anticheat": "anticheat",
+    "anticheat-bypass": "anticheat",
+    "get-game-info": "exploring",
+    "get-player-state": "exploring",
+    "get-game-guis": "exploring",
+    "search-instances": "exploring",
+    "get-descendants-tree": "exploring",
+    "find-game-systems": "exploring",
+    "trace-game-activity": "exploring",
+    "research-game": "exploring",
+    "client-screenshot": "exploring",
+    "screenshot-window": "exploring",
+    "list-roblox-windows": "keep",
+    "server-hop": "hopping",
+    "list-clients": "keep",
+    "set-active-client": "keep",
+    "get-client-capabilities": "keep",
+    "get-connector-health": "keep",
+    "get-loadstring": "keep",
+    "get-session-alerts": "keep",
+    "create-diagnostic-snapshot": "keep",
+    "anti-afk": "keep",
+    "phone-shell": "keep",
+    "discord-status": "keep",
 };
 
+export function stageForTool(toolName: string): PresenceStage | "keep" {
+    return STAGE_BY_TOOL[toolName] ?? "other";
+}
+
+/** The details line a tool call shows (kept for callers/tests). */
 export function actionForTool(toolName: string): string {
-    return ACTION_BY_TOOL[toolName] ?? `Running ${toolName}`;
+    const stage = stageForTool(toolName);
+    return stage === "keep" ? STAGE_TEXT.other : STAGE_TEXT[stage];
 }
 
 /** The game the active Roblox client is in, or null (no client, Termux shell, unknown place). */
@@ -58,14 +82,29 @@ export function installPresenceToolHook(server: McpServer): void {
         const cbIndex = args.length - 1;
         const cb = args[cbIndex];
         if (typeof name === "string" && typeof cb === "function") {
+            const stage = stageForTool(name);
             args[cbIndex] = function (this: unknown, ...cbArgs: unknown[]) {
                 try {
-                    updateUserPresence(DEFAULT_DISCORD_USER_KEY, actionForTool(name), currentGame());
+                    if (stage === "keep") {
+                        const game = currentGame();
+                        if (game)
+                            updateGamePresence(DEFAULT_DISCORD_USER_KEY, game);
+                    }
+                    else
+                        updateUserPresence(DEFAULT_DISCORD_USER_KEY, STAGE_TEXT[stage], currentGame(), stage);
                 }
                 catch {
                     // never let presence affect the tool
                 }
-                return (cb as (...a: unknown[]) => unknown).apply(this, cbArgs);
+                const result = (cb as (...a: unknown[]) => unknown).apply(this, cbArgs);
+                // A failed build/test call means the AI is now fixing something.
+                if (stage === "building" || stage === "testing") {
+                    Promise.resolve(result).then((r) => {
+                        if (r && typeof r === "object" && (r as { isError?: boolean }).isError)
+                            updateUserPresence(DEFAULT_DISCORD_USER_KEY, STAGE_TEXT.fixing, currentGame(), "fixing");
+                    }, () => updateUserPresence(DEFAULT_DISCORD_USER_KEY, STAGE_TEXT.fixing, currentGame(), "fixing")).catch(() => undefined);
+                }
+                return result;
             };
         }
         return original(...args);

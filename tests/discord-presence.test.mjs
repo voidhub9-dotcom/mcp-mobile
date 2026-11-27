@@ -107,7 +107,7 @@ test("tool hook never blocks or fails the tool, and presence is throttled + clea
         assert.equal(act.name, "VoidHub RPC");
         assert.equal(act.type, 0);
         assert.equal(act.platform, "desktop", "Discord requires activities[].platform");
-        assert.equal(act.details, "Making a script");
+        assert.equal(act.details, "🛠️ Building a script", "execute = building stage");
         assert.equal(act.state, "Connected via VoidHub MCP");
         assert.equal(act.assets.large_image, "https://pastevoid.lovable.app/img/Ru7BnfAV0N.png", "no void_logo Art Asset uploaded, so the logo URL is used");
         assert.equal(act.assets.large_text, "VoidHub MCP");
@@ -248,6 +248,48 @@ test("joining a game starts the presence with no tool call; leaving clears it", 
         await new Promise((r) => setTimeout(r, 5));
     assert.ok(calls.some((c) => c.url.endsWith("/headless-sessions/delete")), "the Discord session is ended");
     await new Promise((r) => setTimeout(r, 50)); // let the session-token save settle
+});
+
+test("stages: build -> test -> fixing on error -> finished when quiet; AI custom status wins", async () => {
+    await presence.clearUserPresence("default");
+    installFetch((url) => url.endsWith("/headless-sessions") ? json(200, { token: "S9", activities: [] }) : json(204, {}));
+    const registered = {};
+    const fake = { registerTool(name, _cfg, cb) { registered[name] = cb; } };
+    hook.installPresenceToolHook(fake);
+    fake.registerTool("execute", {}, async () => ({ content: [] }));
+    fake.registerTool("get-data-by-code", {}, async () => ({ content: [], isError: true }));
+    fake.registerTool("list-clients", {}, async () => ({ content: [] }));
+    const details = () => presence.getPresenceStatus("default").details;
+
+    await registered.execute({});
+    assert.equal(details(), "🛠️ Building a script");
+    await registered["list-clients"]({});
+    assert.equal(details(), "🛠️ Building a script", "housekeeping tools keep the line");
+    await registered["get-data-by-code"]({});
+    await new Promise((r) => setImmediate(r));
+    assert.equal(details(), "🐞 Fixing a bug", "a failed test call means fixing");
+
+    // Quiet for 2 minutes after building/testing -> "Finished a script"
+    const realNow = Date.now;
+    try {
+        Date.now = () => realNow() + 2 * 60_000;
+        presence.updateGamePresence("default", { placeId: 1, placeName: "Game" });
+        assert.equal(details(), "✅ Finished a script");
+        Date.now = () => realNow() + 20 * 60_000;
+        presence.updateGamePresence("default", { placeId: 1, placeName: "Game" });
+        assert.equal(details(), "Using VoidHub", "finished only stays for a while");
+    }
+    finally {
+        Date.now = realNow;
+    }
+
+    // The AI's own status wins over automatic stages until cleared
+    presence.setCustomStatus("default", "🛠️ Building Pet Sim auto-farm", null);
+    await registered.execute({});
+    assert.equal(details(), "🛠️ Building Pet Sim auto-farm");
+    presence.setCustomStatus("default", null, null);
+    assert.equal(details(), "🛠️ Building a script");
+    await presence.clearUserPresence("default");
 });
 
 test("unlinked users are a silent no-op", async () => {

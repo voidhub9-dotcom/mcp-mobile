@@ -50,6 +50,13 @@ interface UserPresenceState {
     lastErrorLogAt: number;
     /** Last MCP tool call (0 = none yet). */
     lastToolAt?: number;
+    /** Details text from the last tool call (e.g. "🛠️ Building a script"). */
+    toolDetails?: string;
+    /** Work stage of the last tool call, used to show "Finished a script". */
+    lastStage?: PresenceStage | null;
+    /** Status set by the AI with the discord-status tool, and when it expires. */
+    customDetails?: string | null;
+    customUntil?: number;
     /** The activity exactly as Discord echoed it back on the last successful push. */
     lastSaved?: unknown;
 }
@@ -126,16 +133,48 @@ function truncate(text: string, max: number): string {
     return clean.length > max ? clean.slice(0, max - 1) + "…" : clean;
 }
 
-/**
- * Record that `userKey` is doing `action` and (throttled) push it to Discord.
- * Synchronous, never throws, never awaits the network.
- */
 /** Shown under the title while a game is connected and no tool ran recently. */
 export const IN_GAME_DETAILS = "Using VoidHub";
 /** How long a tool's action text ("Making a script") stays before going back to IN_GAME_DETAILS. */
 export const TOOL_ACTION_HOLD_MS = 2 * 60_000;
 
-function touch(userKey: string, game: PresenceGame | null, details: string | null, fromTool: boolean): void {
+/** Work stages the presence understands. "keep" tools (list-clients etc.) don't change the line. */
+export type PresenceStage = "exploring" | "reading" | "spying" | "building" | "testing" | "fixing" | "anticheat" | "hopping" | "finished" | "other";
+
+export const STAGE_TEXT: Record<PresenceStage, string> = {
+    exploring: "🔍 Exploring the game",
+    reading: "📜 Reading game scripts",
+    spying: "📡 Spying on remotes",
+    building: "🛠️ Building a script",
+    testing: "🧪 Testing features",
+    fixing: "🐞 Fixing a bug",
+    anticheat: "🛡️ Checking anti-cheat",
+    hopping: "🌍 Hopping servers",
+    finished: "✅ Finished a script",
+    other: "⚙️ Working in Roblox",
+};
+
+/** After building/testing goes quiet this long, show "Finished a script". */
+export const FINISHED_AFTER_MS = 90_000;
+/** How long "Finished a script" stays up. */
+export const FINISHED_HOLD_MS = 15 * 60_000;
+/** How long a status set with the discord-status tool stays up (unless replaced). */
+export const CUSTOM_STATUS_MS = 10 * 60_000;
+
+/** The details line right now, from the AI's custom status, recent tool stage, or the plain in-game line. */
+function currentDetails(st: UserPresenceState, now: number): string {
+    if (st.customDetails && (st.customUntil ?? 0) > now)
+        return st.customDetails;
+    const since = st.lastToolAt ? now - st.lastToolAt : Infinity;
+    const workStage = st.lastStage === "building" || st.lastStage === "testing" || st.lastStage === "fixing";
+    if (workStage && since >= FINISHED_AFTER_MS && since < FINISHED_HOLD_MS)
+        return STAGE_TEXT.finished;
+    if (since < TOOL_ACTION_HOLD_MS && st.toolDetails)
+        return st.toolDetails;
+    return IN_GAME_DETAILS;
+}
+
+function touch(userKey: string, game: PresenceGame | null, details: string | null, fromTool: boolean, stage: PresenceStage | null = null): void {
     try {
         if (!presenceEnabled())
             return;
@@ -159,15 +198,16 @@ function touch(userKey: string, game: PresenceGame | null, details: string | nul
         st.lastActivityAt = now;
         if (fromTool) {
             st.lastToolAt = now;
-            st.details = details ?? st.details;
+            if (details)
+                st.toolDetails = details;
+            if (stage)
+                st.lastStage = stage;
             st.game = game ?? st.game;
         }
         else {
             st.game = game;
-            // Keep a recent tool action visible; otherwise show the plain in-game line.
-            if (!st.lastToolAt || now - st.lastToolAt > TOOL_ACTION_HOLD_MS)
-                st.details = IN_GAME_DETAILS;
         }
+        st.details = currentDetails(st, now);
         ensureHeartbeat();
         schedulePush(userKey, st, false);
     }
@@ -177,11 +217,31 @@ function touch(userKey: string, game: PresenceGame | null, details: string | nul
 }
 
 /**
+ * Set (or clear, with null) the status line the AI chose with the discord-status
+ * tool. It wins over automatic stages for CUSTOM_STATUS_MS or until replaced.
+ */
+export function setCustomStatus(userKey: string, text: string | null, game: PresenceGame | null): { ok: boolean; reason?: string } {
+    if (!presenceEnabled())
+        return { ok: false, reason: "Discord isn't configured on this server." };
+    const now = Date.now();
+    touch(userKey, game, null, false);
+    const st = states.get(userKey);
+    if (!st)
+        return { ok: false, reason: "Presence is not running." };
+    st.customDetails = text ? truncate(text, 128) : null;
+    st.customUntil = text ? now + CUSTOM_STATUS_MS : 0;
+    st.lastToolAt = now;
+    st.details = currentDetails(st, now);
+    schedulePush(userKey, st, false);
+    return { ok: true };
+}
+
+/**
  * Record that `userKey` is doing `action` (an MCP tool ran) and push it, throttled.
  * Synchronous, never throws, never awaits the network.
  */
-export function updateUserPresence(userKey: string, action: string, game: PresenceGame | null = null): void {
-    touch(userKey, game, action, true);
+export function updateUserPresence(userKey: string, action: string, game: PresenceGame | null = null, stage: PresenceStage | null = null): void {
+    touch(userKey, game, action, true, stage);
 }
 
 /**

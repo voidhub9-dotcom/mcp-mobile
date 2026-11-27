@@ -230,7 +230,7 @@ The server can set your Discord Rich Presence straight from Railway, using Disco
 | Field | Value |
 |-------|-------|
 | Activity | Playing **the Roblox game you're in**, or **VoidHub RPC** when none is connected |
-| Details | What the agent is doing, e.g. `Making a script`, `Spying on remotes`, `Running get-game-info` |
+| Details | What the AI is doing: 🔍 Exploring the game, 📜 Reading game scripts, 🛠️ Building a script, 🧪 Testing features, 🐞 Fixing a bug, ✅ Finished a script, or its own line via the `discord-status` tool |
 | State | `Connected via VoidHub MCP` |
 | Elapsed time | Since the first tool call of the session |
 | Large image | Icon of the Roblox game you're in (tooltip: game name). Falls back to `DISCORD_LARGE_IMAGE_KEY` |

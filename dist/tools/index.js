@@ -8,6 +8,7 @@ import registerCreateDiagnosticSnapshot from "./impl/clients/create-diagnostic-s
 import registerAntiAFK from "./impl/clients/anti-afk.js";
 import registerServerHop from "./impl/clients/server-hop.js";
 import registerPhoneShell from "./impl/clients/phone-shell.js";
+import registerDiscordStatus from "./impl/clients/discord-status.js";
 import registerExecute from "./impl/execution/execute.js";
 import registerExecuteFile from "./impl/execution/execute-file.js";
 import registerGetScriptContent from "./impl/inspection/get-script-content.js";
@@ -44,6 +45,7 @@ export function registerAllTools(server) {
     registerAntiAFK(server);
     registerServerHop(server);
     registerPhoneShell(server);
+    registerDiscordStatus(server);
     registerExecute(server);
     registerExecuteFile(server);
     registerGetScriptContent(server);
