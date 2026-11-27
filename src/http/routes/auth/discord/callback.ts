@@ -1,10 +1,17 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { discordOAuthConfigured } from "../../../../discord/config.js";
-import { escapeHtml, sendHtml } from "../../../../discord/http.js";
+import { authRequired, escapeHtml, sendHtml } from "../../../../discord/http.js";
 import { consumeState, exchangeCode } from "../../../../discord/oauth.js";
 
 // GET /auth/discord/callback?code=...&state=...
 // Exchanges the code, then stores the encrypted tokens for the user the state was issued to.
+
+function testForm(): string {
+    const tokenField = authRequired()
+        ? `<input name="server_token" type="password" required placeholder="MCP_AUTH_TOKEN" style="width:100%;max-width:28rem;padding:0.6rem;margin-bottom:0.75rem"><br>`
+        : "";
+    return `<p>Want to check it works? Send a test presence now:</p><form method="post" action="/auth/discord/test">${tokenField}<button type="submit" style="padding:0.6rem 1rem">Send test presence</button></form>`;
+}
 
 export async function GET(_req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     if (!discordOAuthConfigured()) {
@@ -29,7 +36,7 @@ export async function GET(_req: IncomingMessage, res: ServerResponse, url: URL):
     try {
         const link = await exchangeCode(userKey, code);
         console.error(`[Discord] Linked Discord user ${link.discordUserId ?? "(unknown id)"} for "${userKey}".`);
-        sendHtml(res, 200, "Discord linked", `<p>Your Discord account${link.discordUserId ? ` (<code>${escapeHtml(link.discordUserId)}</code>)` : ""} is linked. Your Rich Presence will show <strong>Void Hub RPC</strong> while MCP tools are running, and clears itself after a few idle minutes.</p><p>You can close this tab.</p>`);
+        sendHtml(res, 200, "Discord linked", `<p>Your Discord account${link.discordUserId ? ` (<code>${escapeHtml(link.discordUserId)}</code>)` : ""} is linked. Your Rich Presence will show <strong>Void Hub RPC</strong> while MCP tools are running, and clears itself after a few idle minutes.</p>${testForm()}`);
     }
     catch (err) {
         console.error("[Discord] Code exchange failed:", (err as Error).message);

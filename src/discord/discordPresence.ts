@@ -140,7 +140,8 @@ function schedulePush(userKey: string, st: UserPresenceState, force: boolean): v
     const now = Date.now();
     if (!force && stateKey(st.details, st.game) === st.pushedKey && now - st.lastPushAt < PRESENCE_KEEPALIVE_MS)
         return;
-    const wait = Math.max(0, st.lastPushAt + PRESENCE_THROTTLE_MS - now);
+    // Clamp so a clock jump can never stall updates for longer than one throttle window.
+    const wait = Math.min(PRESENCE_THROTTLE_MS, Math.max(0, st.lastPushAt + PRESENCE_THROTTLE_MS - now));
     st.timer = setTimeout(() => {
         st.timer = null;
         void runPush(userKey, st);
@@ -232,6 +233,43 @@ async function pushPresence(userKey: string, details: string, sessionStart: numb
             throw new Error(`rate limited by Discord (retry after ${resp.headers.get("retry-after") ?? "?"}s)`);
         }
         throw new Error(`Discord returned ${resp.status}: ${text.slice(0, 300)}`);
+    }
+}
+
+/**
+ * Manual test (the "Send test presence" button): pushes immediately, bypassing
+ * the throttle, and reports Discord's answer instead of only logging it.
+ * The session then idles out like a normal one.
+ */
+export async function sendTestPresence(userKey: string, details: string, game: PresenceGame | null): Promise<{ ok: boolean; error?: string }> {
+    const now = Date.now();
+    let st = states.get(userKey);
+    if (!st) {
+        st = { sessionStart: now, lastActivityAt: now, lastPushAt: 0, details, game, pushedKey: null, timer: null, inflight: false, lastErrorLogAt: 0 };
+        states.set(userKey, st);
+    }
+    if (st.timer) {
+        clearTimeout(st.timer);
+        st.timer = null;
+    }
+    st.lastActivityAt = now;
+    st.details = details;
+    st.game = game;
+    ensureHeartbeat();
+    st.inflight = true;
+    try {
+        if (!(await getValidLink(userKey)))
+            return { ok: false, error: "No usable Discord token (not linked, or the refresh failed). Link again." };
+        await pushPresence(userKey, details, st.sessionStart, game);
+        st.pushedKey = stateKey(details, game);
+        return { ok: true };
+    }
+    catch (err) {
+        return { ok: false, error: (err as Error).message };
+    }
+    finally {
+        st.inflight = false;
+        st.lastPushAt = Date.now();
     }
 }
 

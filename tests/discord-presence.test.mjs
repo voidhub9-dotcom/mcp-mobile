@@ -164,6 +164,7 @@ test("game icon becomes the big image, with the Void Hub logo as the small badge
 });
 
 test("presence fetches the Roblox game icon and falls back to the logo if Discord rejects it", async () => {
+    await presence.clearUserPresence("default"); // start from a clean session
     calls.length = 0;
     let rejectedOnce = false;
     installFetch((url, body) => {
@@ -188,6 +189,19 @@ test("presence fetches the Roblox game icon and falls back to the logo if Discor
     assert.equal(sent[0].body.activities[0].assets.large_text, "Cool Game");
     assert.equal(sent[1].body.activities[0].assets.large_image, "void_logo", "falls back to the logo");
     assert.equal(presence.getPresenceStatus("default").game.placeName, "Cool Game");
+    await presence.clearUserPresence("default");
+});
+
+test("test presence pushes immediately and reports Discord's error", async () => {
+    installFetch((url) => url.endsWith("/headless-sessions")
+        ? json(403, { message: "Missing Access", code: 50001 })
+        : json(204, {}));
+    const bad = await presence.sendTestPresence("default", "Testing Void Hub RPC", null);
+    assert.equal(bad.ok, false);
+    assert.match(bad.error, /403.*Missing Access/);
+    installFetch((url) => url.endsWith("/headless-sessions") ? json(200, { token: "S3", activities: [] }) : json(204, {}));
+    const good = await presence.sendTestPresence("default", "Testing Void Hub RPC", null);
+    assert.deepEqual(good, { ok: true });
     await presence.clearUserPresence("default");
 });
 

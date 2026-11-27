@@ -110,12 +110,15 @@ export TOKEN_ENCRYPTION_KEY=$(cat ~/.voidhub-rpc-key 2>/dev/null || (openssl ran
 
 The last line creates the key once and reuses it on every start.
 
-## 3. Link your account
+## 3. Link your account and test it
 
 1. Open `/auth/discord` on your server, for example `https://YOUR-APP.up.railway.app/auth/discord` or `http://localhost:16384/auth/discord`.
 2. If `MCP_AUTH_TOKEN` is set, enter it and choose **Link Discord**. Otherwise you go straight to Discord.
 3. Approve on Discord. You'll land on a **Discord linked** page.
-4. Run any MCP tool. Within a few seconds your Discord profile shows **Playing Void Hub RPC**.
+4. Choose **Send test presence**. It's on the "Discord linked" page, and on `/auth/discord` next to **Link Discord**. The server sends **Testing Void Hub RPC** to Discord right away and shows Discord's answer:
+   - **Test sent**: open your Discord profile. You should see **Playing Void Hub RPC**. If a Roblox client is connected, the big image is that game's icon.
+   - **Discord said no**: the page shows Discord's exact error. See [Troubleshooting](#troubleshooting).
+5. After that, any MCP tool call (from Claude, the built-in `/ai` chat, or any MCP client) updates the presence automatically.
 
 To remove the link, open `/auth/discord` and choose **Unlink Discord**, or use curl:
 
@@ -132,6 +135,7 @@ Unlinking clears the live presence, revokes the tokens at Discord, and deletes t
 | `GET` | `/auth/discord` | — (shows a token form) | Starts linking: redirects to Discord with a one-time CSRF `state`, or shows the token form |
 | `POST` | `/auth/discord` | `server_token` form field | Checks the token, then redirects to Discord |
 | `GET` | `/auth/discord/callback` | CSRF `state` (10 min, single use) | Exchanges the `code`, then stores encrypted access and refresh tokens |
+| `POST` | `/auth/discord/test` | `Authorization: Bearer <MCP_AUTH_TOKEN>` or `server_token` field | Sends a **Testing Void Hub RPC** presence immediately (no throttle) and returns Discord's answer |
 | `POST` | `/auth/discord/unlink` | `Authorization: Bearer <MCP_AUTH_TOKEN>` or `server_token` field | Clears the presence, revokes the tokens, deletes them |
 | `GET` | `/auth/discord/status` | `Authorization: Bearer <MCP_AUTH_TOKEN>` | JSON health check (below) |
 
@@ -185,6 +189,8 @@ To change the wording, edit `ACTION_BY_TOOL` in [`src/discord/tool-hook.ts`](../
 | `linked: false` after a redeploy | The token file was wiped. Add a volume and set `DISCORD_TOKEN_STORE_PATH`. |
 | "Could not decrypt stored token" in logs | `TOKEN_ENCRYPTION_KEY` changed. Link again. |
 | Big image shows your logo, not the game | No Roblox client is connected (check the dashboard), the icon lookup failed, or Discord refused the image link. If it was refused, the server log has a `[Discord] Discord rejected the game icon URL` line. |
+| Test says **Discord said no** with `401` | The token was revoked or expired and couldn't refresh. Unlink, then link again. |
+| Test says **Discord said no** with `403` or `404` | The Social SDK isn't enabled for the app, or Discord doesn't allow this kind of presence for your app yet. Send the exact error text to the maintainer. |
 | Linked, but nothing on your profile | Presence only appears while tools are running. Check `/auth/discord/status`. Look for `[Discord]` errors in the server log, and make sure **User Settings → Activity Privacy → Share your detected activities with others** is on in Discord. |
 | `[Discord] ... rate limited` | Raise `DISCORD_PRESENCE_THROTTLE_MS`. |
 

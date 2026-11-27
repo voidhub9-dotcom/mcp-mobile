@@ -27,6 +27,7 @@ function tokenForm(res: ServerResponse, status = 200, error?: string): void {
 <form method="post" action="/auth/discord">
   <input name="server_token" type="password" autocomplete="current-password" required autofocus placeholder="MCP_AUTH_TOKEN" style="width:100%;max-width:28rem;padding:0.6rem;margin-bottom:0.75rem"><br>
   <button type="submit" style="padding:0.6rem 1rem">Link Discord</button>
+  <button type="submit" formaction="/auth/discord/test" style="padding:0.6rem 1rem;margin-left:0.5rem">Send test presence</button>
   <button type="submit" formaction="/auth/discord/unlink" style="padding:0.6rem 1rem;margin-left:0.5rem">Unlink Discord</button>
 </form>`);
 }

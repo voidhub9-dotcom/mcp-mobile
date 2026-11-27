@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerAllTools } from "../tools/index.js";
+import { installPresenceToolHook } from "../discord/tool-hook.js";
 let client: Client | null = null;
 let connected = false;
 export async function initMcpClient(): Promise<Client> {
@@ -10,6 +11,7 @@ export async function initMcpClient(): Promise<Client> {
     const internalServer = new McpServer({ name: "roblox-mcp-internal", version: "2.0.0" }, {
         instructions: "Internal MCP server for custom AI agent. Provides the same tools as the main server.",
     });
+    installPresenceToolHook(internalServer);
     registerAllTools(internalServer);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     client = new Client({ name: "custom-ai-agent", version: "1.0.0" }, { capabilities: {} });
