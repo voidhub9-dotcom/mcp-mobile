@@ -41,3 +41,18 @@ claude mcp list
 # Remove the server
 claude mcp remove roblox-executor-mcp
 ```
+
+## Optional: Discord Rich Presence (VoidHub RPC)
+
+To show **Playing Void Hub RPC** on your Discord profile while Claude Code runs tools, pass the Discord variables when adding the server:
+
+```bash
+claude mcp add roblox-executor-mcp \
+  -e DISCORD_CLIENT_ID=1234567890123456789 \
+  -e DISCORD_CLIENT_SECRET=your-client-secret \
+  -e DISCORD_REDIRECT_URI=http://localhost:16384/auth/discord/callback \
+  -e TOKEN_ENCRYPTION_KEY=$(openssl rand -hex 32) \
+  -- node /path/to/roblox-executor-mcp/dist/index.js
+```
+
+Then open `http://localhost:16384/auth/discord` once to link your account. Keep the same `TOKEN_ENCRYPTION_KEY` if you re-add the server, or you'll need to link again. See [VoidHub RPC](discord-rpc.md) for the Developer Portal steps.

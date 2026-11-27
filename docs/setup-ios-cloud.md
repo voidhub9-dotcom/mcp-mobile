@@ -149,7 +149,7 @@ The server also includes a built-in AI chat at `/ai` that supports any Anthropic
 
 ## Optional: Discord Rich Presence (VoidHub RPC)
 
-The cloud server can show **Playing Void Hub RPC** on your Discord profile while the AI runs tools (for example "Making a script"), and clears it after 5 idle minutes. It works from Railway or Render, so you don't need Discord open on a PC. If you skip this section, nothing changes.
+The cloud server can show **Playing Void Hub RPC** on your Discord profile while the AI runs tools (for example "Making a script"), and clears it after 5 idle minutes. It works from Railway or Render, so you don't need Discord open on a PC. If you skip this section, nothing changes. The full reference (all variables, endpoints, and troubleshooting) is in [VoidHub RPC](discord-rpc.md).
 
 ### 1. Set up the Discord app
 

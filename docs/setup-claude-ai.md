@@ -102,7 +102,7 @@ Set `MCP_AUTH_TOKEN` to a long random string. The server uses it as the administ
 
 > Without `MCP_AUTH_TOKEN`, anyone who knows your URL can execute Luau in your Roblox client. Never deploy to the cloud without it.
 
-> **Discord Rich Presence is separate.** The optional `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` variables are for VoidHub RPC (Discord presence), not for Claude's OAuth, and don't affect the connector. See [Discord Rich Presence (VoidHub RPC)](setup-ios-cloud.md#optional-discord-rich-presence-voidhub-rpc).
+> **Discord Rich Presence is separate.** The optional `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` variables are for VoidHub RPC (Discord presence), not for Claude's OAuth, and don't affect the connector. See [VoidHub RPC](discord-rpc.md).
 
 ## Step 3: Add the connector in Claude
 
@@ -153,6 +153,10 @@ In a Claude chat, the connector is available under **Customize → Connectors**.
 - "Execute a script that prints my current leaderstats."
 
 Claude routes each tool call to your `/mcp` endpoint, which relays it to the connected Roblox client.
+
+### Optional: Discord Rich Presence
+
+Show **Playing Void Hub RPC** on your Discord profile while Claude works: add the Discord variables to your deployment, then link once at `https://YOUR-SERVICE.up.railway.app/auth/discord`. See [VoidHub RPC](discord-rpc.md).
 
 ## Available tools
 

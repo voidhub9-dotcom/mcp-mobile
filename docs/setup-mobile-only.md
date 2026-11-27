@@ -169,6 +169,25 @@ Ask things like:
 - "Search for all TextLabels in my own test experience."
 - "What capabilities does my executor have?"
 
+## Optional: Discord Rich Presence (VoidHub RPC)
+
+Your phone server can show **Playing Void Hub RPC** on your Discord profile while the AI runs tools, then clear it after 5 idle minutes.
+
+1. In the [Discord Developer Portal](https://discord.com/developers/applications), create an app and enable **Discord Social SDK**. Add the redirect `http://localhost:16384/auth/discord/callback`, upload a logo with the key `void_logo`, and copy the Client ID and Client Secret. Details are in [VoidHub RPC](discord-rpc.md#1-create-the-discord-application).
+2. In Termux, add the variables to `~/.bashrc` so every start picks them up:
+   ```bash
+   cat >> ~/.bashrc <<'VARS'
+   export DISCORD_CLIENT_ID=1234567890123456789
+   export DISCORD_CLIENT_SECRET=your-client-secret
+   export DISCORD_REDIRECT_URI=http://localhost:16384/auth/discord/callback
+   export DISCORD_BUTTON_URL=https://your-site/void-hub
+   export TOKEN_ENCRYPTION_KEY=$(cat ~/.voidhub-rpc-key 2>/dev/null || (openssl rand -hex 32 | tee ~/.voidhub-rpc-key))
+   VARS
+   source ~/.bashrc
+   ```
+   The key is created once in `~/.voidhub-rpc-key` and reused afterwards. If you auto-start the server with Termux:Boot, source `~/.bashrc` in that boot script too.
+3. Restart the server with `bash termux-start.sh`, open `http://localhost:16384/auth/discord` in your phone's browser, and approve on Discord. The localhost redirect works because the browser is on the same phone as the server, so the tunnel URL doesn't matter.
+
 ## Quick Reference
 
 | What | Command / URL |
@@ -180,6 +199,8 @@ Ask things like:
 | Custom AI chat | `http://localhost:16384/ai` |
 | MCP endpoint | `http://localhost:16384/mcp` |
 | Capability probe | `loadstring(game:HttpGet("http://localhost:16384/mobile-probe.luau"))()` |
+| Link / unlink Discord (VoidHub RPC) | `http://localhost:16384/auth/discord` |
+| Discord link status | `curl http://localhost:16384/auth/discord/status` (add `-H "Authorization: Bearer $MCP_AUTH_TOKEN"` if set) |
 
 ## Troubleshooting
 
@@ -211,6 +232,12 @@ fuser -k 3001/tcp
 bash termux-start.sh
 ```
 
+### Discord Rich Presence not showing
+- Run `curl http://localhost:16384/auth/discord/status`. You want `"configured": true` and `"linked": true`.
+- "Discord linking is not configured": the variables aren't in the server's environment. Run `source ~/.bashrc`, then restart the server.
+- "Invalid OAuth2 redirect_uri": add `http://localhost:16384/auth/discord/callback` exactly in the Developer Portal.
+- Presence only shows while the AI is calling tools. More fixes are in [VoidHub RPC → Troubleshooting](discord-rpc.md#troubleshooting).
+
 ### Termux keeps getting killed in background
 - Go to Settings > Battery > Termux > Don't optimize
 - Enable "Acquire wakelock" in Termux notification
@@ -229,4 +256,5 @@ This Termux-based setup is Android-only. iOS users have two options:
 - This allows arbitrary code execution in your Roblox client
 - Only use with AI clients you trust
 - Turn off the tunnel when not in use
+- If you use VoidHub RPC over a tunnel, set `MCP_AUTH_TOKEN` so strangers can't link or unlink Discord on your server
 - Only use with Roblox experiences you own or have permission to test

@@ -31,7 +31,7 @@ Use it to see connected Roblox clients, inspect scripts, run tools, view server 
 - **Anti-AFK** — Automatically prevents idle disconnections by responding to the `Player.Idled` event. Keeps you in the game. Control it on demand with the `anti-afk` MCP tool (`enable` / `disable` / `status`).
 - **Server Hop** — Hop the connected client to another public server (`random`, `lowest-players`, `lowest-ping`, or an exact `jobId`), into a different game entirely (`placeId`), or back into the current server (`rejoin`). The connector queues itself via `queue_on_teleport` so the bridge auto-reloads in the destination server and the agent keeps remote control while you are away. See [Server Hop](#server-hop).
 - **Termux Phone Agent** — a shell agent for Termux on the phone, served the same way as the in-game connectors. The `phone-shell` tool runs commands on the phone and returns output and exit code. This is how the agent moves you between GAMES (`termux-open-url "roblox://placeId=..."`), since Roblox blocks cross-creator teleports from inside a client. See [Termux Phone Agent](#termux-phone-agent).
-- **VoidHub RPC (Discord Rich Presence)** — Link your Discord account once and the cloud server shows **Void Hub RPC** as your Discord activity while MCP tools run (e.g. "Making a script"), then clears it after a few idle minutes. No Discord desktop app or local RPC needed. See [VoidHub RPC](#voidhub-rpc-discord-rich-presence).
+- **VoidHub RPC (Discord Rich Presence)** — Link your Discord account once and the server (cloud, phone or PC) shows **Void Hub RPC** as your Discord activity while MCP tools run (e.g. "Making a script"), then clears it after a few idle minutes. No Discord desktop app or local RPC needed. See [VoidHub RPC](docs/discord-rpc.md).
 - **Claude Remote Connector Support** — Works as a secure custom connector in Claude's web interface. See the [Claude Remote Connector Guide](docs/claude-connector.md).
 - **Custom AI Chat** — Built-in chat interface at `/ai` supporting any Anthropic-compatible API with api-key, bearer token, or custom header auth. Screenshot images are passed to the AI as vision content.
 - **Mobile Support** — Works with mobile executors (Delta, CodeX, VegaX, etc.) with fallbacks for missing APIs. See the [Mobile Setup Guide](docs/setup-mobile.md) or [Mobile-Only Setup Guide](docs/setup-mobile-only.md).
@@ -108,6 +108,7 @@ If you prefer to configure a client yourself, use the setup guide for your clien
 | BLACKBOX AI    | [Setup Guide](docs/setup-blackbox.md)       |
 | ZCode          | [Setup Guide](docs/setup-zcode.md)          |
 | **Mobile**     | [**Mobile Setup Guide**](docs/setup-mobile.md) |
+| Discord Rich Presence (optional, any client) | [VoidHub RPC](docs/discord-rpc.md) |
 
 ### 3. Connect from Roblox
 
@@ -221,6 +222,8 @@ nohup bash agent.sh >> ~/.mcp-agent/agent.log 2>&1 &
 The Roblox connector in your autoexec folder and the Termux agent run side by side: the connector gives remote control inside the game, the agent gives remote control of the phone itself.
 
 ## VoidHub RPC (Discord Rich Presence)
+
+> Full guide, including local, Termux and Render setups, troubleshooting, and tool → details mapping: [docs/discord-rpc.md](docs/discord-rpc.md).
 
 The server can set your Discord Rich Presence straight from Railway, using Discord Social SDK OAuth2 (scopes `openid sdk.social_layer_presence`) and a headless presence session. While MCP tools are being called, your profile shows:
 

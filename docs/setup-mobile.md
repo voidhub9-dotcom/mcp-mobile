@@ -180,6 +180,21 @@ For remote access without VPN:
 2. Use the tunnel URL as the BridgeURL on your phone
 3. **Warning:** This exposes port 16384 to the internet. Only use with trusted AI clients and consider adding authentication.
 
+## Optional: Discord Rich Presence (VoidHub RPC)
+
+The PC server can show **Playing Void Hub RPC** on your Discord profile while the AI runs tools. Discord doesn't need to be open on the phone or the PC.
+
+1. Create the Discord app and enable the Social SDK, adding `http://localhost:16384/auth/discord/callback` as a redirect. Steps are in [VoidHub RPC](discord-rpc.md#1-create-the-discord-application).
+2. Set the variables before starting the server. If your AI client starts the server, put them in its MCP config `env` block instead.
+   ```bash
+   export DISCORD_CLIENT_ID=1234567890123456789
+   export DISCORD_CLIENT_SECRET=your-client-secret
+   export DISCORD_REDIRECT_URI=http://localhost:16384/auth/discord/callback
+   export TOKEN_ENCRYPTION_KEY=$(openssl rand -hex 32)   # generate once, then reuse the same value
+   npm start
+   ```
+3. Open `http://localhost:16384/auth/discord` **on the PC** and approve on Discord.
+
 ## Troubleshooting
 
 ### Connection Failed

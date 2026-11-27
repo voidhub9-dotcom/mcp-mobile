@@ -38,3 +38,7 @@ After setup, the MCP tools should appear in your Codex session. If they don't:
 - Make sure you ran `pnpm install && pnpm run build` first
 - Check that the path to `dist/index.js` is correct
 - Ensure Node.js ≥ 18 is installed
+
+## Optional: Discord Rich Presence (VoidHub RPC)
+
+To show **Playing Void Hub RPC** on your Discord profile while the AI runs tools, add the Discord variables to this server's `[mcp_servers.roblox-executor-mcp.env]` table in `~/.codex/config.toml`, then open `http://localhost:16384/auth/discord` once to link your account. See [VoidHub RPC](discord-rpc.md#local-ai-clients-claude-desktop-claude-code-cursor-windsurf-codex-antigravity-zcode-blackbox) for the Developer Portal steps and a config example.

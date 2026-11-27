@@ -94,12 +94,16 @@ async function readStore(): Promise<StoreFile> {
     return { version: 1, links: {} };
 }
 
-// Decrypted links are cached in memory so the tool hot path never touches disk.
-const memory = new Map<string, DiscordLink | null>();
+// Decrypted links are cached in memory so the tool hot path rarely touches disk.
+// Entries expire so that other server processes sharing the same store file
+// (e.g. several local stdio instances) notice a link/unlink within CACHE_TTL_MS.
+const CACHE_TTL_MS = 30_000;
+const memory = new Map<string, { link: DiscordLink | null; at: number }>();
 
 export async function getLink(userKey: string): Promise<DiscordLink | null> {
-    if (memory.has(userKey))
-        return memory.get(userKey) ?? null;
+    const cached = memory.get(userKey);
+    if (cached && Date.now() - cached.at < CACHE_TTL_MS)
+        return cached.link;
     const key = getKey();
     if (!key)
         return null;
@@ -114,7 +118,7 @@ export async function getLink(userKey: string): Promise<DiscordLink | null> {
             console.error(`[Discord] Could not decrypt stored token for "${userKey}" (TOKEN_ENCRYPTION_KEY changed?). Re-link at /auth/discord.`);
         }
     }
-    memory.set(userKey, link);
+    memory.set(userKey, { link, at: Date.now() });
     return link;
 }
 
@@ -122,7 +126,7 @@ export async function saveLink(userKey: string, link: DiscordLink): Promise<void
     const key = getKey();
     if (!key)
         throw new Error("TOKEN_ENCRYPTION_KEY is not configured.");
-    memory.set(userKey, link);
+    memory.set(userKey, { link, at: Date.now() });
     await withFileTransaction(DISCORD_TOKEN_STORE_PATH, async () => {
         const store = await readStore();
         store.links[userKey] = encryptJson(link, key);
@@ -131,7 +135,7 @@ export async function saveLink(userKey: string, link: DiscordLink): Promise<void
 }
 
 export async function deleteLink(userKey: string): Promise<void> {
-    memory.set(userKey, null);
+    memory.set(userKey, { link: null, at: Date.now() });
     await withFileTransaction(DISCORD_TOKEN_STORE_PATH, async () => {
         const store = await readStore();
         if (!(userKey in store.links))

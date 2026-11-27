@@ -101,6 +101,10 @@ If Claude returns a client, run a second read-only request:
 | Claude reports Unauthorized | OAuth authorization is stale or the token was entered incorrectly | Disconnect the connector, add `https://YOUR_HOST/mcp` again, and authorize with the current token |
 | Claude reports it could not register | The host is serving old or mismatched metadata | Check both well-known URLs above and redeploy the latest `main` branch |
 
+## Optional: Discord Rich Presence
+
+To have the deployment show **Playing Void Hub RPC** on your Discord profile while Claude calls tools, add the Discord variables to your host and link your account at `https://YOUR-SERVICE.up.railway.app/auth/discord`. These Discord variables are separate from Claude's connector OAuth, and the connector works the same either way. See [VoidHub RPC](discord-rpc.md).
+
 ## Tool Permissions and Safety
 
 A remote MCP connector can expose both read-only and state-changing tools. In Claude's connector settings, set high-impact tools such as **Execute Code**, **Execute a Luau file**, remote interception, and other write-capable actions to **Ask every time** unless you explicitly trust the current task and conversation. Claude also recommends connecting only to servers you trust and reviewing tool permissions carefully. [1]

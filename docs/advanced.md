@@ -78,7 +78,19 @@ The `phone-shell` tool sends shell commands to a Termux agent on the phone. The 
 
 Known limits: cross-game movement is the main use case (`termux-open-url "roblox://placeId=<id>/"`, optionally `&gameInstanceId=<jobId>` to target a server), because client-initiated teleports into a different creator's universe are refused by the engine itself. The agent only reaches what a non-root Termux shell can reach.
 
+## Discord Rich Presence (VoidHub RPC)
+
+The server can set the linked user's Discord Rich Presence over HTTP (Discord Social SDK OAuth2, scopes `openid sdk.social_layer_presence`, headless presence session). Nothing runs on the Discord client side. Full guide: [VoidHub RPC](discord-rpc.md).
+
+- **Hook:** `installPresenceToolHook()` wraps `server.registerTool` in `createMcpServer()`, so every tool fires `updateUserPresence("default", action)`. The call is synchronous, throws nothing, and never waits on the network.
+- **Throttle / keepalive / idle:** at most one push per `DISCORD_PRESENCE_THROTTLE_MS` (15s minimum), a re-send every `DISCORD_PRESENCE_KEEPALIVE_MS` (2 min) while active, and the session ends after `DISCORD_PRESENCE_IDLE_MS` (5 min) without tool calls.
+- **Storage:** AES-256-GCM-encrypted JSON at `DISCORD_TOKEN_STORE_PATH` (default `~/.roblox-mcp/discord-links.json`). Primary and secondary instances on one machine share the file and see link changes within 30 seconds. Give every instance the same `TOKEN_ENCRYPTION_KEY`.
+- **Primary / secondary:** linking routes are served by whichever instance owns the HTTP port (the primary). Presence is sent by whichever instance handles the tool call, so secondaries need the Discord variables too.
+- **Routes:** `/auth/discord`, `/auth/discord/callback`, `/auth/discord/unlink`, `/auth/discord/status`. When `MCP_AUTH_TOKEN` is set, all of them except the callback require it.
+
 ## Security
+
+- Discord OAuth tokens for VoidHub RPC are encrypted at rest with `TOKEN_ENCRYPTION_KEY` and are never returned by any endpoint. See [VoidHub RPC → Security](discord-rpc.md#security).
 
 **This server allows arbitrary code execution.** Any connected AI client can run Lua code in your Roblox session, take screenshots, and read client data.
 
