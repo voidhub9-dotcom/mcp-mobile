@@ -81,3 +81,20 @@
     /* Keep the floating Menu pill above the bottom tab bar instead of covering "Settings". */
     .mobile-nav-toggle { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
 }
+
+/* "Sign in to fill in your token" under the loader */
+.vh-token-signin { display: block; padding: 12px 16px; border-top: 1px solid var(--border); background: var(--blue-dim); color: var(--text); font-size: 13.5px; font-weight: 600; text-decoration: none; text-align: center; }
+.vh-token-signin:hover { background: rgba(157, 140, 255, .22); }
+.vh-token-signin[hidden] { display: none; }
+
+/* Page titles: big and tight like the home screen */
+:root[data-theme="default"] .server-title,
+:root[data-theme="default"] .settings-title,
+:root[data-theme="default"] .logs-title,
+:root[data-theme="default"] .scripts-title { font-size: 28px; font-weight: 700; letter-spacing: -0.035em; line-height: 1.1; }
+:root[data-theme="default"] .settings-header--section .settings-title { font-size: 22px; }
+:root[data-theme="default"] .server-sub { font-size: 14.5px; color: var(--text-secondary); }
+:root[data-theme="default"] .overview-username { letter-spacing: -0.035em; }
+/* Selected theme tile uses the violet accent */
+:root[data-theme="default"] .settings-theme-option[aria-checked="true"],
+:root[data-theme="default"] .settings-theme-option.is-active { border-color: var(--blue); }

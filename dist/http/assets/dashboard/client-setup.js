@@ -933,6 +933,26 @@ function updateMobileLoadstringStrip(data) {
         : buildMobileLoaderSnippet(data?.connectors?.currentMachine?.bridgeUrl || undefined);
     mobileLoadstringCode.textContent = snippet;
     mobileLoadstringStrip.hidden = false;
+    if (publicUrl) fillLoaderWithToken();
+}
+
+// Signed-in browsers get the loader with the real MCP_AUTH_TOKEN filled in.
+// Everyone else sees a placeholder and a "Sign in to show your token" link.
+let loaderTokenFetched = false;
+function fillLoaderWithToken() {
+    if (loaderTokenFetched) return;
+    loaderTokenFetched = true;
+    const signIn = $('vhTokenSignIn');
+    fetch('/auth/discord/loader', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+        .then((data) => {
+            if (data && typeof data.snippet === 'string') mobileLoadstringCode.textContent = data.snippet;
+            if (signIn) signIn.hidden = true;
+        })
+        .catch(() => {
+            loaderTokenFetched = false;
+            if (signIn) signIn.hidden = false;
+        });
 }
 
 if (mobileLoadstringCopy && mobileLoadstringCode) {

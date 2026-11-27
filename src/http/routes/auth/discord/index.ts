@@ -51,12 +51,17 @@ const FLASH: Record<string, { tone: Tone; html: string }> = {
 
 const EYE_SCRIPT = `document.querySelectorAll('[data-eye]').forEach(function(b){b.addEventListener('click',function(){var i=document.getElementById(b.getAttribute('data-eye'));if(!i)return;var show=i.type==='password';i.type=show?'text':'password';b.setAttribute('aria-pressed',String(show));b.setAttribute('aria-label',show?'Hide token':'Show token');});});`;
 
-function loginPage(res: ServerResponse, status = 200, badToken = false): void {
+/** Only same-site paths ("/", "/auth/discord", ...) are allowed as a post-login destination. */
+function safeNext(value: string | null | undefined): string {
+    return typeof value === "string" && /^\/(?![/\\])[^\s]*$/.test(value) ? value : "/auth/discord";
+}
+
+function loginPage(res: ServerResponse, status = 200, badToken = false, next = "/auth/discord"): void {
     sendPage(res, status, {
         title: "Sign in",
         body: `<section class="hero"><span class="eyebrow">VoidHub RPC</span><h1>Sign in.</h1><p class="lead">Enter this server's <code>MCP_AUTH_TOKEN</code>. You only do this once on this device.</p></section>
 ${badToken ? toast("error", "<b>Wrong token.</b> Copy it exactly from Railway → Variables.") : ""}
-<form class="card" method="post" action="/auth/discord"><input type="hidden" name="action" value="login">
+<form class="card" method="post" action="/auth/discord"><input type="hidden" name="action" value="login"><input type="hidden" name="next" value="${escapeHtml(next)}">
 <label class="label" for="tok">Server token</label>
 <div class="input"><input id="tok" name="server_token" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" required autofocus placeholder="Paste MCP_AUTH_TOKEN"><button class="eye" type="button" data-eye="tok" aria-label="Show token" aria-pressed="false">${icon("eye", 20)}</button></div>
 <button class="btn primary" type="submit">Continue ${icon("arrow")}</button>
@@ -148,7 +153,11 @@ export async function GET(req: IncomingMessage, res: ServerResponse, url: URL): 
         return;
     const signedIn = !authRequired() || hasValidAuthCookie(req);
     if (!signedIn) {
-        loginPage(res);
+        loginPage(res, 200, false, safeNext(url.searchParams.get("next")));
+        return;
+    }
+    if (url.searchParams.has("next")) {
+        redirect(res, safeNext(url.searchParams.get("next")));
         return;
     }
     if (url.searchParams.get("start") === "1") {
@@ -175,11 +184,11 @@ export async function POST(req: IncomingMessage, res: ServerResponse): Promise<v
             return;
         }
         if (!serverTokenMatches(form.server_token)) {
-            loginPage(res, 401, true);
+            loginPage(res, 401, true, safeNext(form.next));
             return;
         }
         setAuthCookie(req, res);
-        redirect(res, "/auth/discord");
+        redirect(res, safeNext(form.next));
         return;
     }
     // action === "link"

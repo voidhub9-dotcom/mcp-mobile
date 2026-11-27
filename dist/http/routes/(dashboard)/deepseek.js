@@ -7,10 +7,26 @@ export function GET(_req, res) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>DeepSeek Chat - Roblox MCP</title>
+<title>VoidHub DeepSeek</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
+  --bg: #000000;
+  --surface: #0e0e10;
+  --surface2: #141416;
+  --border: #1f1f23;
+  --text: #f5f5f7;
+  --text-muted: #9b9ba3;
+  --accent: #9d8cff;
+  --accent2: #5b4be0;
+  --success: #3ddc84;
+  --error: #ff5a5f;
+  --thinking: #c4b8ff;
+  --think-bg: rgba(157, 140, 255, 0.08);
+  --user-bg: #ffffff;
+  --ai-bg: #0e0e10;
+  --tool-bg: #08080a;
 }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -227,25 +243,54 @@ header .logo {
 }
 .status-badge.on { background: rgba(16,185,129,0.15); color: var(--success); }
 .status-badge.off { background: rgba(239,68,68,0.15); color: var(--error); }
+
+/* ── VoidHub look ── */
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased;
+  background: radial-gradient(70% 380px at 50% -80px, rgba(60,60,72,.55), rgba(0,0,0,0) 70%), #000; }
+header { background: rgba(0,0,0,.72); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-bottom: 1px solid var(--border); padding: 12px 16px; }
+header h1 { font-size: 16px; font-weight: 700; letter-spacing: -.02em; gap: 10px; }
+header .logo { width: 30px; height: 30px; border-radius: 9px; font-size: 0; color: transparent; background: #141416 url('https://pastevoid.lovable.app/img/Ru7BnfAV0N.png') center/cover no-repeat; box-shadow: 0 0 0 1px #2a2a2f; }
+.vh-back { color: var(--text-muted); text-decoration: none; font-size: 13px; margin-right: 6px; }
+.settings-btn { border-radius: 999px; padding: 8px 14px; background: var(--surface2); border: 1px solid #2a2a2f; color: var(--text); font-weight: 600; font-family: inherit; }
+.status-badge { font-family: inherit; font-weight: 600; border-radius: 999px; }
+.status-badge.on { background: rgba(61,220,132,.12); color: var(--success); }
+.status-badge.off { background: rgba(255,90,95,.12); color: var(--error); }
+#chat { width: 100%; max-width: 760px; margin: 0 auto; padding: 18px 16px; gap: 12px; }
+.msg { font-size: 15px; border-radius: 18px; padding: 12px 16px; }
+.msg.user { background: var(--user-bg); color: #0a0a0a; font-weight: 500; }
+.msg.ai { background: var(--ai-bg); border-color: var(--border); }
+.msg.tool { background: var(--tool-bg); border-color: var(--border); }
+#input-area { width: 100%; max-width: 760px; margin: 0 auto; padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px)); background: transparent; border-top: 0; gap: 10px; align-items: flex-end; }
+#msg-input { font-family: inherit !important; font-size: 16px; background: var(--surface); border: 1px solid #2a2a2f; border-radius: 16px; color: var(--text); padding: 13px 16px; }
+#msg-input:focus { border-color: #5a5a64; box-shadow: 0 0 0 4px rgba(255,255,255,.06); outline: none; }
+#msg-input::placeholder { color: #6b6b73; }
+#send-btn { width: 48px; height: 48px; flex: none; border-radius: 14px; background: linear-gradient(180deg,#fff,#e6e6ea); color: #0a0a0a; border: 1px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 0; }
+#send-btn svg { display: block; }
+#send-btn:disabled { opacity: .45; }
+.modal { background: var(--surface); border: 1px solid #2a2a2f; border-radius: 20px; font-family: inherit; }
+.modal h2 { font-size: 22px; font-weight: 700; letter-spacing: -.03em; }
+.modal input, .modal select { background: #000; border: 1px solid #2a2a2f; border-radius: 12px; color: var(--text); font-family: inherit; font-size: 15px; }
+.modal button { font-family: inherit; font-weight: 600; border-radius: 12px; }
+.modal button.primary { background: linear-gradient(180deg,#fff,#e6e6ea); color: #0a0a0a; border: 1px solid #fff; }
 </style>
 </head>
 <body>
 <header>
   <h1>
-    <span class="logo">DS</span>
-    DeepSeek Chat
+    <a class="vh-back" href="/" aria-label="Back to dashboard">&larr;</a><span class="logo">DS</span>
+    VoidHub DeepSeek
     <span class="status-badge ${hasEnvKey ? 'on' : 'off'}" id="key-status">${hasEnvKey ? 'API Key Set' : 'No Key'}</span>
   </h1>
   <button class="settings-btn" onclick="toggleSettings()">Settings</button>
 </header>
 
 <div id="chat">
-  <div class="msg ai">Welcome to DeepSeek Chat for Roblox MCP! I can help you inspect games, execute Luau code, search scripts, interact with GUI, and more. What would you like to do?</div>
+  <div class="msg ai">Welcome to VoidHub DeepSeek! I can help you inspect games, execute Luau code, search scripts, interact with GUI, and more. What would you like to do?</div>
 </div>
 
 <div id="input-area">
   <textarea id="msg-input" placeholder="Ask me anything about your Roblox game..." rows="1" oninput="autoResize(this)" onkeydown="onKeyDown(event)"></textarea>
-  <button id="send-btn" onclick="sendMessage()">&#9658;</button>
+  <button id="send-btn" aria-label="Send" onclick="sendMessage()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></button>
 </div>
 
 <div class="modal-overlay" id="settings-overlay" onclick="if(event.target===this)toggleSettings()">
