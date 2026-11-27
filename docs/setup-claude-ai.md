@@ -102,6 +102,8 @@ Set `MCP_AUTH_TOKEN` to a long random string. The server uses it as the administ
 
 > Without `MCP_AUTH_TOKEN`, anyone who knows your URL can execute Luau in your Roblox client. Never deploy to the cloud without it.
 
+> **Discord Rich Presence is separate.** The optional `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` variables are for VoidHub RPC (Discord presence), not for Claude's OAuth, and don't affect the connector. See [Discord Rich Presence (VoidHub RPC)](setup-ios-cloud.md#optional-discord-rich-presence-voidhub-rpc).
+
 ## Step 3: Add the connector in Claude
 
 1. Open [claude.ai](https://claude.ai) and sign in.

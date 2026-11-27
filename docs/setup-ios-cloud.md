@@ -147,6 +147,42 @@ The server also includes a built-in AI chat at `/ai` that supports any Anthropic
 3. Configure your API key and model in Settings
 4. Start chatting — same tool access as Claude
 
+## Optional: Discord Rich Presence (VoidHub RPC)
+
+The cloud server can show **Playing Void Hub RPC** on your Discord profile while the AI runs tools (for example "Making a script"), and clears it after 5 idle minutes. It works from Railway or Render, so you don't need Discord open on a PC. If you skip this section, nothing changes.
+
+### 1. Set up the Discord app
+
+1. Open <https://discord.com/developers/applications> and choose **New Application**. Its name is what Discord shows as the activity name.
+2. Go to **Discord Social SDK → Getting Started** and enable the Social SDK for the app.
+3. Under **OAuth2 → Redirects**, add `https://YOUR-APP.up.railway.app/auth/discord/callback`, then save.
+4. Under **OAuth2**, copy the **Client ID** and choose **Reset Secret** to get the **Client Secret**.
+5. Under **Rich Presence → Art Assets**, upload your logo with the key `void_logo`.
+
+### 2. Add the variables in Railway (or Render)
+
+| Variable | Value |
+|----------|-------|
+| `DISCORD_CLIENT_ID` | Client ID from step 1 |
+| `DISCORD_CLIENT_SECRET` | Client Secret from step 1 |
+| `DISCORD_REDIRECT_URI` | `https://YOUR-APP.up.railway.app/auth/discord/callback` (must match the portal exactly) |
+| `TOKEN_ENCRYPTION_KEY` | A random 32-byte key. Run `openssl rand -hex 32`, or use any 64-character hex string |
+| `DISCORD_LARGE_IMAGE_KEY` | Optional. Defaults to `void_logo`; can also be an `https://` image URL |
+| `DISCORD_BUTTON_URL` | Optional. Link for the **Get Void Hub** button |
+| `DISCORD_TOKEN_STORE_PATH` | Recommended: `/data/discord-links.json` (see below) |
+
+Railway wipes the disk on every deploy. To keep your Discord link, open your service and go to **Settings → Volumes → Add Volume**, mount it at `/data`, and set `DISCORD_TOKEN_STORE_PATH=/data/discord-links.json`. Without a volume you'll need to re-link after each deploy.
+
+Keep `TOKEN_ENCRYPTION_KEY` the same once it's set. If it changes, the stored link can't be decrypted and you'll need to link again.
+
+### 3. Link your Discord
+
+1. Open `https://YOUR-APP.up.railway.app/auth/discord` in Safari.
+2. Enter your `MCP_AUTH_TOKEN` and tap **Link Discord**.
+3. Approve on Discord. You should see "Discord linked".
+
+To remove the link, open the same page, enter the token, and tap **Unlink Discord**. This also revokes the tokens at Discord.
+
 ## Step 5: Use It
 
 Now you can chat with Claude.ai and it can:
@@ -165,6 +201,9 @@ Now you can chat with Claude.ai and it can:
 | Built-in AI chat | `https://YOUR-APP.up.railway.app/ai` |
 | Dashboard | `https://YOUR-APP.up.railway.app/` |
 | Roblox loader | `loadstring(game:HttpGet("https://YOUR-APP.up.railway.app/mobile-connector.luau"))()` |
+| Link / unlink Discord (VoidHub RPC) | `https://YOUR-APP.up.railway.app/auth/discord` |
+| Discord OAuth redirect (portal + `DISCORD_REDIRECT_URI`) | `https://YOUR-APP.up.railway.app/auth/discord/callback` |
+| Discord link status (JSON) | `curl -H "Authorization: Bearer $MCP_AUTH_TOKEN" https://YOUR-APP.up.railway.app/auth/discord/status` |
 
 ## Troubleshooting
 
@@ -194,6 +233,15 @@ Now you can chat with Claude.ai and it can:
 - The `/mobile-connector.luau` route is public (no auth needed to fetch the script)
 - Roblox bridge routes still use the token configured in `getgenv().MCP_AUTH_TOKEN`; `/mcp` uses an OAuth Bearer token for Claude after you authorize the connector.
 
+### Discord Rich Presence doesn't show up
+- Check `https://YOUR-APP.up.railway.app/auth/discord/status` with `Authorization: Bearer <MCP_AUTH_TOKEN>`. `configured`, `tokenStorage` and `linked` should all be `true`.
+- "Discord linking is not configured": one of `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` or `TOKEN_ENCRYPTION_KEY` is missing. Add it and redeploy.
+- "Discord linking failed" after approving: `DISCORD_REDIRECT_URI` must exactly match the redirect in the Developer Portal, including `https://` and with no trailing slash.
+- "Link expired": the link page was open for more than 10 minutes, or the server restarted mid-flow. Start again from `/auth/discord`.
+- Presence only appears while the AI is calling tools. It updates at most every 15 seconds and clears after 5 idle minutes.
+- `linked` is `false` after a redeploy: add a Railway volume and set `DISCORD_TOKEN_STORE_PATH` (see the Discord section above).
+- Railway logs lines starting with `[Discord]` explain any refresh or presence errors. These never stop tools from running.
+
 ### Server goes to sleep (Render free tier)
 Render's free tier sleeps after 15 minutes of inactivity. To wake it:
 - Just send any request (e.g., open the dashboard URL in Safari)
@@ -209,6 +257,8 @@ Railway gives $5 of free credits per month. The server uses minimal resources (~
 - This allows arbitrary code execution in your Roblox client
 - Only use with Roblox experiences you own or have permission to test
 - Rotate the auth token periodically
+- `MCP_AUTH_TOKEN` also protects Discord linking and unlinking. Without it, anyone with the URL could link their own Discord account to your server
+- Discord tokens are stored encrypted with `TOKEN_ENCRYPTION_KEY`. Keep that key secret, and set it only as a Railway/Render variable, never in the repo
 
 ## Experimental: iSH (Local iOS Server)
 

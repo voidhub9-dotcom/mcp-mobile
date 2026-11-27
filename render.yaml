@@ -13,4 +13,15 @@ services:
       # Generate one: openssl rand -hex 16
       - key: MCP_AUTH_TOKEN
         sync: false
+      # Optional: VoidHub RPC (Discord Rich Presence). See docs/setup-ios-cloud.md
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_REDIRECT_URI
+        sync: false
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: DISCORD_BUTTON_URL
+        sync: false
     healthCheckPath: /
