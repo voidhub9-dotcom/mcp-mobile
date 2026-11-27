@@ -27,6 +27,9 @@ export const TOKEN_ENCRYPTION_KEY: string | null = process.env.TOKEN_ENCRYPTION_
 export const DISCORD_TOKEN_STORE_PATH: string = process.env.DISCORD_TOKEN_STORE_PATH?.trim() ||
     path.join(os.homedir(), ".roblox-mcp", "discord-links.json");
 
+/** Show the current Roblox game's icon as the big image (Void Hub logo becomes the small badge). */
+export const DISCORD_SHOW_GAME_ICON: boolean = !/^(0|false|no|off)$/i.test(process.env.DISCORD_SHOW_GAME_ICON?.trim() || "");
+
 /** Minimum gap between two presence pushes for the same user. */
 export const PRESENCE_THROTTLE_MS = envInt("DISCORD_PRESENCE_THROTTLE_MS", 15_000, 15_000, 300_000);
 /** End the headless session after this long without MCP tool calls. */

@@ -233,7 +233,8 @@ The server can set your Discord Rich Presence straight from Railway, using Disco
 | Details | What the agent is doing, e.g. `Making a script`, `Spying on remotes`, `Running get-game-info` |
 | State | `Connected via Void Hub MCP` |
 | Elapsed time | Since the first tool call of the session |
-| Large image | `DISCORD_LARGE_IMAGE_KEY`, tooltip `Void Hub MCP` |
+| Large image | Icon of the Roblox game you're in (tooltip: game name). Falls back to `DISCORD_LARGE_IMAGE_KEY` |
+| Small image | `DISCORD_LARGE_IMAGE_KEY` (your logo), tooltip `Void Hub MCP` |
 | Button | **Get Void Hub** → `DISCORD_BUTTON_URL` |
 
 Updates are throttled to one per 15 seconds and kept alive while you're active. The presence is cleared after 5 minutes with no tool calls. Discord calls never block or fail a tool: if you haven't linked Discord, or Discord is down or slow, tools run exactly as before.
@@ -257,6 +258,7 @@ In your Railway service → **Variables**, add:
 | `DISCORD_REDIRECT_URI` | yes | `https://your-app.up.railway.app/auth/discord/callback` | Must exactly match the portal redirect |
 | `TOKEN_ENCRYPTION_KEY` | yes | output of `openssl rand -hex 32` | Encrypts stored tokens (AES-256-GCM) |
 | `DISCORD_LARGE_IMAGE_KEY` | no | `void_logo` | Art asset key or image URL |
+| `DISCORD_SHOW_GAME_ICON` | no | `true` | `false` to always use your logo as the big image |
 | `DISCORD_BUTTON_URL` | no | `https://your-site/void-hub` | "Get Void Hub" button link (no button if empty) |
 | `MCP_AUTH_TOKEN` | strongly recommended | — | Gates linking and unlinking (see below) |
 | `DISCORD_TOKEN_STORE_PATH` | recommended | `/data/discord-links.json` | Put tokens on a Railway volume so they survive redeploys |

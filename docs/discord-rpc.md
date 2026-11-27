@@ -12,7 +12,8 @@ It's optional. If the Discord variables aren't set, the server behaves exactly a
 | Details | What the agent is doing right now (see [Tool → details](#tool--details)) |
 | State | `Connected via Void Hub MCP` |
 | Elapsed time | Since the first tool call of the current session |
-| Large image | `DISCORD_LARGE_IMAGE_KEY`, tooltip `Void Hub MCP` |
+| Large image | The icon of the **Roblox game you're in**, with the game's name as the tooltip. If no game is connected, or the icon can't be loaded, it shows `DISCORD_LARGE_IMAGE_KEY` with the tooltip `Void Hub MCP` |
+| Small image | `DISCORD_LARGE_IMAGE_KEY` (your Void Hub logo) in the corner of the game icon, tooltip `Void Hub MCP` |
 | Button | **Get Void Hub** → `DISCORD_BUTTON_URL` (hidden if not set) |
 
 ## How it behaves
@@ -21,6 +22,7 @@ It's optional. If the Discord variables aren't set, the server behaves exactly a
 - While tools keep running, the presence is re-sent every **2 minutes** so it doesn't lapse.
 - After **5 minutes** with no tool calls, the presence session ends and the status disappears. The next tool call starts a new session with a fresh timer.
 - **Tools are never slowed or failed by Discord.** If you haven't linked an account, the update is skipped. If Discord is down, slow (8 second limit), rate-limiting, or rejecting the token, the error is logged as `[Discord] ...` and the tool result is unchanged.
+- The big image follows the game your active Roblox client is in. The icon comes from Roblox's public thumbnails API and is cached for an hour per game. When you change games, the next update shows the new icon. If Discord refuses the external image link, the server switches to your logo for the rest of the run.
 - Access tokens refresh automatically when they're within 5 minutes of expiry, or if Discord rejects them.
 
 ## 1. Create the Discord application
@@ -50,6 +52,7 @@ Quick tunnels (`trycloudflare.com`) change URL on every restart, so you'd have t
 | `TOKEN_ENCRYPTION_KEY` | yes | output of `openssl rand -hex 32` | 32-byte key that encrypts stored tokens (AES-256-GCM). Accepts 64 hex characters or base64 |
 | `DISCORD_LARGE_IMAGE_KEY` | no | `void_logo` | Art asset key or image URL |
 | `DISCORD_BUTTON_URL` | no | — | Link for the **Get Void Hub** button |
+| `DISCORD_SHOW_GAME_ICON` | no | `true` | Set to `false` to always use your logo as the big image instead of the current game's icon |
 | `MCP_AUTH_TOKEN` | cloud: yes | — | Protects linking and unlinking (and the rest of the server) |
 | `DISCORD_TOKEN_STORE_PATH` | cloud: recommended | `~/.roblox-mcp/discord-links.json` | Where encrypted tokens are saved |
 | `DISCORD_PRESENCE_IDLE_MS` | no | `300000` | Idle time before the presence is cleared (1 to 60 minutes) |
@@ -181,6 +184,7 @@ To change the wording, edit `ACTION_BY_TOOL` in [`src/discord/tool-hook.ts`](../
 | "Link expired" | The link page was open for more than 10 minutes, or the server restarted mid-flow. Start again at `/auth/discord`. |
 | `linked: false` after a redeploy | The token file was wiped. Add a volume and set `DISCORD_TOKEN_STORE_PATH`. |
 | "Could not decrypt stored token" in logs | `TOKEN_ENCRYPTION_KEY` changed. Link again. |
+| Big image shows your logo, not the game | No Roblox client is connected (check the dashboard), the icon lookup failed, or Discord refused the image link. If it was refused, the server log has a `[Discord] Discord rejected the game icon URL` line. |
 | Linked, but nothing on your profile | Presence only appears while tools are running. Check `/auth/discord/status`. Look for `[Discord]` errors in the server log, and make sure **User Settings → Activity Privacy → Share your detected activities with others** is on in Discord. |
 | `[Discord] ... rate limited` | Raise `DISCORD_PRESENCE_THROTTLE_MS`. |
 
@@ -197,6 +201,7 @@ To change the wording, edit `ACTION_BY_TOOL` in [`src/discord/tool-hook.ts`](../
 - `src/discord/discordPresence.ts`: the session manager (throttle, keepalive, idle clear, headless-session calls).
 - `src/discord/oauth.ts`: authorize URL, code exchange, refresh, revoke.
 - `src/discord/token-store.ts`: the encrypted JSON store. Other server processes sharing the file see link changes within 30 seconds.
+- `src/discord/game-icon.ts`: looks up the current game's icon (`thumbnails.roblox.com/v1/places/gameicons`).
 - `src/discord/tool-hook.ts`: wraps `server.registerTool` so every tool call fires `updateUserPresence()` before the tool runs, without waiting on Discord.
 - `src/http/routes/auth/discord/*`: the HTTP routes.
 - Presence uses `POST /users/@me/headless-sessions` (with `{ activities, token? }`) and `POST /users/@me/headless-sessions/delete` (with `{ token }`). The paths are constants at the top of `discordPresence.ts`. If Discord rejects the button format, the server drops the button and keeps updating presence.

@@ -148,6 +148,49 @@ test("tool hook never blocks or fails the tool, and presence is throttled + clea
     }
 });
 
+test("game icon becomes the big image, with the Void Hub logo as the small badge", () => {
+    const act = presence.buildActivity("Making a script", 1, {
+        game: { placeId: 606849621, placeName: "Cool Game" },
+        gameIconUrl: "https://tr.rbxcdn.com/icon.png",
+    });
+    assert.deepEqual(act.assets, {
+        large_image: "https://tr.rbxcdn.com/icon.png",
+        large_text: "Cool Game",
+        small_image: "void_logo",
+        small_text: "Void Hub MCP",
+    });
+    const plain = presence.buildActivity("Making a script", 1);
+    assert.deepEqual(plain.assets, { large_image: "void_logo", large_text: "Void Hub MCP" });
+});
+
+test("presence fetches the Roblox game icon and falls back to the logo if Discord rejects it", async () => {
+    calls.length = 0;
+    let rejectedOnce = false;
+    installFetch((url, body) => {
+        if (url.startsWith("https://thumbnails.roblox.com/"))
+            return json(200, { data: [{ targetId: 606849621, state: "Completed", imageUrl: "https://tr.rbxcdn.com/icon.png" }] });
+        if (url.endsWith("/headless-sessions")) {
+            if (body.activities[0].assets.large_image.startsWith("https://") && !rejectedOnce) {
+                rejectedOnce = true;
+                return json(400, { message: "Invalid asset image url" });
+            }
+            return json(200, { token: "SESSION2", activities: [] });
+        }
+        return json(204, {});
+    });
+    presence.updateUserPresence("default", "Making a script", { placeId: 606849621, placeName: "Cool Game" });
+    const deadline = Date.now() + 5000;
+    while (calls.filter((c) => c.url.endsWith("/headless-sessions")).length < 2 && Date.now() < deadline)
+        await new Promise((r) => setTimeout(r, 5));
+    const sent = calls.filter((c) => c.url.endsWith("/headless-sessions"));
+    assert.ok(calls.some((c) => c.url.includes("placeIds=606849621")), "looks up the icon for the current place");
+    assert.equal(sent[0].body.activities[0].assets.large_image, "https://tr.rbxcdn.com/icon.png");
+    assert.equal(sent[0].body.activities[0].assets.large_text, "Cool Game");
+    assert.equal(sent[1].body.activities[0].assets.large_image, "void_logo", "falls back to the logo");
+    assert.equal(presence.getPresenceStatus("default").game.placeName, "Cool Game");
+    await presence.clearUserPresence("default");
+});
+
 test("unlinked users are a silent no-op", async () => {
     await store.deleteLink("default");
     calls.length = 0;

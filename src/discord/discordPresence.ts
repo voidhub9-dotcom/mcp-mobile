@@ -1,4 +1,5 @@
-import { DISCORD_API_BASE, DISCORD_BUTTON_URL, DISCORD_CLIENT_ID, DISCORD_HTTP_TIMEOUT_MS, DISCORD_LARGE_IMAGE_KEY, PRESENCE_BUTTON_LABEL, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_KEEPALIVE_MS, PRESENCE_LARGE_TEXT, PRESENCE_NAME, PRESENCE_STATE, PRESENCE_THROTTLE_MS, discordOAuthConfigured, } from "./config.js";
+import { DISCORD_API_BASE, DISCORD_BUTTON_URL, DISCORD_CLIENT_ID, DISCORD_SHOW_GAME_ICON, DISCORD_HTTP_TIMEOUT_MS, DISCORD_LARGE_IMAGE_KEY, PRESENCE_BUTTON_LABEL, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_KEEPALIVE_MS, PRESENCE_LARGE_TEXT, PRESENCE_NAME, PRESENCE_STATE, PRESENCE_THROTTLE_MS, discordOAuthConfigured, } from "./config.js";
+import { getGameIconUrl } from "./game-icon.js";
 import { getValidLink, refreshLink } from "./oauth.js";
 import { getLink, saveLink, tokenStorageAvailable, type DiscordLink } from "./token-store.js";
 
@@ -24,8 +25,14 @@ export interface PresenceActivity {
     details: string;
     state: string;
     timestamps: { start: number };
-    assets: { large_image: string; large_text: string };
+    assets: { large_image: string; large_text: string; small_image?: string; small_text?: string };
     buttons?: { label: string; url: string }[];
+}
+
+/** The Roblox game the active client is in, if any. */
+export interface PresenceGame {
+    placeId: number;
+    placeName: string;
 }
 
 interface UserPresenceState {
@@ -33,7 +40,9 @@ interface UserPresenceState {
     lastActivityAt: number;
     lastPushAt: number;
     details: string;
-    pushedDetails: string | null;
+    game: PresenceGame | null;
+    /** details + placeId of the last successful push, to detect changes. */
+    pushedKey: string | null;
     timer: NodeJS.Timeout | null;
     inflight: boolean;
     lastErrorLogAt: number;
@@ -43,12 +52,26 @@ const states = new Map<string, UserPresenceState>();
 let heartbeat: NodeJS.Timeout | null = null;
 // Flipped off for the rest of the process if Discord rejects the button payload.
 let buttonsAccepted = true;
+// Flipped off if Discord rejects external (Roblox CDN) image URLs.
+let gameIconsAccepted = true;
+
+function stateKey(details: string, game: PresenceGame | null): string {
+    return `${details}|${game?.placeId ?? ""}`;
+}
 
 export function presenceEnabled(): boolean {
     return discordOAuthConfigured() && tokenStorageAvailable();
 }
 
-export function buildActivity(details: string, startMs: number, includeButtons = buttonsAccepted): PresenceActivity {
+export interface BuildActivityOptions {
+    includeButtons?: boolean;
+    game?: PresenceGame | null;
+    /** https URL of the game's icon; when set it becomes the big image. */
+    gameIconUrl?: string | null;
+}
+
+export function buildActivity(details: string, startMs: number, options: BuildActivityOptions = {}): PresenceActivity {
+    const includeButtons = options.includeButtons ?? buttonsAccepted;
     const activity: PresenceActivity = {
         name: PRESENCE_NAME,
         type: 0, // Playing
@@ -58,6 +81,14 @@ export function buildActivity(details: string, startMs: number, includeButtons =
         timestamps: { start: startMs },
         assets: { large_image: DISCORD_LARGE_IMAGE_KEY, large_text: PRESENCE_LARGE_TEXT },
     };
+    if (options.gameIconUrl) {
+        activity.assets = {
+            large_image: options.gameIconUrl,
+            large_text: truncate(options.game?.placeName || "Roblox", 128),
+            small_image: DISCORD_LARGE_IMAGE_KEY,
+            small_text: PRESENCE_LARGE_TEXT,
+        };
+    }
     if (includeButtons && DISCORD_BUTTON_URL)
         activity.buttons = [{ label: PRESENCE_BUTTON_LABEL, url: DISCORD_BUTTON_URL }];
     return activity;
@@ -72,7 +103,7 @@ function truncate(text: string, max: number): string {
  * Record that `userKey` is doing `action` and (throttled) push it to Discord.
  * Synchronous, never throws, never awaits the network.
  */
-export function updateUserPresence(userKey: string, action: string): void {
+export function updateUserPresence(userKey: string, action: string, game: PresenceGame | null = null): void {
     try {
         if (!presenceEnabled())
             return;
@@ -84,7 +115,8 @@ export function updateUserPresence(userKey: string, action: string): void {
                 lastActivityAt: now,
                 lastPushAt: 0,
                 details: action,
-                pushedDetails: null,
+                game,
+                pushedKey: null,
                 timer: null,
                 inflight: false,
                 lastErrorLogAt: 0,
@@ -93,6 +125,7 @@ export function updateUserPresence(userKey: string, action: string): void {
         }
         st.lastActivityAt = now;
         st.details = action;
+        st.game = game;
         ensureHeartbeat();
         schedulePush(userKey, st, false);
     }
@@ -105,7 +138,7 @@ function schedulePush(userKey: string, st: UserPresenceState, force: boolean): v
     if (st.timer || st.inflight)
         return; // the pending push will pick up the latest details
     const now = Date.now();
-    if (!force && st.details === st.pushedDetails && now - st.lastPushAt < PRESENCE_KEEPALIVE_MS)
+    if (!force && stateKey(st.details, st.game) === st.pushedKey && now - st.lastPushAt < PRESENCE_KEEPALIVE_MS)
         return;
     const wait = Math.max(0, st.lastPushAt + PRESENCE_THROTTLE_MS - now);
     st.timer = setTimeout(() => {
@@ -120,9 +153,10 @@ async function runPush(userKey: string, st: UserPresenceState): Promise<void> {
         return; // session ended meanwhile
     st.inflight = true;
     const details = st.details;
+    const game = st.game;
     try {
-        await pushPresence(userKey, details, st.sessionStart);
-        st.pushedDetails = details;
+        await pushPresence(userKey, details, st.sessionStart, game);
+        st.pushedKey = stateKey(details, game);
     }
     catch (err) {
         const now = Date.now();
@@ -135,7 +169,7 @@ async function runPush(userKey: string, st: UserPresenceState): Promise<void> {
         st.inflight = false;
         st.lastPushAt = Date.now(); // also on failure, so errors back off at the throttle rate
     }
-    if (states.get(userKey) === st && st.details !== st.pushedDetails)
+    if (states.get(userKey) === st && stateKey(st.details, st.game) !== st.pushedKey)
         schedulePush(userKey, st, false);
 }
 
@@ -148,15 +182,17 @@ async function discordPost(path: string, accessToken: string, body: unknown): Pr
     });
 }
 
-async function pushPresence(userKey: string, details: string, sessionStart: number): Promise<void> {
+async function pushPresence(userKey: string, details: string, sessionStart: number, game: PresenceGame | null): Promise<void> {
     let link = await getValidLink(userKey);
     if (!link)
         return; // not linked (or token dead): silently skip
+    const wantIcon = DISCORD_SHOW_GAME_ICON && gameIconsAccepted && game !== null;
+    let gameIconUrl = wantIcon ? await getGameIconUrl(game.placeId) : null;
     let useToken = true;
     let refreshed = false;
-    for (let attempt = 0; attempt < 4; attempt++) {
+    for (let attempt = 0; attempt < 5; attempt++) {
         const body: { activities: PresenceActivity[]; token?: string } = {
-            activities: [buildActivity(details, sessionStart)],
+            activities: [buildActivity(details, sessionStart, { game, gameIconUrl })],
         };
         if (useToken && link.sessionToken)
             body.token = link.sessionToken;
@@ -179,6 +215,12 @@ async function pushPresence(userKey: string, details: string, sessionStart: numb
         if ((resp.status === 400 || resp.status === 404) && useToken && link.sessionToken) {
             // Stale/expired session token: start a fresh session.
             useToken = false;
+            continue;
+        }
+        if (resp.status === 400 && gameIconUrl && /image|asset|url/i.test(text)) {
+            gameIconsAccepted = false;
+            gameIconUrl = null;
+            console.error("[Discord] Discord rejected the game icon URL; using the Void Hub logo instead.");
             continue;
         }
         if (resp.status === 400 && buttonsAccepted && DISCORD_BUTTON_URL && /button/i.test(text)) {
@@ -252,13 +294,14 @@ function ensureHeartbeat(): void {
     heartbeat.unref?.();
 }
 
-export function getPresenceStatus(userKey: string): { active: boolean; pushInFlight: boolean; pushScheduled: boolean; details: string | null; sessionStart: number | null; lastActivityAt: number | null } {
+export function getPresenceStatus(userKey: string): { active: boolean; pushInFlight: boolean; pushScheduled: boolean; details: string | null; game: PresenceGame | null; sessionStart: number | null; lastActivityAt: number | null } {
     const st = states.get(userKey);
     return {
         active: Boolean(st),
         pushInFlight: Boolean(st?.inflight),
         pushScheduled: Boolean(st?.timer),
         details: st?.details ?? null,
+        game: st?.game ?? null,
         sessionStart: st?.sessionStart ?? null,
         lastActivityAt: st?.lastActivityAt ?? null,
     };

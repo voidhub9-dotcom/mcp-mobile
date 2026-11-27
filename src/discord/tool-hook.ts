@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DEFAULT_DISCORD_USER_KEY } from "./config.js";
-import { updateUserPresence } from "./discordPresence.js";
+import { getActiveClientId, getActiveClients, resolveTargetClient } from "../bridge/handlers/shared/registry.js";
+import { updateUserPresence, type PresenceGame } from "./discordPresence.js";
 
 // Maps MCP tool names to the "details" line shown on Discord.
 const ACTION_BY_TOOL: Record<string, string> = {
@@ -29,6 +30,22 @@ export function actionForTool(toolName: string): string {
     return ACTION_BY_TOOL[toolName] ?? `Running ${toolName}`;
 }
 
+/** The game the active Roblox client is in, or null (no client, Termux shell, unknown place). */
+export function currentGame(): PresenceGame | null {
+    try {
+        // Prefer the active client; skip non-game clients (e.g. the Termux shell, placeId 0).
+        let client = resolveTargetClient(getActiveClientId());
+        if (!client || !(client.placeId > 0))
+            client = getActiveClients().filter((c) => c.placeId > 0).sort((a, b) => b.lastRegistrationAt - a.lastRegistrationAt)[0] ?? null;
+        if (!client)
+            return null;
+        return { placeId: client.placeId, placeName: client.placeName || "Roblox" };
+    }
+    catch {
+        return null;
+    }
+}
+
 /**
  * Wrap `server.registerTool` so every tool handler first fires a presence
  * update. Must run before tools are registered. The hook is synchronous and
@@ -43,7 +60,7 @@ export function installPresenceToolHook(server: McpServer): void {
         if (typeof name === "string" && typeof cb === "function") {
             args[cbIndex] = function (this: unknown, ...cbArgs: unknown[]) {
                 try {
-                    updateUserPresence(DEFAULT_DISCORD_USER_KEY, actionForTool(name));
+                    updateUserPresence(DEFAULT_DISCORD_USER_KEY, actionForTool(name), currentGame());
                 }
                 catch {
                     // never let presence affect the tool
