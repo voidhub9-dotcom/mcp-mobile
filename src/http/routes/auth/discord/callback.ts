@@ -1,45 +1,46 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { discordOAuthConfigured } from "../../../../discord/config.js";
-import { authRequired, escapeHtml, sendHtml } from "../../../../discord/http.js";
+import { escapeHtml, redirect, sendMessage } from "../../../../discord/http.js";
 import { consumeState, exchangeCode } from "../../../../discord/oauth.js";
 
 // GET /auth/discord/callback?code=...&state=...
-// Exchanges the code, then stores the encrypted tokens for the user the state was issued to.
+// Exchanges the code, stores the encrypted tokens, then returns to the Void Hub RPC page.
 
-function testForm(): string {
-    const tokenField = authRequired()
-        ? `<input name="server_token" type="password" required placeholder="MCP_AUTH_TOKEN" style="width:100%;max-width:28rem;padding:0.6rem;margin-bottom:0.75rem"><br>`
-        : "";
-    return `<p>Want to check it works? Send a test presence now:</p><form method="post" action="/auth/discord/test">${tokenField}<button type="submit" style="padding:0.6rem 1rem">Send test presence</button></form>`;
-}
+const ERROR_HELP: Record<string, string> = {
+    access_denied: "You cancelled on Discord's screen. Nothing was linked.",
+    invalid_scope: "This Discord app isn't allowed to use Rich Presence yet. In the Developer Portal, open the app, then <b>Discord Social SDK → Getting Started</b>, submit the form, wait a minute, and try again.",
+    invalid_request: "Discord didn't accept the request. Check that the redirect in the Developer Portal is exactly the server's <code>DISCORD_REDIRECT_URI</code>.",
+    unauthorized_client: "This Discord app can't use this login flow. Check <code>DISCORD_CLIENT_ID</code> is this app's Application ID.",
+};
 
 export async function GET(_req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     if (!discordOAuthConfigured()) {
-        sendHtml(res, 503, "Discord linking is not configured", "<p>Discord OAuth environment variables are missing on the server.</p>");
+        sendMessage(res, 503, "error", "Discord isn't set up on the server", "<p>The <code>DISCORD_*</code> variables are missing.</p>");
         return;
     }
     const error = url.searchParams.get("error");
     const userKey = consumeState(url.searchParams.get("state"));
     if (error) {
-        sendHtml(res, 400, "Discord linking cancelled", `<p>Discord returned: <code>${escapeHtml(error)}</code>. <a href="/auth/discord">Try again</a>.</p>`);
+        const help = ERROR_HELP[error] ?? "Discord stopped the login.";
+        sendMessage(res, 400, "error", "Discord linking didn't finish", `<p>${help}</p><p class="hint">Discord said: <code>${escapeHtml(error)}</code></p>`, "Try again");
         return;
     }
     if (!userKey) {
-        sendHtml(res, 400, "Link expired", `<p>The login request was invalid or expired (CSRF state mismatch). <a href="/auth/discord">Start again</a>.</p>`);
+        sendMessage(res, 400, "error", "That link expired", "<p>The login took longer than 10 minutes, or the server restarted in the middle. Just start again.</p>", "Start again");
         return;
     }
     const code = url.searchParams.get("code");
     if (!code) {
-        sendHtml(res, 400, "Missing code", `<p>Discord did not return an authorization code. <a href="/auth/discord">Start again</a>.</p>`);
+        sendMessage(res, 400, "error", "Discord didn't send a code", "<p>Start the link again.</p>", "Start again");
         return;
     }
     try {
         const link = await exchangeCode(userKey, code);
         console.error(`[Discord] Linked Discord user ${link.discordUserId ?? "(unknown id)"} for "${userKey}".`);
-        sendHtml(res, 200, "Discord linked", `<p>Your Discord account${link.discordUserId ? ` (<code>${escapeHtml(link.discordUserId)}</code>)` : ""} is linked. Your Rich Presence will show <strong>Void Hub RPC</strong> while MCP tools are running, and clears itself after a few idle minutes.</p>${testForm()}`);
+        redirect(res, "/auth/discord?linked=1");
     }
     catch (err) {
         console.error("[Discord] Code exchange failed:", (err as Error).message);
-        sendHtml(res, 502, "Discord linking failed", `<p>Could not exchange the authorization code with Discord. Check that <code>DISCORD_REDIRECT_URI</code> exactly matches the redirect configured in the Developer Portal. <a href="/auth/discord">Try again</a>.</p>`);
+        sendMessage(res, 502, "error", "Discord linking failed", `<p>The server couldn't swap the login code with Discord. Usually <code>DISCORD_CLIENT_SECRET</code> is wrong, or the redirect in the Developer Portal doesn't match <code>DISCORD_REDIRECT_URI</code> exactly.</p><pre>${escapeHtml((err as Error).message)}</pre>`, "Try again");
     }
 }

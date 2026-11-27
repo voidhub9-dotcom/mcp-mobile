@@ -8,6 +8,9 @@ import { DISCORD_TOKEN_STORE_PATH, TOKEN_ENCRYPTION_KEY } from "./config.js";
 
 export interface DiscordLink {
     discordUserId: string | null;
+    /** Display name / avatar from the OpenID id_token, when Discord includes them. */
+    discordUsername?: string | null;
+    discordAvatarUrl?: string | null;
     accessToken: string;
     refreshToken: string | null;
     /** epoch ms */

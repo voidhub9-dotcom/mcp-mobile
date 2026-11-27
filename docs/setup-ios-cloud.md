@@ -178,10 +178,10 @@ Keep `TOKEN_ENCRYPTION_KEY` the same once it's set. If it changes, the stored li
 ### 3. Link your Discord
 
 1. Open `https://YOUR-APP.up.railway.app/auth/discord` in Safari.
-2. Enter your `MCP_AUTH_TOKEN` and tap **Link Discord**.
+2. Enter your `MCP_AUTH_TOKEN` and tap **Continue**. Your phone is remembered for 30 days, so you won't be asked again. Then tap **Link Discord**.
 3. Approve on Discord. You should see "Discord linked".
 
-To remove the link, open the same page, enter the token, and tap **Unlink Discord**. This also revokes the tokens at Discord.
+Tap **Send test presence** to check it shows on your profile. To remove the link, open the same page and tap **Unlink Discord**. This also revokes the tokens at Discord.
 
 ## Step 5: Use It
 

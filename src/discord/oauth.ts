@@ -73,18 +73,40 @@ async function tokenRequest(body: Record<string, string>): Promise<TokenResponse
     return JSON.parse(text) as TokenResponse;
 }
 
-/** Pull the Discord user id out of the OpenID id_token (`sub` claim). Signature isn't needed: it came straight from Discord over TLS. */
-export function userIdFromIdToken(idToken: string | undefined): string | null {
+interface IdClaims {
+    sub?: unknown;
+    preferred_username?: unknown;
+    nickname?: unknown;
+    name?: unknown;
+    picture?: unknown;
+}
+
+/** Decode the OpenID id_token payload. Signature isn't needed: it came straight from Discord over TLS. */
+function idTokenClaims(idToken: string | undefined): IdClaims | null {
     if (!idToken)
         return null;
     try {
-        const payload = idToken.split(".")[1];
-        const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { sub?: unknown };
-        return typeof claims.sub === "string" ? claims.sub : null;
+        return JSON.parse(Buffer.from(idToken.split(".")[1], "base64url").toString("utf8")) as IdClaims;
     }
     catch {
         return null;
     }
+}
+
+/** The Discord user id (`sub` claim). */
+export function userIdFromIdToken(idToken: string | undefined): string | null {
+    const sub = idTokenClaims(idToken)?.sub;
+    return typeof sub === "string" ? sub : null;
+}
+
+function profileFromIdToken(idToken: string | undefined): { username: string | null; avatarUrl: string | null } {
+    const c = idTokenClaims(idToken);
+    const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+    const picture = str(c?.picture);
+    return {
+        username: str(c?.preferred_username) ?? str(c?.nickname) ?? str(c?.name),
+        avatarUrl: picture && picture.startsWith("https://") ? picture : null,
+    };
 }
 
 async function fetchUserId(accessToken: string): Promise<string | null> {
@@ -113,6 +135,8 @@ function toLink(tok: TokenResponse, previous: DiscordLink | null, discordUserId:
         scope: tok.scope,
         linkedAt: previous?.linkedAt ?? Date.now(),
         sessionToken: previous?.sessionToken ?? null,
+        discordUsername: previous?.discordUsername ?? null,
+        discordAvatarUrl: previous?.discordAvatarUrl ?? null,
     };
 }
 
@@ -125,6 +149,9 @@ export async function exchangeCode(userKey: string, code: string): Promise<Disco
     const discordUserId = userIdFromIdToken(tok.id_token) ?? (await fetchUserId(tok.access_token));
     const previous = await getLink(userKey);
     const link = toLink(tok, null, discordUserId);
+    const profile = profileFromIdToken(tok.id_token);
+    link.discordUsername = profile.username;
+    link.discordAvatarUrl = profile.avatarUrl;
     // Keep the previous session token so the old presence can still be cleared.
     link.sessionToken = previous?.sessionToken ?? null;
     await saveLink(userKey, link);

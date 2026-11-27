@@ -114,12 +114,15 @@ The last line creates the key once and reuses it on every start.
 ## 3. Link your account and test it
 
 1. Open `/auth/discord` on your server, for example `https://YOUR-APP.up.railway.app/auth/discord` or `http://localhost:16384/auth/discord`.
-2. If `MCP_AUTH_TOKEN` is set, enter it and choose **Link Discord**. Otherwise you go straight to Discord.
+2. If `MCP_AUTH_TOKEN` is set, enter it and choose **Continue**. You only do this once per device: the page remembers you for 30 days with a secure, HttpOnly cookie. **Sign out on this device** forgets it, and changing `MCP_AUTH_TOKEN` signs every device out.
+   Then choose **Link Discord**.
 3. Approve on Discord. You'll land on a **Discord linked** page.
-4. Choose **Send test presence**. It's on the "Discord linked" page, and on `/auth/discord` next to **Link Discord**. The server sends **Testing Void Hub RPC** to Discord right away and shows Discord's answer:
+4. Back on the Void Hub RPC page, choose **Send test presence**. The server sends **Testing Void Hub RPC** to Discord right away and shows Discord's answer:
    - **Test sent**: open your Discord profile. You should see **Playing Void Hub RPC**. If a Roblox client is connected, the big image is that game's icon.
    - **Discord said no**: the page shows Discord's exact error. See [Troubleshooting](#troubleshooting).
 5. After that, any MCP tool call (from Claude, the built-in `/ai` chat, or any MCP client) updates the presence automatically.
+
+The page also shows your link status, whether the presence is live, the connected Roblox game, and a preview of how your Discord card looks.
 
 To remove the link, open `/auth/discord` and choose **Unlink Discord**, or use curl:
 
@@ -133,12 +136,13 @@ Unlinking clears the live presence, revokes the tokens at Discord, and deletes t
 
 | Method | Path | Auth (when `MCP_AUTH_TOKEN` is set) | What it does |
 |--------|------|------|--------------|
-| `GET` | `/auth/discord` | — (shows a token form) | Starts linking: redirects to Discord with a one-time CSRF `state`, or shows the token form |
-| `POST` | `/auth/discord` | `server_token` form field | Checks the token, then redirects to Discord |
+| `GET` | `/auth/discord` | Sign-in form, then the remembered-device cookie | The Void Hub RPC page: status, presence preview, and buttons |
+| `GET` | `/auth/discord?start=1` | Cookie | Redirects straight to Discord with a one-time CSRF `state` |
+| `POST` | `/auth/discord` | `action=login` with `server_token`, otherwise the cookie | `login` (remember this device), `link` (go to Discord), `logout` |
 | `GET` | `/auth/discord/callback` | CSRF `state` (10 min, single use) | Exchanges the `code`, then stores encrypted access and refresh tokens |
-| `POST` | `/auth/discord/test` | `Authorization: Bearer <MCP_AUTH_TOKEN>` or `server_token` field | Sends a **Testing Void Hub RPC** presence immediately (no throttle) and returns Discord's answer |
-| `POST` | `/auth/discord/unlink` | `Authorization: Bearer <MCP_AUTH_TOKEN>` or `server_token` field | Clears the presence, revokes the tokens, deletes them |
-| `GET` | `/auth/discord/status` | `Authorization: Bearer <MCP_AUTH_TOKEN>` | JSON health check (below) |
+| `POST` | `/auth/discord/test` | Bearer header, `server_token` field, or the cookie | Sends a **Testing Void Hub RPC** presence immediately (no throttle) and returns Discord's answer |
+| `POST` | `/auth/discord/unlink` | Bearer header, `server_token` field, or the cookie | Clears the presence, revokes the tokens, deletes them |
+| `GET` | `/auth/discord/status` | Bearer header or the cookie | JSON health check (below) |
 
 ```bash
 curl -H "Authorization: Bearer $MCP_AUTH_TOKEN" https://YOUR-APP.up.railway.app/auth/discord/status
@@ -200,6 +204,7 @@ To change the wording, edit `ACTION_BY_TOOL` in [`src/discord/tool-hook.ts`](../
 
 - Tokens are encrypted at rest with AES-256-GCM using `TOKEN_ENCRYPTION_KEY`, written with `0600` permissions, and never returned by any endpoint.
 - Keep `TOKEN_ENCRYPTION_KEY` and `DISCORD_CLIENT_SECRET` in your host's variable settings or the client's `env` block. Never commit them.
+- The remembered-device cookie is HttpOnly, `SameSite=Lax`, `Secure` over HTTPS, scoped to `/auth/discord`, and signed with a key derived from `MCP_AUTH_TOKEN`. Requests that carry the cookie from another website are rejected.
 - On a public deployment, set `MCP_AUTH_TOKEN`. It's what stops strangers from linking their own Discord account to your server or unlinking yours.
 - The server has one shared `MCP_AUTH_TOKEN`, so each deployment links **one** Discord account.
 - Unlinking revokes the grant at Discord. You can also remove it yourself under Discord **User Settings → Authorized Apps**.

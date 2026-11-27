@@ -271,14 +271,14 @@ Railway's filesystem is wiped on every deploy. Attach a **Volume** (e.g. mounted
 
 ### 3. Link your account
 
-Open `https://<your-railway-domain>/auth/discord`. If `MCP_AUTH_TOKEN` is set, enter it first, then approve on Discord. Then choose **Send test presence** to check that it shows on your profile. Use the same page's **Unlink Discord** button to remove the link.
+Open `https://<your-railway-domain>/auth/discord`. If `MCP_AUTH_TOKEN` is set, enter it once (the device is remembered for 30 days). Tap **Link Discord**, approve on Discord, then tap **Send test presence** to check it shows on your profile. Use the same page's **Unlink Discord** button to remove the link.
 
 ### Endpoints
 
 | Method | Path | Auth (when `MCP_AUTH_TOKEN` is set) | What it does |
 |--------|------|------|--------------|
-| `GET` | `/auth/discord` | form asks for the token | Starts linking. Redirects to Discord with a one-time CSRF `state` (or shows the token form) |
-| `POST` | `/auth/discord` | `server_token` form field | Checks the token, then redirects to Discord |
+| `GET` | `/auth/discord` | sign in once, then a remembered-device cookie | The Void Hub RPC page: status, presence preview, link/test/unlink buttons |
+| `POST` | `/auth/discord` | `server_token` field or the cookie | `action=login`, `link` (go to Discord), or `logout` |
 | `GET` | `/auth/discord/callback` | CSRF `state` | Exchanges the code, then stores encrypted access and refresh tokens |
 | `POST` | `/auth/discord/test` | `Authorization: Bearer <MCP_AUTH_TOKEN>` or `server_token` field | Sends a test presence right away and shows Discord's answer |
 | `POST` | `/auth/discord/unlink` | `Authorization: Bearer <MCP_AUTH_TOKEN>` or `server_token` field | Clears the live presence, revokes the tokens at Discord, deletes them |
