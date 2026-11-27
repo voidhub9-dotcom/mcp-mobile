@@ -912,12 +912,22 @@ const mobileLoadstringCopy = $('mobileLoadstringCopy');
 
 function buildCloudMobileSnippet(publicUrl) {
     const base = publicUrl.replace(/\/$/, '');
-    return `getgenv().BridgeURL = "${base}"\n-- getgenv().MCP_AUTH_TOKEN = "your_token"\nloadstring(game:HttpGet("${base}/mobile-connector.luau"))()`;
+    return `getgenv().BridgeURL = "${base}"\ngetgenv().MCP_AUTH_TOKEN = "YOUR_MCP_AUTH_TOKEN"\nloadstring(game:HttpGet("${base}/mobile-connector.luau"))()`;
+}
+
+// When the dashboard is opened over a public HTTPS address (e.g. Railway), that
+// address *is* the bridge URL, even if PUBLIC_BASE_URL isn't configured.
+function pageIsPublic() {
+    try {
+        return location.protocol === 'https:' && !/^(localhost|127\.|10\.|192\.168\.|0\.0\.0\.0)/.test(location.hostname);
+    } catch {
+        return false;
+    }
 }
 
 function updateMobileLoadstringStrip(data) {
     if (!mobileLoadstringStrip || !mobileLoadstringCode) return;
-    const publicUrl = data?.publicUrl;
+    const publicUrl = data?.publicUrl || (pageIsPublic() ? location.origin : null);
     const snippet = publicUrl
         ? buildCloudMobileSnippet(publicUrl)
         : buildMobileLoaderSnippet(data?.connectors?.currentMachine?.bridgeUrl || undefined);
