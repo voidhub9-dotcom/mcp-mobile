@@ -48,6 +48,8 @@ interface UserPresenceState {
     timer: NodeJS.Timeout | null;
     inflight: boolean;
     lastErrorLogAt: number;
+    /** Last MCP tool call (0 = none yet). */
+    lastToolAt?: number;
     /** The activity exactly as Discord echoed it back on the last successful push. */
     lastSaved?: unknown;
 }
@@ -128,7 +130,12 @@ function truncate(text: string, max: number): string {
  * Record that `userKey` is doing `action` and (throttled) push it to Discord.
  * Synchronous, never throws, never awaits the network.
  */
-export function updateUserPresence(userKey: string, action: string, game: PresenceGame | null = null): void {
+/** Shown under the title while a game is connected and no tool ran recently. */
+export const IN_GAME_DETAILS = "Using VoidHub";
+/** How long a tool's action text ("Making a script") stays before going back to IN_GAME_DETAILS. */
+export const TOOL_ACTION_HOLD_MS = 2 * 60_000;
+
+function touch(userKey: string, game: PresenceGame | null, details: string | null, fromTool: boolean): void {
     try {
         if (!presenceEnabled())
             return;
@@ -139,24 +146,56 @@ export function updateUserPresence(userKey: string, action: string, game: Presen
                 sessionStart: now,
                 lastActivityAt: now,
                 lastPushAt: 0,
-                details: action,
+                details: details ?? IN_GAME_DETAILS,
                 game,
                 pushedKey: null,
                 timer: null,
                 inflight: false,
                 lastErrorLogAt: 0,
+                lastToolAt: 0,
             };
             states.set(userKey, st);
         }
         st.lastActivityAt = now;
-        st.details = action;
-        st.game = game;
+        if (fromTool) {
+            st.lastToolAt = now;
+            st.details = details ?? st.details;
+            st.game = game ?? st.game;
+        }
+        else {
+            st.game = game;
+            // Keep a recent tool action visible; otherwise show the plain in-game line.
+            if (!st.lastToolAt || now - st.lastToolAt > TOOL_ACTION_HOLD_MS)
+                st.details = IN_GAME_DETAILS;
+        }
         ensureHeartbeat();
         schedulePush(userKey, st, false);
     }
     catch (err) {
-        console.error("[Discord] updateUserPresence failed:", (err as Error).message);
+        console.error("[Discord] presence update failed:", (err as Error).message);
     }
+}
+
+/**
+ * Record that `userKey` is doing `action` (an MCP tool ran) and push it, throttled.
+ * Synchronous, never throws, never awaits the network.
+ */
+export function updateUserPresence(userKey: string, action: string, game: PresenceGame | null = null): void {
+    touch(userKey, game, action, true);
+}
+
+/**
+ * A Roblox game is connected right now: start (or keep alive) the presence for it,
+ * even if no tool has run. Called by the game watcher every few seconds.
+ */
+export function updateGamePresence(userKey: string, game: PresenceGame): void {
+    touch(userKey, game, null, false);
+}
+
+/** True if a tool ran within the last `ms`. */
+export function toolUsedWithin(userKey: string, ms: number): boolean {
+    const t = states.get(userKey)?.lastToolAt ?? 0;
+    return t > 0 && Date.now() - t < ms;
 }
 
 function schedulePush(userKey: string, st: UserPresenceState, force: boolean): void {

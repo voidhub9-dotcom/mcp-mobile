@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DEFAULT_DISCORD_USER_KEY } from "./config.js";
 import { getActiveClientId, getActiveClients, resolveTargetClient } from "../bridge/handlers/shared/registry.js";
-import { updateUserPresence, type PresenceGame } from "./discordPresence.js";
+import { clearUserPresence, getPresenceStatus, presenceEnabled, toolUsedWithin, updateGamePresence, updateUserPresence, type PresenceGame } from "./discordPresence.js";
 
 // Maps MCP tool names to the "details" line shown on Discord.
 const ACTION_BY_TOOL: Record<string, string> = {
@@ -70,4 +70,47 @@ export function installPresenceToolHook(server: McpServer): void {
         }
         return original(...args);
     };
+}
+
+// ---- Game watcher ------------------------------------------------------------------
+// Starts the Discord presence as soon as a Roblox client connects (no tool call
+// needed), keeps it alive while the game stays connected, and clears it when the
+// game goes away.
+
+const GAME_WATCH_INTERVAL_MS = 5_000;
+let watcher: NodeJS.Timeout | null = null;
+let lastPlaceId: number | null = null;
+
+export function checkGamePresence(): void {
+    try {
+        if (!presenceEnabled())
+            return;
+        const game = currentGame();
+        if (game) {
+            if (game.placeId !== lastPlaceId)
+                console.error(`[Discord] Game connected: ${game.placeName} (${game.placeId}); updating presence.`);
+            lastPlaceId = game.placeId;
+            updateGamePresence(DEFAULT_DISCORD_USER_KEY, game);
+            return;
+        }
+        if (lastPlaceId !== null) {
+            lastPlaceId = null;
+            // Left the game. Keep it only if the AI is still actively using tools.
+            if (getPresenceStatus(DEFAULT_DISCORD_USER_KEY).active && !toolUsedWithin(DEFAULT_DISCORD_USER_KEY, 60_000)) {
+                console.error("[Discord] Game disconnected; clearing presence.");
+                void clearUserPresence(DEFAULT_DISCORD_USER_KEY);
+            }
+        }
+    }
+    catch (err) {
+        console.error("[Discord] Game watcher error:", (err as Error).message);
+    }
+}
+
+export function startGamePresenceWatcher(): void {
+    if (watcher || !presenceEnabled())
+        return;
+    watcher = setInterval(checkGamePresence, GAME_WATCH_INTERVAL_MS);
+    watcher.unref?.();
+    console.error("[Discord] Watching for Roblox games to show VoidHub RPC automatically.");
 }

@@ -9,7 +9,7 @@ It's optional. If the Discord variables aren't set, the server behaves exactly a
 | Field | Value |
 |-------|-------|
 | Activity | Playing **the Roblox game you're in** (e.g. `[🐟] Net a Fish!`), or **VoidHub RPC** when no game is connected |
-| Details | What the agent is doing right now (see [Tool → details](#tool--details)) |
+| Details | `Using VoidHub` while in a game, or what the agent is doing right now for 2 minutes after each tool call (see [Tool → details](#tool--details)) |
 | State | `Connected via VoidHub MCP` |
 | Elapsed time | Since the first tool call of the current session |
 | Large image | The icon of the **Roblox game you're in**, with the game's name as the tooltip. If no game is connected, or the icon can't be loaded, it shows `DISCORD_LARGE_IMAGE_KEY` with the tooltip `VoidHub MCP` |
@@ -18,6 +18,7 @@ It's optional. If the Discord variables aren't set, the server behaves exactly a
 
 ## How it behaves
 
+- **Starts as soon as a Roblox game connects.** The server checks every 5 seconds; when your connector is running in a game, the presence turns on with that game's name, icon and buttons. The line under the title says `Using VoidHub`. It stays on while the game is connected and clears when the game disconnects.
 - Every MCP tool call updates the presence, at most once every **15 seconds**. If several calls land inside that window, Discord gets the most recent one.
 - While tools keep running, the presence is re-sent every **2 minutes** so it doesn't lapse.
 - After **5 minutes** with no tool calls, the presence session ends and the status disappears. The next tool call starts a new session with a fresh timer.

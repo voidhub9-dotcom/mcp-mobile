@@ -212,6 +212,44 @@ test("test presence pushes immediately and reports Discord's error", async () =>
     await presence.clearUserPresence("default");
 });
 
+test("joining a game starts the presence with no tool call; leaving clears it", async () => {
+    await presence.clearUserPresence("default");
+    calls.length = 0;
+    installFetch((url) => {
+        if (url.startsWith("https://thumbnails.roblox.com/"))
+            return json(200, { data: [{ state: "Completed", imageUrl: "https://tr.rbxcdn.com/game.png" }] });
+        if (url.endsWith("/headless-sessions"))
+            return json(200, { token: "G1", activities: [] });
+        return json(204, {});
+    });
+    const registry = await import("../dist/bridge/handlers/shared/registry.js");
+    const clientId = registry.registerClient({ username: "p", userId: 1, placeId: 12345, jobId: "j", placeName: "Crash Engine", transport: "http", mobile: true });
+    const entry = registry.getClientById(clientId);
+    entry.lastHttpPoll = Date.now();
+    hook.checkGamePresence();
+    const deadline = Date.now() + 5000;
+    while (!calls.some((c) => c.url.endsWith("/headless-sessions")) && Date.now() < deadline)
+        await new Promise((r) => setTimeout(r, 5));
+    const act = calls.find((c) => c.url.endsWith("/headless-sessions")).body.activities[0];
+    assert.equal(act.name, "Crash Engine");
+    assert.equal(act.details, "Using VoidHub");
+    // (the game icon itself is covered by the icon test; an earlier test switches icons off for this run)
+    assert.deepEqual(act.buttons[0], { label: "See Game Page", url: "https://www.roblox.com/games/12345" });
+    assert.equal(presence.getPresenceStatus("default").active, true);
+
+    registry.unregisterClient(clientId);
+    hook.checkGamePresence();
+    const deadline2 = Date.now() + 5000;
+    while (presence.getPresenceStatus("default").active && Date.now() < deadline2)
+        await new Promise((r) => setTimeout(r, 5));
+    assert.equal(presence.getPresenceStatus("default").active, false, "leaving the game clears the presence");
+    const deadline3 = Date.now() + 5000;
+    while (!calls.some((c) => c.url.endsWith("/headless-sessions/delete")) && Date.now() < deadline3)
+        await new Promise((r) => setTimeout(r, 5));
+    assert.ok(calls.some((c) => c.url.endsWith("/headless-sessions/delete")), "the Discord session is ended");
+    await new Promise((r) => setTimeout(r, 50)); // let the session-token save settle
+});
+
 test("unlinked users are a silent no-op", async () => {
     await store.deleteLink("default");
     calls.length = 0;

@@ -5,6 +5,7 @@ import { createMcpServer } from "./bridge/mcp-transport.js";
 import { initMcpClient } from "./custom-ai/mcp-client.js";
 import { installServerLogCapture } from "./http/server-logs.js";
 import { registerLocalDecompilerLifetime } from "./decompiler/local-process-lifetime.js";
+import { startGamePresenceWatcher } from "./discord/tool-hook.js";
 installServerLogCapture();
 registerLocalDecompilerLifetime();
 import { HTTP_MODE, MCP_AUTH_TOKEN, WS_PORT } from "./config.js";
@@ -35,3 +36,4 @@ else {
     console.error("MCP Server started and connected via stdio.");
 }
 void boot();
+startGamePresenceWatcher();
