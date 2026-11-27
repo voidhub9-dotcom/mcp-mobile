@@ -1,4 +1,4 @@
-import { DISCORD_API_BASE, DISCORD_BUTTON_URL, DISCORD_CLIENT_ID, DISCORD_SHOW_GAME_ICON, DISCORD_HTTP_TIMEOUT_MS, DISCORD_LARGE_IMAGE_KEY, DISCORD_PRESENCE_PLATFORM, PRESENCE_BUTTON_LABEL, type PresencePlatform, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_KEEPALIVE_MS, PRESENCE_LARGE_TEXT, PRESENCE_NAME, PRESENCE_STATE, PRESENCE_THROTTLE_MS, discordOAuthConfigured, } from "./config.js";
+import { DISCORD_API_BASE, DISCORD_BUTTON_URL, DISCORD_CLIENT_ID, DISCORD_SHOW_GAME_BUTTON, PRESENCE_GAME_BUTTON_LABEL, DISCORD_SHOW_GAME_ICON, DISCORD_HTTP_TIMEOUT_MS, DISCORD_LARGE_IMAGE_KEY, DISCORD_PRESENCE_PLATFORM, PRESENCE_BUTTON_LABEL, type PresencePlatform, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_KEEPALIVE_MS, PRESENCE_LARGE_TEXT, PRESENCE_NAME, PRESENCE_STATE, PRESENCE_THROTTLE_MS, discordOAuthConfigured, } from "./config.js";
 import { getGameIconUrl } from "./game-icon.js";
 import { getValidLink, refreshLink } from "./oauth.js";
 import { getLink, saveLink, tokenStorageAvailable, type DiscordLink } from "./token-store.js";
@@ -71,10 +71,25 @@ export interface BuildActivityOptions {
     gameIconUrl?: string | null;
 }
 
+/** Title shown in bold: the Roblox game's name when in a game, else "Void Hub RPC". */
+export function presenceTitle(game: PresenceGame | null | undefined): string {
+    return game?.placeName?.trim() ? truncate(game.placeName, 128) : PRESENCE_NAME;
+}
+
+/** Up to two buttons (Discord's limit): "See Game Page" for the current game, then "Get Void Hub". */
+export function presenceButtons(game: PresenceGame | null | undefined): { label: string; url: string }[] {
+    const buttons: { label: string; url: string }[] = [];
+    if (DISCORD_SHOW_GAME_BUTTON && game && game.placeId > 0)
+        buttons.push({ label: PRESENCE_GAME_BUTTON_LABEL, url: `https://www.roblox.com/games/${game.placeId}` });
+    if (DISCORD_BUTTON_URL)
+        buttons.push({ label: PRESENCE_BUTTON_LABEL, url: DISCORD_BUTTON_URL });
+    return buttons.slice(0, 2);
+}
+
 export function buildActivity(details: string, startMs: number, options: BuildActivityOptions = {}): PresenceActivity {
     const includeButtons = options.includeButtons ?? buttonsAccepted;
     const activity: PresenceActivity = {
-        name: PRESENCE_NAME,
+        name: presenceTitle(options.game),
         type: 0, // Playing
         platform: DISCORD_PRESENCE_PLATFORM,
         ...(DISCORD_CLIENT_ID ? { application_id: DISCORD_CLIENT_ID } : {}),
@@ -91,8 +106,9 @@ export function buildActivity(details: string, startMs: number, options: BuildAc
             small_text: PRESENCE_LARGE_TEXT,
         };
     }
-    if (includeButtons && DISCORD_BUTTON_URL)
-        activity.buttons = [{ label: PRESENCE_BUTTON_LABEL, url: DISCORD_BUTTON_URL }];
+    const buttons = includeButtons ? presenceButtons(options.game) : [];
+    if (buttons.length)
+        activity.buttons = buttons;
     return activity;
 }
 
@@ -226,7 +242,7 @@ async function pushPresence(userKey: string, details: string, sessionStart: numb
             console.error("[Discord] Discord rejected the game icon URL; using the Void Hub logo instead.");
             continue;
         }
-        if (resp.status === 400 && buttonsAccepted && DISCORD_BUTTON_URL && /button/i.test(text)) {
+        if (resp.status === 400 && buttonsAccepted && /button/i.test(text)) {
             buttonsAccepted = false;
             console.error("[Discord] Discord rejected the presence button; continuing without it.");
             continue;

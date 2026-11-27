@@ -160,7 +160,13 @@ test("game icon becomes the big image, with the Void Hub logo as the small badge
         small_image: "void_logo",
         small_text: "Void Hub MCP",
     });
+    assert.equal(act.name, "Cool Game", "title is the game's name, like other executor RPCs");
+    assert.deepEqual(act.buttons, [
+        { label: "See Game Page", url: "https://www.roblox.com/games/606849621" },
+        { label: "Get Void Hub", url: "https://example.test/get" },
+    ]);
     const plain = presence.buildActivity("Making a script", 1);
+    assert.equal(plain.name, "Void Hub RPC");
     assert.deepEqual(plain.assets, { large_image: "void_logo", large_text: "Void Hub MCP" });
 });
 

@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { readBody } from "../../../body.js";
 import { within, resolveAssetImage } from "../../../../discord/app-assets.js";
-import { DEFAULT_DISCORD_USER_KEY, DISCORD_BUTTON_URL, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_LARGE_IMAGE_KEY, DISCORD_REDIRECT_URI, DISCORD_SHOW_GAME_ICON, PRESENCE_BUTTON_LABEL, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_LARGE_TEXT, PRESENCE_NAME, PRESENCE_STATE, TOKEN_ENCRYPTION_KEY, } from "../../../../discord/config.js";
-import { getPresenceStatus } from "../../../../discord/discordPresence.js";
+import { DEFAULT_DISCORD_USER_KEY, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_LARGE_IMAGE_KEY, DISCORD_REDIRECT_URI, DISCORD_SHOW_GAME_ICON, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_LARGE_TEXT, PRESENCE_STATE, TOKEN_ENCRYPTION_KEY, } from "../../../../discord/config.js";
+import { getPresenceStatus, presenceButtons, presenceTitle } from "../../../../discord/discordPresence.js";
 import { getGameIconUrl } from "../../../../discord/game-icon.js";
 import { authRequired, authorize, clearAuthCookie, escapeHtml, hasValidAuthCookie, icon, LOGO_SVG, parseForm, redirect, sendMessage, sendPage, serverTokenMatches, setAuthCookie, toast, type Tone } from "../../../../discord/http.js";
 import { createAuthorizeUrl } from "../../../../discord/oauth.js";
@@ -111,8 +111,8 @@ async function dashboard(res: ServerResponse, flash: string | null): Promise<voi
 <div class="av">${avatar}<span class="on${presence.active ? "" : " idle"}"></span></div>
 <div class="body"><div class="names"><b>${escapeHtml(name)}</b><span>${sub}</span></div>
 <div class="act"><div class="caps">${presence.active ? "Playing · live" : "Playing · preview"}</div>
-<div class="row"><div class="art">${art}</div><div class="t"><b>${escapeHtml(PRESENCE_NAME)}</b><div>${escapeHtml(presence.details ?? "Making a script")}</div><div class="m">${escapeHtml(PRESENCE_STATE)}</div><div class="time">${icon("game", 13)}${fmtElapsed(presence.sessionStart)}</div></div></div>
-${DISCORD_BUTTON_URL ? `<div class="get">${escapeHtml(PRESENCE_BUTTON_LABEL)}</div>` : ""}</div></div></section>`;
+<div class="row"><div class="art">${art}</div><div class="t"><b>${escapeHtml(presenceTitle(game))}</b><div>${escapeHtml(presence.details ?? "Making a script")}</div><div class="m">${escapeHtml(PRESENCE_STATE)}</div><div class="time">${icon("game", 13)}${fmtElapsed(presence.sessionStart)}</div></div></div>
+${presenceButtons(game).map((b) => `<a class="get" href="${escapeHtml(b.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(b.label)}</a>`).join("")}</div></div></section>`;
 
     const tile = (k: string, v: string, on: boolean) => `<div class="tile"><div class="k">${k}</div><div class="v${on ? "" : " off"}"><span>${escapeHtml(v)}</span></div></div>`;
     const tiles = `<section class="tiles">${tile("Discord", link ? "Linked" : "Not linked", Boolean(link))}${tile("Presence", presence.active ? "Live" : "Idle", presence.active)}${tile("Game", game ? game.placeName : "None", Boolean(game))}</section>`;

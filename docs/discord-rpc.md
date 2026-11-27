@@ -8,13 +8,13 @@ It's optional. If the Discord variables aren't set, the server behaves exactly a
 
 | Field | Value |
 |-------|-------|
-| Activity | Playing **Void Hub RPC** |
+| Activity | Playing **the Roblox game you're in** (e.g. `[🐟] Net a Fish!`), or **Void Hub RPC** when no game is connected |
 | Details | What the agent is doing right now (see [Tool → details](#tool--details)) |
 | State | `Connected via Void Hub MCP` |
 | Elapsed time | Since the first tool call of the current session |
 | Large image | The icon of the **Roblox game you're in**, with the game's name as the tooltip. If no game is connected, or the icon can't be loaded, it shows `DISCORD_LARGE_IMAGE_KEY` with the tooltip `Void Hub MCP` |
 | Small image | `DISCORD_LARGE_IMAGE_KEY` (your Void Hub logo) in the corner of the game icon, tooltip `Void Hub MCP` |
-| Button | **Get Void Hub** → `DISCORD_BUTTON_URL` (hidden if not set) |
+| Buttons | **See Game Page** → the game's Roblox page (when in a game), and **Get Void Hub** → `DISCORD_BUTTON_URL` (default `https://discord.gg/4AdJr8emK2`) |
 
 ## How it behaves
 
@@ -51,7 +51,8 @@ Quick tunnels (`trycloudflare.com`) change URL on every restart, so you'd have t
 | `DISCORD_REDIRECT_URI` | yes | `https://YOUR-APP.up.railway.app/auth/discord/callback` | Must match the portal redirect exactly |
 | `TOKEN_ENCRYPTION_KEY` | yes | output of `openssl rand -hex 32` | 32-byte key that encrypts stored tokens (AES-256-GCM). Accepts 64 hex characters or base64 |
 | `DISCORD_LARGE_IMAGE_KEY` | no | `void_logo` | Art asset key or image URL |
-| `DISCORD_BUTTON_URL` | no | — | Link for the **Get Void Hub** button |
+| `DISCORD_BUTTON_URL` | no | `https://discord.gg/4AdJr8emK2` | Link for the **Get Void Hub** button (`off` hides it) |
+| `DISCORD_SHOW_GAME_BUTTON` | no | `true` | `false` hides the **See Game Page** button |
 | `DISCORD_PRESENCE_PLATFORM` | no | `desktop` | Platform reported to Discord: `desktop`, `android`, `ios`, `xbox`, `ps4`, `ps5`, `samsung` or `embedded` |
 | `DISCORD_SHOW_GAME_ICON` | no | `true` | Set to `false` to always use your logo as the big image instead of the current game's icon |
 | `MCP_AUTH_TOKEN` | cloud: yes | — | Protects linking and unlinking (and the rest of the server) |

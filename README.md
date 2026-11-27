@@ -229,13 +229,13 @@ The server can set your Discord Rich Presence straight from Railway, using Disco
 
 | Field | Value |
 |-------|-------|
-| Activity | Playing **Void Hub RPC** |
+| Activity | Playing **the Roblox game you're in**, or **Void Hub RPC** when none is connected |
 | Details | What the agent is doing, e.g. `Making a script`, `Spying on remotes`, `Running get-game-info` |
 | State | `Connected via Void Hub MCP` |
 | Elapsed time | Since the first tool call of the session |
 | Large image | Icon of the Roblox game you're in (tooltip: game name). Falls back to `DISCORD_LARGE_IMAGE_KEY` |
 | Small image | `DISCORD_LARGE_IMAGE_KEY` (your logo), tooltip `Void Hub MCP` |
-| Button | **Get Void Hub** → `DISCORD_BUTTON_URL` |
+| Buttons | **See Game Page** (the game's Roblox page) and **Get Void Hub** → `DISCORD_BUTTON_URL` (default: the Void Hub Discord) |
 
 Updates are throttled to one per 15 seconds and kept alive while you're active. The presence is cleared after 5 minutes with no tool calls. Discord calls never block or fail a tool: if you haven't linked Discord, or Discord is down or slow, tools run exactly as before.
 
@@ -260,7 +260,8 @@ In your Railway service → **Variables**, add:
 | `DISCORD_LARGE_IMAGE_KEY` | no | `void_logo` | Art asset key or image URL |
 | `DISCORD_PRESENCE_PLATFORM` | no | `desktop` | Platform reported to Discord: `desktop`, `android`, `ios`, `xbox`, `ps4`, `ps5`, `samsung` or `embedded` |
 | `DISCORD_SHOW_GAME_ICON` | no | `true` | `false` to always use your logo as the big image |
-| `DISCORD_BUTTON_URL` | no | `https://your-site/void-hub` | "Get Void Hub" button link (no button if empty) |
+| `DISCORD_BUTTON_URL` | no | `https://discord.gg/4AdJr8emK2` | "Get Void Hub" button link (`off` hides it) |
+| `DISCORD_SHOW_GAME_BUTTON` | no | `true` | `false` hides the "See Game Page" button |
 | `MCP_AUTH_TOKEN` | strongly recommended | — | Gates linking and unlinking (see below) |
 | `DISCORD_TOKEN_STORE_PATH` | recommended | `/data/discord-links.json` | Put tokens on a Railway volume so they survive redeploys |
 | `DISCORD_PRESENCE_IDLE_MS` | no | `300000` | Idle time before the presence is cleared |

@@ -20,7 +20,16 @@ export const DISCORD_CLIENT_ID: string | null = process.env.DISCORD_CLIENT_ID?.t
 export const DISCORD_CLIENT_SECRET: string | null = process.env.DISCORD_CLIENT_SECRET?.trim() || null;
 export const DISCORD_REDIRECT_URI: string | null = process.env.DISCORD_REDIRECT_URI?.trim() || null;
 export const DISCORD_LARGE_IMAGE_KEY: string = process.env.DISCORD_LARGE_IMAGE_KEY?.trim() || "void_logo";
-export const DISCORD_BUTTON_URL: string | null = process.env.DISCORD_BUTTON_URL?.trim() || null;
+/** "Get Void Hub" button link. Defaults to the Void Hub Discord server; set to "off" to hide it. */
+export const DEFAULT_BUTTON_URL = "https://discord.gg/4AdJr8emK2";
+export const DISCORD_BUTTON_URL: string | null = (() => {
+    const raw = process.env.DISCORD_BUTTON_URL?.trim();
+    if (raw && /^(off|none|false|0)$/i.test(raw))
+        return null;
+    return raw || DEFAULT_BUTTON_URL;
+})();
+/** Show a "See Game Page" button linking to the current Roblox game (set DISCORD_SHOW_GAME_BUTTON=false to hide). */
+export const DISCORD_SHOW_GAME_BUTTON: boolean = !/^(0|false|no|off)$/i.test(process.env.DISCORD_SHOW_GAME_BUTTON?.trim() || "");
 export const TOKEN_ENCRYPTION_KEY: string | null = process.env.TOKEN_ENCRYPTION_KEY?.trim() || null;
 
 /** Where encrypted tokens live. Point this at a Railway volume so links survive redeploys. */
@@ -48,6 +57,7 @@ export const PRESENCE_KEEPALIVE_MS = envInt("DISCORD_PRESENCE_KEEPALIVE_MS", 2 *
 export const DISCORD_HTTP_TIMEOUT_MS = 8_000;
 
 export const PRESENCE_NAME = "Void Hub RPC";
+export const PRESENCE_GAME_BUTTON_LABEL = "See Game Page";
 export const PRESENCE_STATE = "Connected via Void Hub MCP";
 export const PRESENCE_LARGE_TEXT = "Void Hub MCP";
 export const PRESENCE_BUTTON_LABEL = "Get Void Hub";

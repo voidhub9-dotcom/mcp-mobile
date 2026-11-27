@@ -261,7 +261,9 @@ form{margin:0}
 .act .t div{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .act .t .m{color:var(--muted)}
 .act .t .time{display:flex;align-items:center;gap:5px;color:var(--ok);font-weight:600}
-.act .get{text-align:center;padding:10px;border-radius:10px;background:#ffffff14;font-size:14px;font-weight:600}
+.act .get{display:block;text-align:center;padding:10px;border-radius:10px;background:#ffffff14;font-size:14px;font-weight:600;color:var(--text);text-decoration:none}
+.act .get:hover{background:#ffffff1f}
+.act .get+.get{margin-top:-4px}
 .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .tile{background:var(--raised);border:1px solid var(--border);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0}
 .tile .k{font-size:12px;font-weight:500;color:var(--muted)}
