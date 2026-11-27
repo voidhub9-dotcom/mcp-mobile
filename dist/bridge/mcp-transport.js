@@ -3,6 +3,7 @@ import { StreamableHTTPServerTransport, } from "@modelcontextprotocol/sdk/server
 import crypto from "crypto";
 import { SERVER_NAME } from "../config.js";
 import { registerAllTools } from "../tools/index.js";
+import { installPresenceToolHook } from "../discord/tool-hook.js";
 const SERVER_INFO = {
     name: SERVER_NAME,
     version: "2.0.0",
@@ -37,6 +38,7 @@ const SERVER_OPTIONS = {
 };
 export function createMcpServer() {
     const server = new McpServer(SERVER_INFO, SERVER_OPTIONS);
+    installPresenceToolHook(server);
     registerAllTools(server);
     return server;
 }

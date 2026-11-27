@@ -31,6 +31,7 @@ Use it to see connected Roblox clients, inspect scripts, run tools, view server 
 - **Anti-AFK** — Automatically prevents idle disconnections by responding to the `Player.Idled` event. Keeps you in the game. Control it on demand with the `anti-afk` MCP tool (`enable` / `disable` / `status`).
 - **Server Hop** — Hop the connected client to another public server (`random`, `lowest-players`, `lowest-ping`, or an exact `jobId`), into a different game entirely (`placeId`), or back into the current server (`rejoin`). The connector queues itself via `queue_on_teleport` so the bridge auto-reloads in the destination server and the agent keeps remote control while you are away. See [Server Hop](#server-hop).
 - **Termux Phone Agent** — a shell agent for Termux on the phone, served the same way as the in-game connectors. The `phone-shell` tool runs commands on the phone and returns output and exit code. This is how the agent moves you between GAMES (`termux-open-url "roblox://placeId=..."`), since Roblox blocks cross-creator teleports from inside a client. See [Termux Phone Agent](#termux-phone-agent).
+- **VoidHub RPC (Discord Rich Presence)** — Link your Discord account once and the cloud server shows **Void Hub RPC** as your Discord activity while MCP tools run (e.g. "Making a script"), then clears it after a few idle minutes. No Discord desktop app or local RPC needed. See [VoidHub RPC](#voidhub-rpc-discord-rich-presence).
 - **Claude Remote Connector Support** — Works as a secure custom connector in Claude's web interface. See the [Claude Remote Connector Guide](docs/claude-connector.md).
 - **Custom AI Chat** — Built-in chat interface at `/ai` supporting any Anthropic-compatible API with api-key, bearer token, or custom header auth. Screenshot images are passed to the AI as vision content.
 - **Mobile Support** — Works with mobile executors (Delta, CodeX, VegaX, etc.) with fallbacks for missing APIs. See the [Mobile Setup Guide](docs/setup-mobile.md) or [Mobile-Only Setup Guide](docs/setup-mobile-only.md).
@@ -218,6 +219,69 @@ nohup bash agent.sh >> ~/.mcp-agent/agent.log 2>&1 &
 ```
 
 The Roblox connector in your autoexec folder and the Termux agent run side by side: the connector gives remote control inside the game, the agent gives remote control of the phone itself.
+
+## VoidHub RPC (Discord Rich Presence)
+
+The server can set your Discord Rich Presence straight from Railway, using Discord Social SDK OAuth2 (scopes `openid sdk.social_layer_presence`) and a headless presence session. While MCP tools are being called, your profile shows:
+
+| Field | Value |
+|-------|-------|
+| Activity | Playing **Void Hub RPC** |
+| Details | What the agent is doing, e.g. `Making a script`, `Spying on remotes`, `Running get-game-info` |
+| State | `Connected via Void Hub MCP` |
+| Elapsed time | Since the first tool call of the session |
+| Large image | `DISCORD_LARGE_IMAGE_KEY`, tooltip `Void Hub MCP` |
+| Button | **Get Void Hub** → `DISCORD_BUTTON_URL` |
+
+Updates are throttled to one per 15 seconds and kept alive while you're active. The presence is cleared after 5 minutes with no tool calls. Discord calls never block or fail a tool: if you haven't linked Discord, or Discord is down or slow, tools run exactly as before.
+
+### 1. Discord Developer Portal
+
+1. Go to <https://discord.com/developers/applications> → **New Application**, named e.g. "Void Hub RPC". The application name is what Discord shows as the activity name.
+2. **Social SDK**: open **Discord Social SDK → Getting Started**, fill in the form, and enable the Social SDK for the app. The `sdk.social_layer_presence` scope only works once this is enabled.
+3. **OAuth2 → Redirects**: add `https://<your-railway-domain>/auth/discord/callback` and save.
+4. **OAuth2**: copy the **Client ID**, and **Reset Secret** to get the **Client Secret**.
+5. **Rich Presence → Art Assets**: upload your logo with the key `void_logo`, or set `DISCORD_LARGE_IMAGE_KEY` to an `https://` image URL.
+
+### 2. Railway variables
+
+In your Railway service → **Variables**, add:
+
+| Variable | Required | Example / default | Purpose |
+|----------|----------|-------------------|---------|
+| `DISCORD_CLIENT_ID` | yes | `1234567890` | OAuth2 client id |
+| `DISCORD_CLIENT_SECRET` | yes | — | OAuth2 client secret |
+| `DISCORD_REDIRECT_URI` | yes | `https://your-app.up.railway.app/auth/discord/callback` | Must exactly match the portal redirect |
+| `TOKEN_ENCRYPTION_KEY` | yes | output of `openssl rand -hex 32` | Encrypts stored tokens (AES-256-GCM) |
+| `DISCORD_LARGE_IMAGE_KEY` | no | `void_logo` | Art asset key or image URL |
+| `DISCORD_BUTTON_URL` | no | `https://your-site/void-hub` | "Get Void Hub" button link (no button if empty) |
+| `MCP_AUTH_TOKEN` | strongly recommended | — | Gates linking and unlinking (see below) |
+| `DISCORD_TOKEN_STORE_PATH` | recommended | `/data/discord-links.json` | Put tokens on a Railway volume so they survive redeploys |
+| `DISCORD_PRESENCE_IDLE_MS` | no | `300000` | Idle time before the presence is cleared |
+| `DISCORD_PRESENCE_THROTTLE_MS` | no | `15000` | Minimum gap between updates (cannot go below 15000) |
+| `DISCORD_PRESENCE_KEEPALIVE_MS` | no | `120000` | How often the presence is re-sent while active |
+
+Railway's filesystem is wiped on every deploy. Attach a **Volume** (e.g. mounted at `/data`) and set `DISCORD_TOKEN_STORE_PATH=/data/discord-links.json`, or you'll need to re-link after each deploy. If `TOKEN_ENCRYPTION_KEY` changes, existing links can't be decrypted and you must re-link.
+
+### 3. Link your account
+
+Open `https://<your-railway-domain>/auth/discord`. If `MCP_AUTH_TOKEN` is set, enter it first, then approve on Discord. Use the same page's **Unlink Discord** button to remove the link.
+
+### Endpoints
+
+| Method | Path | Auth (when `MCP_AUTH_TOKEN` is set) | What it does |
+|--------|------|------|--------------|
+| `GET` | `/auth/discord` | form asks for the token | Starts linking. Redirects to Discord with a one-time CSRF `state` (or shows the token form) |
+| `POST` | `/auth/discord` | `server_token` form field | Checks the token, then redirects to Discord |
+| `GET` | `/auth/discord/callback` | CSRF `state` | Exchanges the code, then stores encrypted access and refresh tokens |
+| `POST` | `/auth/discord/unlink` | `Authorization: Bearer <MCP_AUTH_TOKEN>` or `server_token` field | Clears the live presence, revokes the tokens at Discord, deletes them |
+| `GET` | `/auth/discord/status` | `Authorization: Bearer <MCP_AUTH_TOKEN>` | JSON: configured, linked, token expiry, current presence |
+
+```bash
+curl -X POST -H "Authorization: Bearer $MCP_AUTH_TOKEN" https://your-app.up.railway.app/auth/discord/unlink
+```
+
+Access tokens are refreshed automatically when they are within 5 minutes of expiry, or if Discord rejects them. The server has a single shared `MCP_AUTH_TOKEN`, so there is one linked Discord account per deployment.
 
 ## Claude (claude.ai) Custom Connector
 
