@@ -35,8 +35,18 @@ export const DISCORD_SHOW_GAME_BUTTON: boolean = !/^(0|false|no|off)$/i.test(pro
 export const TOKEN_ENCRYPTION_KEY: string | null = process.env.TOKEN_ENCRYPTION_KEY?.trim() || null;
 
 /** Where encrypted tokens live. Point this at a Railway volume so links survive redeploys. */
+// Railway sets RAILWAY_VOLUME_MOUNT_PATH when a Volume is attached, so a link
+// survives redeploys without any extra variable.
+const RAILWAY_VOLUME = process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim() || null;
+export const ON_RAILWAY = Boolean(process.env.RAILWAY_PROJECT_ID || process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_ENVIRONMENT_NAME);
 export const DISCORD_TOKEN_STORE_PATH: string = process.env.DISCORD_TOKEN_STORE_PATH?.trim() ||
-    path.join(os.homedir(), ".roblox-mcp", "discord-links.json");
+    (RAILWAY_VOLUME ? path.join(RAILWAY_VOLUME, "discord-links.json") : path.join(os.homedir(), ".roblox-mcp", "discord-links.json"));
+/**
+ * False when running on Railway with the token file on the container's own disk,
+ * which Railway wipes on every redeploy (so the Discord link would be lost).
+ */
+export const TOKEN_STORE_PERSISTENT: boolean = !ON_RAILWAY ||
+    (RAILWAY_VOLUME !== null && path.resolve(DISCORD_TOKEN_STORE_PATH).startsWith(path.resolve(RAILWAY_VOLUME) + path.sep));
 
 /** Show the current Roblox game's icon as the big image (VoidHub logo becomes the small badge). */
 export const DISCORD_SHOW_GAME_ICON: boolean = !/^(0|false|no|off)$/i.test(process.env.DISCORD_SHOW_GAME_ICON?.trim() || "");

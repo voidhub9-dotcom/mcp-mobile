@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { DEFAULT_DISCORD_USER_KEY, discordOAuthConfigured } from "../../../../discord/config.js";
+import { DEFAULT_DISCORD_USER_KEY, TOKEN_STORE_PERSISTENT, discordOAuthConfigured } from "../../../../discord/config.js";
 import { getPresenceStatus, presenceEnabled } from "../../../../discord/discordPresence.js";
 import { authorize, sendJson } from "../../../../discord/http.js";
 import { getLink, tokenStorageAvailable } from "../../../../discord/token-store.js";
@@ -15,6 +15,7 @@ export async function GET(req: IncomingMessage, res: ServerResponse): Promise<vo
     sendJson(res, 200, {
         configured: discordOAuthConfigured(),
         tokenStorage: tokenStorageAvailable(),
+        tokenStorePersistent: TOKEN_STORE_PERSISTENT,
         enabled: presenceEnabled(),
         linked: Boolean(link),
         discordUserId: link?.discordUserId ?? null,

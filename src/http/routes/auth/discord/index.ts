@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { readBody } from "../../../body.js";
 import { within, previewLogoUrl } from "../../../../discord/app-assets.js";
-import { DEFAULT_DISCORD_USER_KEY, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI, DISCORD_SHOW_GAME_ICON, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_LARGE_TEXT, PRESENCE_STATE, TOKEN_ENCRYPTION_KEY, } from "../../../../discord/config.js";
+import { DEFAULT_DISCORD_USER_KEY, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI, DISCORD_SHOW_GAME_ICON, PRESENCE_IDLE_TIMEOUT_MS, PRESENCE_LARGE_TEXT, PRESENCE_STATE, TOKEN_ENCRYPTION_KEY, TOKEN_STORE_PERSISTENT, } from "../../../../discord/config.js";
 import { getPresenceStatus, presenceButtons, presenceTitle } from "../../../../discord/discordPresence.js";
 import { getGameIconUrl } from "../../../../discord/game-icon.js";
 import { authRequired, authorize, clearAuthCookie, escapeHtml, hasValidAuthCookie, icon, LOGO_SVG, parseForm, redirect, sendMessage, sendPage, serverTokenMatches, setAuthCookie, toast, type Tone } from "../../../../discord/http.js";
@@ -133,12 +133,13 @@ ${signOut}</section>`;
     const saved = presence.lastSaved
         ? `<details class="card saved"><summary class="label">What Discord saved</summary><p class="small">Exactly what Discord stored for your status on the last update. Buttons only show to <b>other people</b> on Discord, never on your own profile.</p><pre>${escapeHtml(JSON.stringify(presence.lastSaved, null, 2))}</pre></details>`
         : "";
+    const volumeWarn = TOKEN_STORE_PERSISTENT ? "" : toast("error", "<b>Your Discord link is wiped on every redeploy.</b> In Railway, open your service → right-click → <b>Attach Volume</b>, set the mount path to <code>/data</code>, then link once more. After that it stays linked.");
     const note = `<p class="foot">Updates while the AI uses tools · clears after ${Math.round(PRESENCE_IDLE_TIMEOUT_MS / 60_000)} idle minutes</p>`;
     const pill = presence.active ? `<span class="pill">Live</span>` : link ? `<span class="pill off">Idle</span>` : "";
     sendPage(res, 200, {
         title: link ? "Dashboard" : "Link Discord",
         headerRight: pill,
-        body: (flash && FLASH[flash] ? toast(FLASH[flash].tone, FLASH[flash].html) : "") + profile + tiles + actions + saved + note,
+        body: volumeWarn + (flash && FLASH[flash] ? toast(FLASH[flash].tone, FLASH[flash].html) : "") + profile + tiles + actions + saved + note,
     });
 }
 

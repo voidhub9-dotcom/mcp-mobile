@@ -56,7 +56,7 @@ Quick tunnels (`trycloudflare.com`) change URL on every restart, so you'd have t
 | `DISCORD_PRESENCE_PLATFORM` | no | `desktop` | Platform reported to Discord: `desktop`, `android`, `ios`, `xbox`, `ps4`, `ps5`, `samsung` or `embedded` |
 | `DISCORD_SHOW_GAME_ICON` | no | `true` | Set to `false` to always use your logo as the big image instead of the current game's icon |
 | `MCP_AUTH_TOKEN` | cloud: yes | — | Protects linking and unlinking (and the rest of the server) |
-| `DISCORD_TOKEN_STORE_PATH` | cloud: recommended | `~/.roblox-mcp/discord-links.json` | Where encrypted tokens are saved |
+| `DISCORD_TOKEN_STORE_PATH` | no | the Railway Volume if attached, else `~/.roblox-mcp/discord-links.json` | Where encrypted tokens are saved |
 | `DISCORD_PRESENCE_IDLE_MS` | no | `300000` | Idle time before the presence is cleared (1 to 60 minutes) |
 | `DISCORD_PRESENCE_THROTTLE_MS` | no | `15000` | Minimum gap between updates (cannot go below 15000) |
 | `DISCORD_PRESENCE_KEEPALIVE_MS` | no | `120000` | How often the presence is re-sent while active |
@@ -65,7 +65,7 @@ A commented template is in [`.env.example`](../.env.example).
 
 ### Railway
 
-Open your service, go to **Variables**, add the variables above, and redeploy. Railway's disk is wiped on every deploy, so **add a Volume** (**Settings → Volumes**, mounted at `/data`) and set `DISCORD_TOKEN_STORE_PATH=/data/discord-links.json`. Without it, you'll need to re-link after each deploy.
+Open your service, go to **Variables**, add the variables above, and redeploy. Railway's disk is wiped on every deploy, so **attach a Volume** mounted at `/data`. The server detects it (`RAILWAY_VOLUME_MOUNT_PATH`) and saves the link there automatically, so you link once and it stays linked through redeploys and every game. Without a Volume, the VoidHub RPC page shows a red warning and you'd have to re-link after each deploy.
 
 ### Render
 
